@@ -1,0 +1,30 @@
+# Dépendances et fichiers générés
+node_modules/
+public/vendor/
+public/fonts/
+public/img/covers/
+public/img/artists/
+public/img/og/
+public/img/icon-*.png
+public/favicon.ico
+public/favicon.svg
+public/apple-touch-icon.png
+data/images.json
+
+# Données privées : ne jamais publier
+.env
+data/*.db
+data/*.db-*
+data/secret.key
+data/backups/
+data/credits.json
+data/fetch-report.json
+certs/
+
+# Images téléchargées (droits d'auteur des ayants droit)
+data/sources/
+
+.DS_Store
+Thumbs.db
+
+__pycache__/

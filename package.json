@@ -1,0 +1,48 @@
+{
+  "name": "myrapfr",
+  "version": "0.1.0",
+  "description": "MyRapFr — le carnet d’écoute du rap français",
+  "scripts": {
+    "postinstall": "node scripts/vendor.js",
+    "setup": "node scripts/images.js && node scripts/cert.js",
+    "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch server/index.js",
+    "cert": "node scripts/cert.js",
+    "images": "node scripts/images.js",
+    "catalogue:fetch": "node --disable-warning=ExperimentalWarning scripts/fetch-catalogue.js",
+    "demo": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/demo.js",
+    "backup": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/backup.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
+    "check:links": "node scripts/check-links.js",
+    "check:contrast": "node scripts/check-contrast.js",
+    "check:perf": "node scripts/check-perf.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/svmacode/projet.git"
+  },
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/svmacode/projet/issues"
+  },
+  "homepage": "https://github.com/svmacode/projet#readme",
+  "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "compression": "^1.8.2",
+    "esbuild": "^0.28.2",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.1",
+    "gsap": "^3.15.0",
+    "helmet": "^8.3.0",
+    "lenis": "^1.3.26",
+    "selfsigned": "^5.5.0",
+    "sharp": "^0.35.5",
+    "three": "^0.186.1",
+    "zod": "^4.6.5"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  }
+}
