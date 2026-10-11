@@ -23,6 +23,7 @@ export function albumsPage({ result, filters, totalAll, status = {} }) {
   <section class="page-head page-head-dark">
     <h1 class="display" data-split>Albums.</h1>
     <p class="lede">${totalAll.toLocaleString('fr-FR')} albums, mixtapes et EP du rap français, de 1991 à aujourd'hui.</p>
+    <p><a class="btn btn-quiet btn-sm" href="/au-hasard">🎲 Un album au hasard</a></p>
   </section>
   <section class="catalogue" data-catalogue>
     <p class="sync-note" data-sync ${raw(status.running ? '' : 'hidden')}>

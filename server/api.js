@@ -660,6 +660,13 @@ export function apiRouter(db, q) {
     res.json({ avatar: null });
   });
 
+  // Résumé hebdomadaire par e-mail (consentement explicite, révocable à tout moment).
+  api.put('/me/digest', requireAuth, (req, res) => {
+    const enabled = req.body?.enabled === true;
+    db.prepare('UPDATE users SET digest = ? WHERE id = ?').run(enabled ? 1 : 0, req.user.id);
+    res.json({ enabled });
+  });
+
   api.put('/me/password', requireAuth, authLimiter, async (req, res) => {
     const data = validate(schemas.changePassword, req, res);
     if (!data) return;
@@ -678,7 +685,7 @@ export function apiRouter(db, q) {
     const all = (sql) => db.prepare(sql).all(id);
     const data = {
       exportedAt: new Date().toISOString(),
-      account: db.prepare('SELECT username, email, display_name, avatar, bio, email_verified_at, terms_accepted_at, created_at, utm_source, utm_medium, utm_campaign FROM users WHERE id = ?').get(id),
+      account: db.prepare('SELECT username, email, display_name, avatar, bio, digest, email_verified_at, terms_accepted_at, created_at, utm_source, utm_medium, utm_campaign FROM users WHERE id = ?').get(id),
       albums: all('SELECT al.slug, al.title, s.rating, s.liked, s.listened, s.wishlist, s.updated_at FROM user_albums s JOIN albums al ON al.id = s.album_id WHERE s.user_id = ?'),
       diary: all('SELECT al.slug, al.title, r.rating, r.body, r.listened_on, r.created_at FROM reviews r JOIN albums al ON al.id = r.album_id WHERE r.user_id = ?'),
       favorites: all('SELECT al.slug, f.position FROM favorites f JOIN albums al ON al.id = f.album_id WHERE f.user_id = ?'),

@@ -1803,3 +1803,17 @@ body::after {
 .badge-progress svg { width: 100%; height: 6px; color: var(--blue); }
 .badge-progress rect { fill: currentColor; }
 .badge-progress rect.track { fill: var(--line); }
+
+/* ---------- Fil : album du jour, pour toi ---------- */
+.day-album { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; padding: 16px; border-radius: var(--radius-l); background: var(--panel); color: var(--ink); }
+.day-album .cover { width: 96px; height: 96px; border-radius: 10px; flex: none; }
+.day-album > span { display: grid; gap: 2px; }
+.day-album small { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
+.day-album strong { font-size: 22px; letter-spacing: -0.02em; }
+.day-album span span { color: var(--ink-2); font-size: 15px; }
+.for-you { margin: 8px 0 40px; }
+.for-you .row-scroll { gap: 16px; }
+.for-you-item { display: grid; gap: 4px; align-content: start; min-width: 0; }
+#wish-t { display: flex; align-items: center; gap: 12px; }
+.check { display: flex; gap: 10px; align-items: flex-start; line-height: 1.4; cursor: pointer; }
+.check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--blue); flex: none; }

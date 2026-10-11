@@ -472,3 +472,32 @@ test('badges : débloqués par l\'activité, annoncés et affichés', async () =
   assert.match((await c.call('GET', '/membre/collectionneuse')).data, /badge-strip/);
   assert.ok((await c.call('GET', '/api/v1/notifications')).data.notifications.some((n) => n.type === 'badge'));
 });
+
+test('pour toi, album du jour, au hasard, résumé hebdomadaire', async () => {
+  const a = client();
+  const b = client();
+  await register(a, 'curieuse');
+  await register(b, 'prescripteur');
+  await a.call('POST', '/api/v1/users/prescripteur/follow');
+  await b.call('PUT', '/api/v1/albums/booba-nero-nemesis/state', { listened: true, rating: 10 });
+  const feed = await a.call('GET', '/fil');
+  assert.match(feed.data, /Album du jour/);
+  assert.match(feed.data, /Pour toi/);
+  assert.match(feed.data, /Adoré par prescripteur/);
+  const random = await a.call('GET', '/au-hasard');
+  assert.equal(random.status, 302);
+  assert.match(random.headers.get('location'), /^\/album\//);
+  // Résumé : désactivé par défaut, activable, texte complet, désabonnement signé.
+  const { digestText, unsubscribeUrl } = await import('../server/digest.js');
+  const db = app.locals.db;
+  assert.equal(db.prepare("SELECT digest FROM users WHERE username = 'curieuse'").get().digest, 0);
+  assert.equal((await a.call('PUT', '/api/v1/me/digest', { enabled: true })).data.enabled, true);
+  const user = db.prepare("SELECT id, display_name FROM users WHERE username = 'curieuse'").get();
+  const text = digestText(db, user);
+  assert.match(text, /Défi du mois/);
+  assert.match(text, /Ne plus recevoir ce résumé/);
+  const url = new URL(unsubscribeUrl(user.id));
+  assert.equal((await client().call('GET', `/desabonnement?u=${user.id}&t=faux`)).status, 400);
+  assert.equal((await client().call('GET', url.pathname + url.search)).status, 200);
+  assert.equal(db.prepare('SELECT digest FROM users WHERE id = ?').get(user.id).digest, 0);
+});

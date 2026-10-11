@@ -240,3 +240,15 @@ document.querySelector('[data-blocked-panel]')?.addEventListener('click', async 
     toast('Membre débloqué');
   } catch (err) { toast(err.message, { error: true }); busy(btn, false); }
 });
+
+// ---------- Résumé hebdomadaire ----------
+document.querySelector('[data-digest]')?.addEventListener('change', async (e) => {
+  const box = e.currentTarget;
+  try {
+    const { enabled } = await api('/me/digest', { method: 'PUT', body: { enabled: box.checked } });
+    toast(enabled ? 'Tu recevras le résumé chaque lundi' : 'Résumé hebdomadaire désactivé');
+  } catch (err) {
+    box.checked = !box.checked;
+    toast(err.message, { error: true });
+  }
+});

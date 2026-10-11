@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { config } from './config.js';
 import { createApp } from './app.js';
 import { autoFetchImages } from './auto-images.js';
+import { startDigest } from './digest.js';
 
 const app = createApp();
 
@@ -52,6 +53,7 @@ if (config.hasCert) {
 // Au premier démarrage (puis toutes les 6 h tant qu'il en manque), récupère les vraies pochettes
 // et photos en arrière-plan. Le site reste utilisable pendant ce temps.
 autoFetchImages(app.locals.db);
+startDigest(app.locals.db);
 
 // Dernier filet : une erreur oubliée est affichée, mais le site continue de tourner.
 process.on('unhandledRejection', (err) => {

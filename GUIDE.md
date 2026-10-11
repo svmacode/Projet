@@ -29,6 +29,10 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
   - sur chaque album : **liste des titres et durée** (Deezer) et **liens d'écoute** Deezer, Spotify, Apple Music et YouTube Music ;
   - **statistiques** de chaque membre et **bilan de l'année** partageable, façon « Year in Review » ;
   - **classements** (en ce moment, mieux notés, chroniques les plus aimées, membres actifs) et **défi d'écoute du mois** ;
+  - **badges** (17, de « Première écoute » à « Légende ») avec vitrine sur le profil et page de progression ;
+  - **listes à plusieurs** : invite des amis à compléter une liste, classe les albums et ajoute une note à chacun ;
+  - dans le fil d'actu : **album du jour**, suggestions **Pour toi** (ce que tes amis adorent, tes rappeurs préférés) et bouton **album au hasard** ;
+  - **résumé hebdomadaire par e-mail**, seulement pour les membres qui le demandent (paramètres), envoyé le lundi une fois Brevo branché ;
   - **application installable** : bouton « Installer l'application » en bas de page (Chrome, Edge, Android) ou, sur iPhone, Partager → « Sur l'écran d'accueil » ;
   - fil d'actu.
 - **Mouvement** :
@@ -260,7 +264,6 @@ Ton PC ouvre une connexion sortante vers Cloudflare, qui sert le site au public 
 
 ## 8. Prochaines étapes possibles
 
-- Notifications par e-mail (résumé hebdomadaire), une fois Brevo branché.
-- Importer son historique d'écoute depuis Last.fm ou Spotify.
-- Listes collaboratives et listes classées avec commentaires.
-- Badges (premier défi réussi, 100 albums écoutés…).
+- Importer son historique d'écoute depuis Last.fm (clé d'API gratuite à créer) ou un fichier CSV.
+- Fiches des rappeurs enrichies : featurings les plus fréquents, labels, chronologie.
+- Messages privés entre amis (à modérer avec soin).

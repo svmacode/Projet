@@ -4,6 +4,7 @@ Le carnet d'écoute du rap français, sur le modèle de Letterboxd : noter les a
 
 - **Catalogue** : les discographies complètes (albums, mixtapes, EP) d'environ 220 rappeurs et groupes, récupérées automatiquement sur Deezer, plus une sélection éditoriale de 148 classiques (`catalogue.js`, à la racine du projet).
 - **Social** : amis, fil d'actu, commentaires, notifications, photos de profil, blocage, signalements et page de modération.
+- **Engagement** : badges, listes à plusieurs, album du jour, suggestions « Pour toi », album au hasard, résumé hebdomadaire par e-mail (sur demande).
 - **Découverte** : titres et durée de chaque album, liens d'écoute (Deezer, Spotify, Apple Music, YouTube Music), classements, défi d'écoute du mois, statistiques et bilan de l'année de chaque membre.
 - **Application** : installable sur téléphone et ordinateur (PWA), avec une page hors ligne.
 - **Design** : la charte d'Apple (noir, gris `#f5f5f7`, un seul bleu d'action), centré sur l'image, avec GSAP, Lenis et Three.js.

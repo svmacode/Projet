@@ -154,6 +154,10 @@ function migrate(db) {
   db.exec("DELETE FROM utm_stats WHERE day < date('now', '-90 days')"); // conservation : 90 jours
   const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userCols.includes('avatar')) db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); // photo de profil (voir avatars.js)
+  if (!userCols.includes('digest')) { // résumé hebdomadaire par e-mail, désactivé par défaut (voir digest.js)
+    db.exec('ALTER TABLE users ADD COLUMN digest INTEGER NOT NULL DEFAULT 0');
+    db.exec('ALTER TABLE users ADD COLUMN digest_sent_at TEXT');
+  }
   // Modération : rôle (member / admin) et suspension d'un compte.
   if (!userCols.includes('role')) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
   if (!userCols.includes('suspended_at')) {

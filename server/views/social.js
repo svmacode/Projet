@@ -69,7 +69,7 @@ export function profilePage({ profile: p, user, badges = [] }) {
     </section>
 
     <section id="a-ecouter" class="profile-section" aria-labelledby="wish-t">
-      <h2 id="wish-t" class="h-section">À écouter</h2>
+      <h2 id="wish-t" class="h-section">À écouter ${p.isMe && p.wishlist.length ? html`<a class="btn btn-quiet btn-sm" href="/au-hasard?liste=a-ecouter">🎲 Piocher</a>` : ''}</h2>
       ${p.wishlist.length ? html`<div class="grid grid-small">${p.wishlist.map((a) => tile(a, { gl: false }))}</div>` : html`<p class="empty-note">Rien en attente.</p>`}
     </section>
 
@@ -153,14 +153,23 @@ export function listPage({ list, user, friends = [] }) {
   </section>`;
 }
 
-export function feedPage({ feed, recent, user, challenge = '' }) {
+export function feedPage({ feed, recent, user, challenge = '', forYou = [], dayAlbum = null }) {
   return html`
   <section class="page-head page-head-dark">
     <h1 class="display" data-split>Fil d'actu.</h1>
     <p class="lede">Les dernières écoutes des membres que tu suis.</p>
   </section>
   <section class="feed">
+    ${dayAlbum ? html`<a class="day-album" href="/album/${dayAlbum.slug}">
+      ${cover(dayAlbum, { sizes: '120px' })}
+      <span><small>Album du jour</small><strong>${dayAlbum.title}</strong><span>${dayAlbum.artist.name} · ${dayAlbum.year}</span></span>
+    </a>` : ''}
     ${challenge}
+    ${forYou.length ? html`<section class="for-you" aria-labelledby="for-you-t">
+      <h2 id="for-you-t" class="h-section">Pour toi <small>selon tes écoutes et tes amis</small></h2>
+      <div class="row-scroll">${forYou.map((a) => html`<div class="for-you-item">${tile(a, { gl: false, sizes: '180px' })}<span class="chart-note">${a.reason}</span></div>`)}</div>
+      <p><a class="btn btn-quiet btn-sm" href="/au-hasard">🎲 Un album au hasard</a></p>
+    </section>` : ''}
     ${feed.length ? feed.map((r) => review(r, { showAlbum: true, viewer: user }))
       : html`<div class="empty-block">
           <p class="empty-note">Ton fil est vide. Suis des membres pour voir leurs écoutes ici.</p>

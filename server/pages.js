@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import { config } from './config.js';
+import { html } from './html.js';
 import { catalogStatus } from './auto-images.js';
 import { streamCss } from './views/stream.js';
 import { issueFormToken } from './security.js';
@@ -16,6 +17,9 @@ import { statsQueries } from './stats.js';
 import { chartsQueries } from './charts.js';
 import { badgeEngine } from './badges.js';
 import { badgesPage } from './views/stats.js';
+import { recommender } from './recommend.js';
+import { checkUnsubscribe } from './digest.js';
+import { mailEnabled } from './mailer.js';
 import { chartsPage, challengePage, challengeCard } from './views/charts.js';
 import { moderation } from './moderation.js';
 import { listenLinks } from './album-details.js';
@@ -45,6 +49,7 @@ export function pagesRouter(db, q) {
   const stats = statsQueries(db);
   const charts = chartsQueries(db);
   const badges = badgeEngine(db);
+  const recommend = recommender(db);
 
   const send = (req, res, opts) => {
     res.set('Cache-Control', 'no-cache');
@@ -253,6 +258,24 @@ export function pagesRouter(db, q) {
     });
   });
 
+  // Désabonnement du résumé hebdomadaire, en un clic depuis l'e-mail (lien signé, sans connexion).
+  r.get('/desabonnement', (req, res) => {
+    const id = Number.parseInt(req.query.u, 10);
+    const ok = Number.isSafeInteger(id) && checkUnsubscribe(id, req.query.t);
+    if (ok) db.prepare('UPDATE users SET digest = 0 WHERE id = ?').run(id);
+    send(req, res, {
+      title: 'Désabonnement', path: '/desabonnement', theme: 'light', noindex: true, status: ok ? 200 : 400,
+      body: html`<section class="page-head"><h1 class="display">${ok ? 'C\'est noté.' : 'Lien invalide.'}</h1>
+        <p class="lede">${ok ? 'Tu ne recevras plus le résumé hebdomadaire. Tu peux le réactiver dans tes paramètres.' : 'Ce lien de désabonnement est incomplet. Désactive le résumé depuis tes paramètres.'}</p></section>`,
+    });
+  });
+
+  // Album au hasard (dans « À écouter » avec ?liste=a-ecouter).
+  r.get('/au-hasard', (req, res) => {
+    const slug = recommend.random(req.user?.id || 0, { wishlist: req.query.liste === 'a-ecouter' }) || recommend.random();
+    res.set('Cache-Control', 'no-store').redirect(302, slug ? `/album/${slug}` : '/albums');
+  });
+
   r.get('/classements', (req, res) => {
     const viewer = req.user?.id || 0;
     let trendingDays = 7;
@@ -295,7 +318,7 @@ export function pagesRouter(db, q) {
     if (!needUser(req, res)) return;
     send(req, res, {
       title: "Fil d'actu", path: '/fil', theme: 'dark', noindex: true,
-      body: feedPage({ feed: q.feed(req.user.id), recent: q.recentReviews(12, req.user.id), user: req.user, challenge: challengeCard(charts.challenge(req.user.id)) }),
+      body: feedPage({ feed: q.feed(req.user.id), recent: q.recentReviews(12, req.user.id), user: req.user, challenge: challengeCard(charts.challenge(req.user.id)), forYou: recommend.forYou(req.user.id), dayAlbum: recommend.albumOfDay() }),
       scripts: ['/js/pages/album.js'],
     });
   });
@@ -317,12 +340,12 @@ export function pagesRouter(db, q) {
 
   r.get('/compte', (req, res) => {
     if (!needUser(req, res)) return;
-    const me = db.prepare('SELECT username, email, display_name, avatar, bio, email_verified_at FROM users WHERE id = ?').get(req.user.id);
+    const me = db.prepare('SELECT username, email, display_name, avatar, bio, digest, email_verified_at FROM users WHERE id = ?').get(req.user.id);
     me.favorites = db.prepare('SELECT al.slug FROM favorites f JOIN albums al ON al.id = f.album_id WHERE f.user_id = ? ORDER BY position')
       .all(req.user.id).map((x) => x.slug);
     send(req, res, {
       title: 'Paramètres', path: '/compte', theme: 'light', noindex: true,
-      body: settingsPage({ me, albums: q.albums({ sort: 'title' }), picks: q.avatarPicks(req.user.id), blocked: q.blockedBy(req.user.id) }), scripts: ['/js/pages/account.js'],
+      body: settingsPage({ me, albums: q.albums({ sort: 'title' }), picks: q.avatarPicks(req.user.id), blocked: q.blockedBy(req.user.id), mailEnabled }), scripts: ['/js/pages/account.js'],
     });
   });
 

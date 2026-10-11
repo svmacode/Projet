@@ -77,7 +77,7 @@ export function confirmPage({ token }) {
     </div>`);
 }
 
-export function settingsPage({ me, albums, picks = [], blocked = [] }) {
+export function settingsPage({ me, albums, picks = [], blocked = [], mailEnabled = false }) {
   return html`
   <section class="page-head">
     <h1 class="display">Paramètres.</h1>
@@ -142,6 +142,12 @@ export function settingsPage({ me, albums, picks = [], blocked = [] }) {
       ${field({ id: 'password', label: 'Nouveau mot de passe', type: 'password', autocomplete: 'new-password', help: '10 caractères minimum. Tes autres appareils seront déconnectés.', attrs: 'required minlength="10" maxlength="200"' })}
       <button class="btn btn-quiet" type="submit">Changer le mot de passe</button>
     </form>
+
+    <div class="panel">
+      <h2 class="h-section">Résumé de la semaine</h2>
+      <label class="check"><input type="checkbox" data-digest ${me.digest ? 'checked' : ''}> Recevoir chaque lundi un e-mail avec l'activité de mes amis, ma progression au défi et des suggestions d'albums.</label>
+      <p class="field-help">${mailEnabled ? 'Tu peux te désabonner à tout moment, ici ou depuis le lien en bas de chaque e-mail.' : "L'envoi d'e-mails n'est pas encore activé sur ce site : ton choix sera pris en compte dès qu'il le sera."}</p>
+    </div>
 
     <div class="panel" data-blocked-panel>
       <h2 class="h-section">Membres bloqués</h2>

@@ -41,7 +41,8 @@ export function privacyPage() {
         <tr><td>Cookie de session (identifiant aléatoire)</td><td>Te garder connecté</td><td>Intérêt légitime, cookie strictement nécessaire</td><td>30 jours maximum</td></tr>
         <tr><td>Adresse IP (en mémoire vive uniquement)</td><td>Limiter les abus (anti-spam, tentatives de connexion)</td><td>Intérêt légitime</td><td>15 minutes à 1 heure, jamais écrite sur disque</td></tr>
         <tr><td>Signalements (chroniques et profils) et journal des décisions de modération</td><td>Modérer les contenus et pouvoir justifier les décisions</td><td>Intérêt légitime et obligation légale (LCEN, DSA)</td><td>Jusqu'au traitement, puis 1 an</td></tr>
-        <tr><td>Notifications (nouvel abonné, j'aime, commentaire)</td><td>Te prévenir de l'activité qui te concerne</td><td>Exécution du contrat</td><td>6 mois</td></tr>
+        <tr><td>Adresse e-mail pour le résumé hebdomadaire (seulement si tu l'as demandé)</td><td>T'envoyer chaque lundi l'activité de tes amis et des suggestions</td><td>Consentement (case à cocher dans tes paramètres, révocable à tout moment)</td><td>Jusqu'à ton désabonnement</td></tr>
+        <tr><td>Notifications (nouvel abonné, j'aime, commentaire, badge, invitation à une liste)</td><td>Te prévenir de l'activité qui te concerne</td><td>Exécution du contrat</td><td>6 mois</td></tr>
         <tr><td>Membres que tu as bloqués</td><td>Te protéger des interactions non souhaitées</td><td>Exécution du contrat</td><td>Jusqu'au déblocage ou à la suppression du compte</td></tr>
         <tr><td>Compteurs de campagnes (UTM), sans aucun identifiant</td><td>Savoir quels liens partagés amènent des visiteurs</td><td>Intérêt légitime (statistique anonyme)</td><td>90 jours</td></tr>
         <tr><td>Campagne d'arrivée associée à ton compte</td><td>Savoir quels partages amènent des inscriptions</td><td>Consentement (bandeau cookies)</td><td>Tant que le compte existe</td></tr>
