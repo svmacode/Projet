@@ -1,5 +1,6 @@
-// Vérifications lancées automatiquement avant `npm start` et `npm run dev` (scripts « prestart »
-// et « predev »). Sans dépendance : elles doivent marcher même si `npm install` n'a pas été fait.
+// Vérifications lancées automatiquement avant `npm start`, `npm run demo` et `npm run dev`
+// (scripts « prestart », « predemo » et « predev »). Sans dépendance : elles doivent marcher même
+// si `npm install` n'a pas été fait.
 // En cas de problème, un message clair en français remplace l'erreur technique de Node.
 import fs from 'node:fs';
 import net from 'node:net';
@@ -27,22 +28,34 @@ const hasCert = fs.existsSync(process.env.TLS_CERT || path.join(root, 'certs', '
 const ports = [Number(process.env.PORT || 8080)];
 if (hasCert) ports.push(Number(process.env.HTTPS_PORT || 8443));
 
-const free = (port) => new Promise((resolve) => {
+// Un serveur répond-il déjà sur ce port ? (connexion, fiable aussi sous Windows, IPv4 comme IPv6)
+const answers = (port, host) => new Promise((resolve) => {
+  const sock = net.connect({ port, host });
+  sock.setTimeout(800);
+  sock.once('connect', () => { sock.destroy(); resolve(true); });
+  sock.once('timeout', () => { sock.destroy(); resolve(false); });
+  sock.once('error', () => resolve(false));
+});
+// Le port peut-il être ouvert ? (refus de Windows, autre programme…)
+const bindable = (port) => new Promise((resolve) => {
   const srv = net.createServer();
   srv.once('error', (err) => resolve(err.code));
   srv.once('listening', () => srv.close(() => resolve(null)));
   srv.listen(port);
 });
+
+const command = process.env.npm_lifecycle_event === 'predemo' ? 'npm run demo' : process.env.npm_lifecycle_event === 'predev' ? 'npm run dev' : 'npm start';
 const busy = [];
 for (const port of ports) {
-  const code = await free(port);
+  if (await answers(port, '127.0.0.1') || await answers(port, '::1')) { busy.push(port); continue; }
+  const code = await bindable(port);
   if (code === 'EADDRINUSE') busy.push(port);
   else if (code === 'EACCES') problems.push(`Windows refuse l'accès au port ${port}. Choisis un autre port dans le fichier .env (par exemple PORT=8081).`);
 }
 if (busy.length) {
   problems.push(`${busy.length > 1 ? `Les ports ${busy.join(' et ')} sont déjà utilisés` : `Le port ${busy[0]} est déjà utilisé`} : le site tourne sans doute déjà dans une autre fenêtre de commande.\n`
-    + `   → Ouvre directement ${hasCert ? `https://localhost:${ports[1]}` : `http://localhost:${ports[0]}`}\n`
-    + '   → ou ferme l\'autre fenêtre (ou appuie sur Ctrl+C dedans), puis relance npm start.\n'
+    + '   → Va dans cette autre fenêtre et appuie sur Ctrl+C (ou ferme-la),\n'
+    + `   → puis relance ${command} ici.\n`
     + `   → Si aucune autre fenêtre n'est ouverte, redémarre le PC, ou choisis d'autres ports dans le fichier .env (PORT=8081${hasCert ? ', HTTPS_PORT=8444' : ''}).`);
 }
 

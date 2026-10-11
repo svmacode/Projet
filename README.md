@@ -20,7 +20,7 @@ npm start            # https://localhost:8443
 
 Au premier lancement, le serveur récupère en arrière-plan les discographies complètes sur Deezer et leurs pochettes (environ 2 minutes, le site reste utilisable pendant ce temps : chaque artiste apparaît dès qu'il est prêt). Les dernières pochettes introuvables sur Deezer sont ensuite cherchées ailleurs pendant quelques minutes. Ensuite, il revérifie chaque semaine pour ajouter les nouvelles sorties.
 
-Pour voir le site avec quelques membres, notes et chroniques : `npm run demo`. La commande crée les comptes (mot de passe affiché), puis lance le site ; s'il tourne déjà dans une autre fenêtre, recharge simplement la page.
+Pour voir le site avec quelques membres, notes et chroniques : `npm run demo` **à la place de** `npm start` (pas en plus). Le site démarre comme d'habitude, avec trois comptes de démonstration dont le mot de passe s'affiche.
 
 ## Commandes
 

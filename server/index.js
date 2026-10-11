@@ -7,6 +7,13 @@ import { autoFetchImages } from './auto-images.js';
 
 const app = createApp();
 
+// `npm run demo` : mêmes étapes que `npm start`, avec en plus les membres de démonstration.
+if (process.argv.includes('--demo')) {
+  const { seedDemo, DEMO_PASSWORD } = await import('./demo.js');
+  const names = await seedDemo(app.locals.db);
+  console.log(`\n  Mode démo : comptes ${names.join(', ')}\n  Mot de passe : ${DEMO_PASSWORD}`);
+}
+
 // Message bien visible : le site est utilisable dès maintenant, même si le catalogue charge encore.
 const ready = (url) => console.log(`\n  ✔ Site prêt : ${url}\n    Laisse cette fenêtre ouverte (Ctrl+C pour arrêter le site).\n`
   + '    Les lignes [catalogue] qui suivent sont le chargement en arrière-plan : le site est déjà utilisable.\n');
