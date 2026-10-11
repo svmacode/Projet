@@ -12,6 +12,7 @@ export function profilePage({ profile: p, user }) {
         <h1 class="profile-name">${p.display_name}</h1>
         <p class="profile-handle">@${p.username} · membre depuis ${formatDate(p.created_at)}</p>
         ${p.bio ? html`<p class="profile-bio">${p.bio}</p>` : ''}
+        <div class="album-share"><button class="copy-btn" type="button" data-share data-share-campaign="profil">${icon('share')}<span>Partager le profil</span></button></div>
         ${!p.isMe && p.followsMe ? html`<p class="badge">Te suit</p>` : ''}
       </div>
       <div class="profile-cta">
@@ -97,6 +98,7 @@ export function listPage({ list, user }) {
     <p class="kick-link">Liste de <a href="/membre/${list.username}">${list.display_name}</a></p>
     <h1 class="display">${list.title}</h1>
     ${list.description ? html`<p class="lede">${list.description}</p>` : ''}
+    <div class="album-share album-share-center"><button class="copy-btn" type="button" data-share data-share-campaign="liste">${icon('share')}<span>Partager la liste</span></button></div>
   </section>
   <section class="catalogue">
     ${list.albums.length ? html`<ol class="grid ranked" data-list="${list.id}">${list.albums.map((a) => html`<li>

@@ -145,6 +145,18 @@ function migrate(db) {
   if (!cols.includes('kind')) db.exec("ALTER TABLE albums ADD COLUMN kind TEXT NOT NULL DEFAULT 'album'");
   if (!cols.includes('curated')) db.exec('ALTER TABLE albums ADD COLUMN curated INTEGER NOT NULL DEFAULT 0');
   db.exec('CREATE INDEX IF NOT EXISTS albums_year ON albums(year)');
+  // Suivi UTM : compteurs anonymes par jour et par campagne (aucune donnée personnelle).
+  db.exec(`CREATE TABLE IF NOT EXISTS utm_stats (
+    day TEXT NOT NULL, source TEXT NOT NULL, medium TEXT NOT NULL DEFAULT '', campaign TEXT NOT NULL DEFAULT '',
+    path TEXT NOT NULL, visits INTEGER NOT NULL DEFAULT 0, signups INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, source, medium, campaign, path))`);
+  db.exec("DELETE FROM utm_stats WHERE day < date('now', '-90 days')"); // conservation : 90 jours
+  const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!userCols.includes('utm_source')) {
+    db.exec('ALTER TABLE users ADD COLUMN utm_source TEXT');
+    db.exec('ALTER TABLE users ADD COLUMN utm_medium TEXT');
+    db.exec('ALTER TABLE users ADD COLUMN utm_campaign TEXT');
+  }
 }
 
 // Insère ou met à jour le catalogue sans toucher aux données des membres.

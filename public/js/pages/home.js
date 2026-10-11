@@ -19,34 +19,43 @@ if (motion) {
   document.querySelector('[data-zoom-grid]')?.classList.add('is-static');
 }
 
-// ---------- Héros : un mur de pochettes qui dérive lentement ----------
+// ---------- Héros : corridor de pochettes qui arrivent du fond ----------
 function hero() {
   const section = document.querySelector('[data-hero]');
-  const wall = section.querySelector('[data-hero-wall]');
-  const rows = wall.querySelectorAll('.hero-row');
+  const stream = section.querySelector('[data-stream]');
+  const stage = section.querySelector('[data-stream-stage]');
 
-  rows.forEach((row, i) => {
-    const dir = i % 2 ? 1 : -1;
-    // Chaque rangée contient deux fois la même série : on boucle sur la moitié de sa largeur.
-    const tween = gsap.fromTo(row, { xPercent: dir < 0 ? 0 : -50 }, {
-      xPercent: dir < 0 ? -50 : 0, duration: 140 + i * 18, ease: 'none', repeat: -1,
+  // Chaque carte qui reprend sa course reçoit la pochette suivante : toutes les pochettes passent.
+  try {
+    const queue = JSON.parse(stream.dataset.stream || '[]');
+    const cards = stream.querySelectorAll('.ish-card');
+    let next = cards.length;
+    if (queue.length > cards.length) {
+      cards.forEach((card) => card.addEventListener('animationiteration', () => {
+        const img = card.querySelector('img');
+        if (img) img.src = queue[next++ % queue.length];
+      }));
+    }
+    // Le corridor ne tourne que lorsqu'il est visible.
+    ScrollTrigger.create({
+      trigger: section, start: 'top bottom', end: 'bottom top',
+      onToggle: (st) => cards.forEach((c) => { c.style.animationPlayState = st.isActive ? '' : 'paused'; }),
     });
-    // Le mur ne tourne que lorsqu'il est visible.
-    ScrollTrigger.create({ trigger: section, start: 'top bottom', end: 'bottom top', onToggle: (s) => (s.isActive ? tween.play() : tween.pause()) });
-  });
+  } catch { /* liste illisible : le corridor reste tel quel */ }
 
-  // Entrée : le titre monte ligne par ligne, le mur apparaît en fondu.
+  // Entrée : le corridor se rapproche, le titre monte ligne par ligne.
   const lines = section.querySelectorAll('.hero-title > span');
-  gsap.from(wall, { opacity: 0, scale: 1.12, duration: 2.4, ease: 'expo.out' });
-  gsap.from(lines, { yPercent: 60, opacity: 0, duration: 1.4, ease: 'expo.out', stagger: 0.12, delay: 0.15 });
-  gsap.from(section.querySelectorAll('.hero-sub, .hero-copy .btn, .hero-scroll'), {
-    y: 20, opacity: 0, duration: 1.2, ease: 'expo.out', stagger: 0.1, delay: 0.5,
+  gsap.from(stage, { opacity: 0, scale: 1.25, filter: 'blur(12px)', duration: 2.2, ease: 'expo.out' });
+  gsap.from(lines, { yPercent: 60, opacity: 0, filter: 'blur(8px)', duration: 1.4, ease: 'expo.out', stagger: 0.12, delay: 0.2 });
+  gsap.from(section.querySelectorAll('.hero-foot > *, .hero-scroll'), {
+    y: 20, opacity: 0, duration: 1.2, ease: 'expo.out', stagger: 0.1, delay: 0.55,
   });
 
-  // Au scroll : le mur recule et se floute, le texte s'éloigne plus vite (parallaxe).
+  // Au scroll : on « traverse » le corridor, le texte s'éloigne plus vite (parallaxe).
   const tl = gsap.timeline({ scrollTrigger: { trigger: section, start: 'top top', end: 'bottom top', scrub: true } });
-  tl.to(wall, { scale: 1.25, opacity: 0.15, filter: 'blur(6px)', ease: 'none' }, 0)
-    .to(section.querySelector('[data-hero-copy]'), { yPercent: -35, opacity: 0, ease: 'none' }, 0);
+  tl.to(stage, { scale: 1.6, opacity: 0.1, ease: 'none' }, 0)
+    .to(section.querySelector('[data-hero-copy]'), { yPercent: -40, opacity: 0, ease: 'none' }, 0)
+    .to(section.querySelector('[data-hero-foot]'), { yPercent: 30, opacity: 0, ease: 'none' }, 0);
 }
 
 // ---------- Albums : une pochette plein écran qui recule pour révéler la collection ----------

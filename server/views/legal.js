@@ -24,7 +24,7 @@ export function privacyPage() {
     <h2>En bref</h2>
     <ul>
       <li>On collecte le strict minimum : un pseudo, une adresse e-mail, un mot de passe chiffré et ce que tu publies.</li>
-      <li>Aucune publicité, aucun pistage, aucune revente de données. Aucun outil de mesure d'audience tiers.</li>
+      <li>Aucune publicité, aucune revente de données, aucun outil de mesure d'audience tiers. Seuls des compteurs anonymes de campagnes sont tenus sur notre serveur.</li>
       <li>Tu peux exporter ou supprimer toutes tes données à tout moment depuis <a href="/compte">tes paramètres</a>.</li>
     </ul>
 
@@ -41,6 +41,8 @@ export function privacyPage() {
         <tr><td>Cookie de session (identifiant aléatoire)</td><td>Te garder connecté</td><td>Intérêt légitime, cookie strictement nécessaire</td><td>30 jours maximum</td></tr>
         <tr><td>Adresse IP (en mémoire vive uniquement)</td><td>Limiter les abus (anti-spam, tentatives de connexion)</td><td>Intérêt légitime</td><td>15 minutes à 1 heure, jamais écrite sur disque</td></tr>
         <tr><td>Signalements</td><td>Modérer les contenus</td><td>Intérêt légitime et obligation légale (LCEN)</td><td>Jusqu'au traitement, puis 1 an</td></tr>
+        <tr><td>Compteurs de campagnes (UTM), sans aucun identifiant</td><td>Savoir quels liens partagés amènent des visiteurs</td><td>Intérêt légitime (statistique anonyme)</td><td>90 jours</td></tr>
+        <tr><td>Campagne d'arrivée associée à ton compte</td><td>Savoir quels partages amènent des inscriptions</td><td>Consentement (bandeau cookies)</td><td>Tant que le compte existe</td></tr>
       </tbody>
     </table>
 
@@ -79,9 +81,13 @@ export function cookiesPage() {
       <tbody>
         <tr><td><code>__Host-mrf_sid</code></td><td>Cookie strictement nécessaire</td><td>Garder ta session ouverte une fois connecté</td><td>30 jours</td></tr>
         <tr><td><code>mrf-consent</code></td><td>Stockage local du navigateur</td><td>Retenir ton choix sur ce bandeau</td><td>6 mois</td></tr>
+        <tr><td><code>mrf-theme</code></td><td>Stockage local du navigateur</td><td>Retenir le mode clair ou sombre choisi</td><td>Jusqu'à ce que tu le changes</td></tr>
+        <tr><td><code>mrf-visited</code></td><td>Stockage de session</td><td>N'afficher l'écran de chargement qu'une fois par visite</td><td>Fermeture de l'onglet</td></tr>
+        <tr><td><code>mrf-utm</code></td><td>Stockage local, <strong>seulement si tu acceptes</strong></td><td>Retenir la campagne (lien partagé) par laquelle tu es arrivé, pour l'associer à ton inscription</td><td>6 mois</td></tr>
       </tbody>
     </table>
-    <p>Ces éléments sont exemptés de consentement selon les lignes directrices de la CNIL. Aucun cookie publicitaire, de réseau social ou de mesure d'audience n'est déposé. Si un outil de mesure d'audience est ajouté un jour, il ne sera activé qu'avec ton accord.</p>
+    <p>Les quatre premiers éléments sont exemptés de consentement selon les lignes directrices de la CNIL. Le dernier (<code>mrf-utm</code>) n'est enregistré que si tu cliques sur « Accepter ». Aucun cookie publicitaire ni de réseau social n'est déposé.</p>
+    <p>Par ailleurs, quand tu arrives par un lien de campagne (paramètres <code>utm_source</code>, <code>utm_medium</code>, <code>utm_campaign</code>), le serveur ajoute 1 à un compteur anonyme par jour et par campagne. Aucune donnée ne t'identifie et rien n'est stocké sur ton appareil pour cela.</p>
     <p>Polices, scripts et images sont servis par MyRapFr lui-même : aucun appel à des services tiers (Google Fonts, CDN…) ne transmet ton adresse IP.</p>
     <h2>Ton choix</h2>
     <p class="consent-status" data-consent-status>Choix actuel : non défini.</p>

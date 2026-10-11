@@ -83,3 +83,12 @@ export function loadCatalog() {
   cache = { artists, albums, bySlug };
   return cache;
 }
+
+// Date de la dernière mise à jour du catalogue (discographies, ou à défaut sélection éditoriale).
+// Lecture de la date du fichier seulement (rapide) : appelée à chaque page.
+export function lastCatalogUpdate() {
+  for (const file of [discoveredFile, new URL('../catalogue.js', import.meta.url)]) {
+    try { return fs.statSync(file).mtime; } catch { /* fichier suivant */ }
+  }
+  return new Date();
+}

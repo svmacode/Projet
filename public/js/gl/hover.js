@@ -32,6 +32,9 @@ const fragment = /* glsl */ `
     vec4 c = texture2D(uTex, uv);
     c.r = texture2D(uTex, uv + uVel * shift).r;
     c.b = texture2D(uTex, uv - uVel * shift).b;
+    // Reflet doux qui suit le pointeur, comme une lumière sur une pochette glacée.
+    float glare = pow(max(0.0, 1.0 - length(d) * 1.6), 3.0) * 0.22 * uHover;
+    c.rgb += glare;
 
     // Coins arrondis identiques à ceux de la vignette.
     vec2 p = (vUv - 0.5) * uSize;

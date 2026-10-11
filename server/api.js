@@ -74,9 +74,12 @@ export function apiRouter(db, q) {
       return res.status(409).json({ error: 'Certains champs sont à corriger.', fields });
     }
     const hash = await hashPassword(data.password);
+    // Campagne d'origine (seulement si le visiteur a accepté la mesure d'audience, voir public/js/lib/extras.js).
+    const utm = (v) => (v ? String(v).toLowerCase().replace(/[^a-z0-9_.-]/g, '').slice(0, 40) : null);
     const { lastInsertRowid } = db.prepare(`
-      INSERT INTO users (username, email, password_hash, display_name, terms_accepted_at)
-      VALUES (?, ?, ?, ?, datetime('now'))`).run(data.username, data.email, hash, data.username);
+      INSERT INTO users (username, email, password_hash, display_name, terms_accepted_at, utm_source, utm_medium, utm_campaign)
+      VALUES (?, ?, ?, ?, datetime('now'), ?, ?, ?)`).run(data.username, data.email, hash, data.username,
+      utm(data.utm?.source), utm(data.utm?.medium), utm(data.utm?.campaign));
     const userId = Number(lastInsertRowid);
     verifyEmail(data.email, createEmailToken(userId, 'verify', 48));
     const csrf = createSession(db, res, userId);
@@ -406,7 +409,7 @@ export function apiRouter(db, q) {
     const all = (sql) => db.prepare(sql).all(id);
     const data = {
       exportedAt: new Date().toISOString(),
-      account: db.prepare('SELECT username, email, display_name, bio, email_verified_at, terms_accepted_at, created_at FROM users WHERE id = ?').get(id),
+      account: db.prepare('SELECT username, email, display_name, bio, email_verified_at, terms_accepted_at, created_at, utm_source, utm_medium, utm_campaign FROM users WHERE id = ?').get(id),
       albums: all('SELECT al.slug, al.title, s.rating, s.liked, s.listened, s.wishlist, s.updated_at FROM user_albums s JOIN albums al ON al.id = s.album_id WHERE s.user_id = ?'),
       diary: all('SELECT al.slug, al.title, r.rating, r.body, r.listened_on, r.created_at FROM reviews r JOIN albums al ON al.id = r.album_id WHERE r.user_id = ?'),
       favorites: all('SELECT al.slug, f.position FROM favorites f JOIN albums al ON al.id = f.album_id WHERE f.user_id = ?'),

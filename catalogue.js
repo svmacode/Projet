@@ -267,7 +267,9 @@ export const albums = [
   ['zola', 'Survie', 2020],
   ['gazo', 'KMT', 2022],
   ['tiakola', 'Mélo', 2022],
+  ['werenoi', 'Telegram', 2022],
   ['werenoi', 'Carré', 2023],
+  ['werenoi', 'Pyramide', 2024],
 ];
 
 export function slugify(s) {

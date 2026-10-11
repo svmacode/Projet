@@ -30,6 +30,22 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
   - légère distorsion WebGL au survol des vignettes (Three.js), uniquement sur ordinateur.
 - Tout le mouvement est coupé si le système demande « réduire les animations ». Le site reste complet sans JavaScript.
 
+### Confort et finitions
+| Fonction | Où / comment |
+|---|---|
+| Mode sombre / clair | Bouton lune / soleil dans la barre du haut ; le choix est retenu sur l'appareil |
+| Recherche sur tout le site | Loupe, touche `/` ou `Ctrl` + `K` sur n'importe quelle page : résultats instantanés (rappeurs, albums, membres), navigation au clavier |
+| Retour en haut | Bouton rond en bas à droite, avec un anneau qui indique la progression dans la page |
+| Menu mobile | Plein écran, animé, avec les liens de compte |
+| Animation de chargement | Écran « disque » à la première page de la visite, puis squelettes animés sur les pochettes en cours de chargement |
+| Copier | Sous chaque chronique, sur les biographies, « Copier le titre » sur les albums |
+| Partager | Albums, rappeurs, listes, profils : copie le lien (ou ouvre le partage du téléphone) avec des paramètres UTM |
+| Menu qui reste en haut | La barre de navigation est fixe sur toutes les pages |
+| Œil sur les mots de passe | Sur tous les champs mot de passe (connexion, inscription, paramètres) |
+| Suivi UTM | Compteurs anonymes par campagne côté serveur ; `npm run stats:utm` affiche visites et inscriptions par campagne (90 jours) |
+| Date de mise à jour | En pied de page : « Catalogue mis à jour le … » |
+| Effets | Corridor de pochettes en 3D dans le héros, titres lettre par lettre, apparitions floues, reflet et distorsion WebGL au survol des pochettes, inclinaison et reflet sur la pochette d'un album, boutons magnétiques, chiffres animés, barre de lecture, grain discret, transitions entre pages |
+
 ### Les pages et contrôles demandés
 | Demande | Où |
 |---|---|

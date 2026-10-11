@@ -1,6 +1,7 @@
 import express from 'express';
 import { config } from './config.js';
 import { catalogStatus } from './auto-images.js';
+import { streamCss } from './views/stream.js';
 import { issueFormToken } from './security.js';
 import { layout } from './views/layout.js';
 import { homePage } from './views/home.js';
@@ -207,6 +208,12 @@ export function pagesRouter(db, q) {
   }));
 
   // ---------- SEO ----------
+  // Images-clés du corridor de pochettes, calculées une fois.
+  const streamStyles = streamCss();
+  r.get('/css/stream.css', (req, res) => {
+    res.type('text/css').set('Cache-Control', config.isProd ? 'public, max-age=86400' : 'no-cache').send(streamStyles);
+  });
+
   r.get('/robots.txt', (req, res) => {
     res.type('text/plain').send([
       'User-agent: *',

@@ -62,6 +62,17 @@ export function createApp({ dbFile } = {}) {
   // Pochettes, portraits et images de partage absents du disque : fabriqués à la première demande.
   app.use(imagesOnDemand());
 
+  // Suivi UTM : chaque arrivée par un lien de campagne incrémente un compteur anonyme.
+  const utmHit = db.prepare(`INSERT INTO utm_stats (day, source, medium, campaign, path, visits) VALUES (date('now'), ?, ?, ?, ?, 1)
+    ON CONFLICT(day, source, medium, campaign, path) DO UPDATE SET visits = visits + 1`);
+  const clean = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9_.-]/g, '').slice(0, 40);
+  app.use((req, res, next) => {
+    if (req.method === 'GET' && req.query.utm_source && !req.path.startsWith('/api/') && !req.path.includes('.')) {
+      try { utmHit.run(clean(req.query.utm_source), clean(req.query.utm_medium), clean(req.query.utm_campaign), req.path.slice(0, 120)); } catch { /* sans gravité */ }
+    }
+    next();
+  });
+
   app.use(sessionMiddleware(db));
   app.use(csrfProtection);
 

@@ -35,6 +35,11 @@ export const schemas = {
     email,
     password,
     terms: z.literal(true, { message: 'Tu dois accepter les CGU.' }),
+    utm: z.object({
+      source: z.string().max(40).nullish(),
+      medium: z.string().max(40).nullish(),
+      campaign: z.string().max(40).nullish(),
+    }).partial().nullish(),
     ...antiSpam,
   }),
   login: z.object({

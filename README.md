@@ -30,6 +30,7 @@ Pour voir le site avec quelques membres, notes et chroniques : `npm run demo` (m
 | `npm run dev` | Pareil, avec redémarrage automatique quand tu modifies le code |
 | `npm run catalogue:fetch` | Relance la récupération des discographies, pochettes et photos (faite automatiquement au démarrage) |
 | `npm run images` | Icônes et image de partage (les pochettes sont fabriquées à la demande ; `-- --all` pour tout préparer d'avance) |
+| `npm run stats:utm` | Visites et inscriptions par campagne (liens UTM), sur 90 jours |
 | `npm run backup` | Sauvegarde la base de données dans `data/backups/` |
 | `npm test` | Tests automatiques de l'API (comptes, sécurité, amis, RGPD) |
 | `npm run check:links` | Cherche les liens cassés sur tout le site (serveur lancé) |

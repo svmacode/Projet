@@ -1,6 +1,7 @@
 import { html, raw, jsonForScript } from '../html.js';
 import { config } from '../config.js';
 import { icon } from './components.js';
+import { lastCatalogUpdate } from '../catalog.js';
 
 export const SITE = {
   name: 'MyRapFr',
@@ -17,9 +18,17 @@ function nav(user, path) {
         ${link('/rappeurs', 'Rappeurs')}
         ${link('/#apropos', 'À propos')}
         ${user ? link('/fil', 'Fil d’actu') : ''}
+        <div class="gnav-mobile-extra">
+          ${user
+            ? html`<a href="/membre/${user.username}">Mon profil</a><a href="/compte">Paramètres</a>`
+            : html`<a href="/connexion">Connexion</a><a href="/inscription">Créer un compte</a>`}
+        </div>
       </div>
       <div class="gnav-actions">
-        <a class="gnav-icon" href="/recherche" aria-label="Rechercher">${icon('search')}</a>
+        <a class="gnav-icon" href="/recherche" aria-label="Rechercher (raccourci : /)" data-search-open aria-haspopup="dialog">${icon('search')}</a>
+        <button class="gnav-icon" type="button" data-theme-toggle aria-label="Changer de thème">
+          <span class="theme-icon-dark">${icon('moon')}</span><span class="theme-icon-light">${icon('sun')}</span>
+        </button>
         ${user
           ? html`<a class="gnav-me" href="/membre/${user.username}" aria-label="Mon profil">${user.displayName.slice(0, 1).toUpperCase()}</a>`
           : html`<a class="gnav-login" href="/connexion">Connexion</a>`}
@@ -42,14 +51,15 @@ function footer() {
         <div><h2>MyRapFr</h2><a href="/#apropos">À propos</a><a href="/plan-du-site">Plan du site</a></div>
         <div><h2>Légal</h2><a href="/confidentialite">Confidentialité</a><a href="/cgu">Conditions d'utilisation</a><a href="/mentions-legales">Mentions légales</a><a href="/cookies">Cookies</a></div>
       </nav>
-      <p class="gfoot-legal">© ${year} MyRapFr. Fait avec amour pour le rap français.</p>
+      <p class="gfoot-legal">© ${year} MyRapFr. Fait avec amour pour le rap français.
+        <span class="gfoot-updated">Catalogue mis à jour le <time datetime="${lastCatalogUpdate().toISOString()}">${lastCatalogUpdate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</time>.</span></p>
     </div>
   </footer>`;
 }
 
 function cookieBanner() {
   return html`<div class="consent" role="region" aria-label="Cookies" data-consent hidden>
-    <p>MyRapFr n'utilise que des cookies nécessaires (garder ta session ouverte). Aucune publicité, aucun pistage. <a href="/cookies">En savoir plus</a></p>
+    <p>MyRapFr n'utilise que le nécessaire (garder ta session ouverte). Avec ton accord, on retient aussi d'où tu viens (lien partagé, campagne) pour savoir quels partages fonctionnent. Aucune publicité. <a href="/cookies">En savoir plus</a></p>
     <div class="consent-actions">
       <button type="button" class="btn btn-quiet" data-consent-choice="refuse">Refuser</button>
       <button type="button" class="btn btn-quiet" data-consent-choice="accept">Accepter</button>
@@ -96,16 +106,42 @@ export function layout({
   <link rel="manifest" href="/site.webmanifest">
   <link rel="preload" href="/fonts/inter-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/main.css">
+  ${bodyClass.includes('page-home') ? html`<link rel="stylesheet" href="/css/stream.css">` : ''}
   <script src="/js/boot.js"></script>
   ${jsonLd ? html`<script type="application/ld+json">${jsonForScript(jsonLd)}</script>` : ''}
 </head>
 <body class="${bodyClass}" ${raw(status ? `data-status="${status}"` : '')}>
+  <div class="loader" aria-hidden="true" data-loader>
+    <div class="loader-disc"><span></span></div>
+    <p class="loader-word">MyRapFr</p>
+    <div class="loader-bar"><span></span></div>
+  </div>
+  <div class="scroll-progress" aria-hidden="true"><span data-scroll-progress></span></div>
   <a class="skip" href="#contenu">Aller au contenu</a>
   ${nav(user, path)}
   <main id="contenu">${body}</main>
   ${footer()}
   ${cookieBanner()}
   <div class="toast" role="status" aria-live="polite" data-toast></div>
+  <button class="to-top" type="button" aria-label="Revenir en haut de la page" data-to-top hidden>
+    <svg class="to-top-ring" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" data-to-top-ring></circle></svg>
+    ${icon('arrow-up')}
+  </button>
+  <div class="search-dialog" role="dialog" aria-modal="true" aria-label="Rechercher sur MyRapFr" data-search hidden>
+    <div class="search-backdrop" data-search-close></div>
+    <div class="search-panel">
+      <form class="search-field" action="/recherche" method="get" role="search" data-search-form>
+        ${icon('search')}
+        <label class="visually-hidden" for="search-q">Rechercher un album, un rappeur ou un membre</label>
+        <input id="search-q" name="q" type="search" placeholder="Album, rappeur, membre…" autocomplete="off" spellcheck="false"
+          role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" data-search-input>
+        <kbd class="search-kbd">Échap</kbd>
+      </form>
+      <div class="search-results" id="search-results" role="listbox" aria-label="Résultats" data-search-results>
+        <p class="search-hint">Tape au moins deux lettres. Raccourci : <kbd>/</kbd> ou <kbd>Ctrl</kbd> + <kbd>K</kbd> sur toutes les pages.</p>
+      </div>
+    </div>
+  </div>
   <script src="/vendor/gsap.min.js" defer></script>
   <script src="/vendor/ScrollTrigger.min.js" defer></script>
   <script src="/vendor/lenis.min.js" defer></script>

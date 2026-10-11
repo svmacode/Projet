@@ -1,5 +1,6 @@
 import { html, raw } from '../html.js';
 import { cover, portrait, tile, icon } from './components.js';
+import { STREAM } from './stream.js';
 
 const pick = (albums, slugs) => slugs.map((s) => albums.find((a) => a.slug === s)).filter(Boolean);
 
@@ -20,8 +21,18 @@ export function homePage({ albums, artists, user }) {
   const curated = albums.filter((a) => a.curated);
   const showcase = curated.length ? curated : albums;
 
-  // Mur de pochettes du héros : 5 rangées.
-  const wall = [0, 1, 2, 3, 4].map((row) => showcase.filter((_, i) => i % 5 === row).slice(0, 12));
+  // Corridor du héros : les pochettes choisies, puis tout le reste de leurs discographies.
+  const streamPicks = [
+    'pnl-dans-la-legende', 'alpha-wann-une-main-lave-l-autre', 'werenoi-carre', 'booba-nero-nemesis',
+    'damso-ipseite', 'sch-a7', 'tiakola-melo', 'maes-les-derniers-salopards', 'pnl-que-la-famille',
+    'ninho-destin', 'werenoi-pyramide', 'kaaris-or-noir', 'damso-batterie-faible', 'freeze-corleone-lmf',
+    'laylow-trinity', 'pnl-le-monde-chico', 'werenoi-telegram', 'damso-lithopedion', 'pnl-deux-freres', 'damso-qalf',
+  ];
+  const bySlug = new Map(albums.map((a) => [a.slug, a]));
+  const stream = streamPicks.map((s) => bySlug.get(s)).filter(Boolean);
+  const more = albums.filter((a) => ['pnl', 'werenoi', 'damso', 'tiakola'].includes(a.artist.slug) && a.kind === 'album' && !streamPicks.includes(a.slug));
+  stream.push(...more);
+  const streamSrc = (a) => `${a.cover}-600.webp${a.v}`;
 
   // Séquence « dézoom » façon page produit : une pochette centrale entourée d'une grille.
   const hero = albums.find((a) => a.slug === 'iam-l-ecole-du-micro-d-argent') || albums[0];
@@ -51,15 +62,23 @@ export function homePage({ albums, artists, user }) {
   const cta = html`<a class="btn btn-primary btn-lg" href="${user ? `/membre/${user.username}` : '/inscription'}">${user ? 'Ouvrir mon carnet' : 'Créer mon compte'}</a>`;
 
   return html`
-  <section class="hero" aria-labelledby="hero-title" data-hero>
-    <div class="hero-wall" aria-hidden="true" data-hero-wall>
-      ${wall.map((row, r) => html`<div class="hero-row" data-row="${r}">
-        ${[...row, ...row].map((a) => html`<img src="${a.cover}-300.webp${a.v}" width="300" height="300" alt="" decoding="async" fetchpriority="low">`)}
-      </div>`)}
+  <section class="hero hero-stream" aria-labelledby="hero-title" data-hero>
+    <div class="ish" aria-hidden="true" data-stream="${JSON.stringify(stream.map(streamSrc))}">
+      <div class="ish-stage" data-stream-stage>
+        <div class="ish-3d">
+          ${['r', 'l'].map((rail, r) => Array.from({ length: STREAM.cards }, (_, i) => {
+            // Le rail gauche démarre plus loin dans la liste : les deux côtés montrent des pochettes différentes.
+            const a = stream[(i + r * STREAM.cards) % Math.max(stream.length, 1)];
+            return html`<div class="ish-card ish-${rail} ish-i${i}">${a ? html`<img src="${streamSrc(a)}" alt="" width="600" height="600" decoding="async" draggable="false">` : ''}</div>`;
+          }))}
+        </div>
+      </div>
     </div>
     <div class="hero-shade" aria-hidden="true"></div>
     <div class="hero-copy" data-hero-copy>
       <h1 id="hero-title" class="hero-title"><span>Le rap français,</span> <span>album par album.</span></h1>
+    </div>
+    <div class="hero-foot" data-hero-foot>
       <p class="hero-sub">Note, chronique et partage ${total > 500 ? `plus de ${Math.floor(total / 100) * 100}` : `les ${total}`} albums et projets du rap français. Avec tes amis.</p>
       ${cta}
     </div>

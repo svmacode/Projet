@@ -2,6 +2,7 @@
 import { api } from '../lib/api.js';
 import { toast, validateForm, liveValidation, showServerErrors, busy, formData, setFormError, clearErrors } from '../lib/ui.js';
 import { readConsent, writeConsent } from '../app.js';
+import { storedUtm } from '../lib/extras.js';
 
 function bind(name, handler) {
   const form = document.querySelector(`[data-form="${name}"]`);
@@ -30,7 +31,7 @@ const success = (form, message) => {
 bind('register', async (d) => {
   const { user } = await api('/auth/register', {
     method: 'POST',
-    body: { username: d.username, email: d.email, password: d.password, terms: d.terms, formToken: d.formToken, website: d.website },
+    body: { username: d.username, email: d.email, password: d.password, terms: d.terms, formToken: d.formToken, website: d.website, utm: storedUtm() },
   });
   location.href = `/membre/${user.username}?bienvenue=1`;
 });

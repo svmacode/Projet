@@ -84,13 +84,17 @@ export function albumPage({ album, reviews, friendsReviews, state, user, lists, 
     <div class="album-backdrop" aria-hidden="true"><img src="${album.cover}-300.webp${album.v}" alt="" width="300" height="300"></div>
     <div class="album-hero">
       <figure class="album-cover" data-tilt>
-        ${cover(album, { sizes: '(min-width: 1068px) 420px, 80vw', eager: true, cls: 'album-cover-img', vt: true })}
+        <span class="album-cover-inner" data-tilt-target>${cover(album, { sizes: '(min-width: 1068px) 420px, 80vw', eager: true, cls: 'album-cover-img', vt: true })}</span>
         <figcaption class="album-credit">${album.placeholder ? 'Visuel provisoire' : album.coverCredit || ''}</figcaption>
       </figure>
       <div class="album-info">
         <p class="album-year">${album.year}</p>
         <h1 class="album-title">${album.title}</h1>
         <p class="album-artist">par <a href="/rappeur/${album.artist.slug}">${album.artist.name}</a></p>
+        <div class="album-share">
+          <button class="copy-btn" type="button" data-share data-share-campaign="album">${icon('share')}<span>Partager</span></button>
+          <button class="copy-btn" type="button" data-copy-text="${album.title} — ${album.artist.name} (${album.year})">${icon('copy')}<span>Copier le titre</span></button>
+        </div>
         <dl class="album-stats">
           <div><dt>Note moyenne</dt><dd>${album.avg ? html`${(album.avg / 2).toFixed(1).replace('.', ',')} ${stars(Math.round(album.avg), { label: false })}` : '—'}</dd></div>
           <div><dt>Notes</dt><dd>${album.ratings}</dd></div>
@@ -193,7 +197,11 @@ export function artistPage({ artist }) {
       <div class="artist-copy">
         ${artist.origin ? html`<p class="feature-origin">${artist.origin}</p>` : ''}
         <h1 class="display">${artist.name}</h1>
-        ${artist.bio ? html`<p class="artist-bio">${artist.bio}</p>` : html`<p class="artist-bio">${artist.albums.length} projets au catalogue, de ${artist.albums[0]?.year} à ${artist.albums.at(-1)?.year}.</p>`}
+        ${artist.bio ? html`<p class="artist-bio" id="artist-bio">${artist.bio}</p>` : html`<p class="artist-bio">${artist.albums.length} projets au catalogue, de ${artist.albums[0]?.year} à ${artist.albums.at(-1)?.year}.</p>`}
+        <div class="album-share">
+          ${artist.bio ? html`<button class="copy-btn" type="button" data-copy="#artist-bio">${icon('copy')}<span>Copier la biographie</span></button>` : ''}
+          <button class="copy-btn" type="button" data-share data-share-campaign="rappeur">${icon('share')}<span>Partager</span></button>
+        </div>
         ${artist.bio_source ? html`<p class="credit">Source : ${artist.bio_source}</p>` : ''}
         ${artist.photo_credit ? html`<p class="credit">Photo : ${artist.photo_credit}</p>` : ''}
       </div>

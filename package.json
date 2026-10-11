@@ -15,7 +15,8 @@
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\"",
     "check:links": "node scripts/check-links.js",
     "check:contrast": "node scripts/check-contrast.js",
-    "check:perf": "node scripts/check-perf.js"
+    "check:perf": "node scripts/check-perf.js",
+    "stats:utm": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env scripts/utm-stats.js"
   },
   "repository": {
     "type": "git",
