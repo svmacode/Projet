@@ -1,6 +1,8 @@
 // Membres de démonstration (notes, chroniques, listes, amitiés) pour voir le site « vivant » en local.
 // Créés au démarrage par `npm run demo`. À ne pas utiliser sur le site en ligne.
 import { hashPassword } from './security.js';
+import { badgeEngine } from './badges.js';
+import { notifier } from './notify.js';
 
 export const DEMO_PASSWORD = 'demo-myrapfr-2026';
 
@@ -68,6 +70,17 @@ export async function seedDemo(db) {
     ['ntm-paris-sous-les-bombes', 'iam-l-ecole-du-micro-d-argent', 'mc-solaar-prose-combat', 'lunatic-mauvais-oeil', 'arsenik-quelques-gouttes-suffisent', 'oxmo-puccino-opera-puccino', 'ideal-j-le-combat-continue', '113-les-princes-de-la-ville']
       .forEach((slug, i) => db.prepare('INSERT INTO list_items (list_id, album_id, position) VALUES (?, ?, ?)').run(lastInsertRowid, album(slug), i + 1));
   }
+  // Liste à plusieurs : Karim invite Sofia (ils sont amis) à compléter « Les fondations ».
+  const foundations = db.prepare('SELECT id FROM lists WHERE user_id = ? ORDER BY id LIMIT 1').get(ids.karim_demo);
+  if (foundations) {
+    db.prepare('INSERT OR IGNORE INTO list_collaborators (list_id, user_id) VALUES (?, ?)').run(foundations.id, ids.sofia_demo);
+    db.prepare("UPDATE list_items SET note = 'Le disque qui a tout lancé en 1997.' WHERE list_id = ? AND note = '' AND album_id = (SELECT id FROM albums WHERE slug = 'iam-l-ecole-du-micro-d-argent')").run(foundations.id);
+  }
+
+  // Badges mérités par l'activité de démonstration.
+  const badges = badgeEngine(db, notifier(db));
+  for (const id of Object.values(ids)) badges.check(id);
+
   // Sofia est administratrice, avec un signalement d'exemple à traiter dans « Modération ».
   db.prepare("UPDATE users SET role = 'admin' WHERE username = 'sofia_demo'").run();
   const reported = db.prepare(`SELECT r.id FROM reviews r JOIN albums al ON al.id = r.album_id

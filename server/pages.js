@@ -14,6 +14,8 @@ import { adminPage } from './views/admin.js';
 import { statsPage, yearPage } from './views/stats.js';
 import { statsQueries } from './stats.js';
 import { chartsQueries } from './charts.js';
+import { badgeEngine } from './badges.js';
+import { badgesPage } from './views/stats.js';
 import { chartsPage, challengePage, challengeCard } from './views/charts.js';
 import { moderation } from './moderation.js';
 import { listenLinks } from './album-details.js';
@@ -42,6 +44,7 @@ export function pagesRouter(db, q) {
   const mod = moderation(db);
   const stats = statsQueries(db);
   const charts = chartsQueries(db);
+  const badges = badgeEngine(db);
 
   const send = (req, res, opts) => {
     res.set('Cache-Control', 'no-cache');
@@ -148,7 +151,7 @@ export function pagesRouter(db, q) {
     send(req, res, {
       title: `${profile.display_name} (@${profile.username})`, path: `/membre/${profile.username}`, theme: 'dark',
       description: truncate(profile.bio || `Le carnet d'écoute de ${profile.display_name} sur MyRapFr : ${profile.stats.listened} albums écoutés.`),
-      body: profilePage({ profile, user: req.user }), scripts: ['/js/pages/social.js'],
+      body: profilePage({ profile, user: req.user, badges: badges.earned(profile.id) }), scripts: ['/js/pages/social.js'],
     });
   });
 
@@ -162,6 +165,17 @@ export function pagesRouter(db, q) {
       title: `Statistiques de ${profile.display_name}`, path: req.path, theme: 'dark',
       description: `Le rap français de ${profile.display_name} en chiffres : décennies, rappeurs, notes.`,
       body: statsPage({ profile, s: stats.overview(profile.id), years: stats.years(profile.id) }),
+    });
+  });
+
+  r.get('/membre/:username/badges', (req, res) => {
+    const profile = visibleProfile(req);
+    if (!profile) return notFound(req, res);
+    const list = badges.all(profile.id);
+    send(req, res, {
+      title: `Badges de ${profile.display_name}`, path: req.path, theme: 'dark',
+      description: `${list.filter((b) => b.earnedAt).length} badges obtenus par ${profile.display_name} sur MyRapFr.`,
+      body: badgesPage({ profile, list }),
     });
   });
 
@@ -199,7 +213,7 @@ export function pagesRouter(db, q) {
       title: `${list.title}, une liste de ${list.display_name}`, path: `/liste/${list.id}`, theme: 'dark',
       description: truncate(list.description || `${list.albums.length} albums choisis par ${list.display_name} sur MyRapFr.`),
       image: list.albums[0] ? `/img/og/${list.albums[0].slug}.jpg` : undefined,
-      body: listPage({ list, user: req.user }), scripts: ['/js/pages/social.js'],
+      body: listPage({ list, user: req.user, friends: req.user?.username === list.username ? q.friends(req.user.id) : [] }), scripts: ['/js/pages/social.js'],
     });
   });
 

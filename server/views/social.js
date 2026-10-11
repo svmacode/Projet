@@ -1,7 +1,8 @@
 import { html } from '../html.js';
+import { BADGE_NAMES } from '../badges.js';
 import { tile, cover, stars, review, avatar, icon, formatDate } from './components.js';
 
-export function profilePage({ profile: p, user }) {
+export function profilePage({ profile: p, user, badges = [] }) {
   const followBtn = !p.isMe && user ? html`<button type="button" class="btn ${p.isFollowing ? 'btn-quiet' : 'btn-primary'}" data-follow="${p.username}" data-follows-me="${p.followsMe ? '1' : '0'}" data-follow-count aria-pressed="${p.isFollowing ? 'true' : 'false'}">${followLabel(p)}</button>`
     : !user ? html`<a class="btn btn-quiet" href="/connexion?retour=/membre/${p.username}">Suivre</a>` : '';
   return html`
@@ -34,6 +35,11 @@ export function profilePage({ profile: p, user }) {
       <div><dt><a href="/membre/${p.username}/abonnes">Abonnés</a></dt><dd data-followers>${p.stats.followers}</dd></div>
       <div><dt><a href="/membre/${p.username}/abonnements">Abonnements</a></dt><dd>${p.stats.following}</dd></div>
     </dl>
+
+    ${badges.length ? html`<a class="badge-strip" href="/membre/${p.username}/badges" aria-label="${badges.length} badge${badges.length > 1 ? 's' : ''} : voir tous les badges">
+      ${badges.slice(0, 8).map((b) => html`<span class="badge-medal" title="${b.name}">${b.emoji}</span>`)}
+      <span class="badge-strip-label">${badges.length} badge${badges.length > 1 ? 's' : ''}</span>
+    </a>` : p.isMe ? html`<a class="badge-strip badge-strip-empty" href="/membre/${p.username}/badges">Découvre les badges à débloquer</a>` : ''}
 
     <nav class="tabs" aria-label="Sections du profil">
       <a href="#favoris">Favoris</a><a href="#journal">Journal</a><a href="#coeurs">Coups de cœur</a><a href="#a-ecouter">À écouter</a><a href="#listes">Listes</a><a href="#amis">Amis</a>
@@ -69,7 +75,9 @@ export function profilePage({ profile: p, user }) {
 
     <section id="listes" class="profile-section" aria-labelledby="lists-t">
       <h2 id="lists-t" class="h-section">Listes</h2>
-      ${p.lists.length ? html`<ul class="plain-list">${p.lists.map((l) => html`<li><a href="/liste/${l.id}">${l.title} <span>${l.count} album${l.count > 1 ? 's' : ''}</span></a></li>`)}</ul>` : html`<p class="empty-note">Aucune liste.</p>`}
+      ${p.lists.length ? html`<ul class="plain-list">${p.lists.map((l) => html`<li><a href="/liste/${l.id}">${l.title} <span>${l.count} album${l.count > 1 ? 's' : ''}${l.collaborators ? ` · à ${l.collaborators + 1}` : ''}</span></a></li>`)}</ul>` : html`<p class="empty-note">Aucune liste.</p>`}
+      ${p.sharedLists.length ? html`<h3 class="h-sub">Listes partagées avec ${p.isMe ? 'toi' : p.display_name}</h3>
+        <ul class="plain-list">${p.sharedLists.map((l) => html`<li><a href="/liste/${l.id}">${l.title} <span>de @${l.owner} · ${l.count} album${l.count > 1 ? 's' : ''}</span></a></li>`)}</ul>` : ''}
       ${p.isMe ? html`<form class="form form-inline" data-new-list novalidate>
         <div class="field"><label for="list-title">Nouvelle liste</label>
           <input id="list-title" name="title" required maxlength="80" placeholder="Mes classiques de 1997">
@@ -99,20 +107,48 @@ export function followPage({ profile, users, direction }) {
   </section>`;
 }
 
-export function listPage({ list, user }) {
+export function listPage({ list, user, friends = [] }) {
   const mine = user && user.username === list.username;
+  const collab = user && list.collaborators.some((c) => c.username === user.username);
+  const canEdit = mine || collab;
   return html`
   <section class="page-head page-head-dark">
-    <p class="kick-link">Liste de <a href="/membre/${list.username}">${list.display_name}</a></p>
+    <p class="kick-link">Liste de <a href="/membre/${list.username}">${list.display_name}</a>${list.collaborators.length ? html`, avec ${list.collaborators.map((c, i) => html`${i ? ', ' : ''}<a href="/membre/${c.username}">${c.display_name}</a>`)}` : ''}</p>
     <h1 class="display">${list.title}</h1>
     ${list.description ? html`<p class="lede">${list.description}</p>` : ''}
     <div class="album-share album-share-center"><button class="copy-btn" type="button" data-share data-share-campaign="liste">${icon('share')}<span>Partager la liste</span></button></div>
   </section>
-  <section class="catalogue">
-    ${list.albums.length ? html`<ol class="grid ranked" data-list="${list.id}">${list.albums.map((a) => html`<li>
-      ${tile(a)}
-      ${mine ? html`<button type="button" class="text-btn" data-remove-item="${a.slug}">Retirer</button>` : ''}
-    </li>`)}</ol>` : html`<p class="empty-note">Cette liste est vide. ${mine ? 'Ajoute des albums depuis leur page.' : ''}</p>`}
+  <section class="catalogue list-page" data-list="${list.id}">
+    ${list.albums.length ? html`<ol class="list-items">${list.albums.map((a, i) => html`<li class="list-item" data-item="${a.slug}">
+      <span class="list-rank">${i + 1}</span>
+      <a class="list-cover" href="/album/${a.slug}">${cover(a, { sizes: '96px' })}</a>
+      <div class="list-text">
+        <a class="list-title" href="/album/${a.slug}">${a.title}</a>
+        <span class="list-meta">${a.artist.name} · ${a.year}${list.collaborators.length && a.addedBy ? ` · ajouté par @${a.addedBy}` : ''}</span>
+        ${canEdit ? html`<textarea class="list-note" rows="1" maxlength="280" placeholder="Pourquoi cet album ? (facultatif)" aria-label="Note sur ${a.title}" data-note="${a.slug}">${a.note}</textarea>`
+          : a.note ? html`<p class="list-note-text">${a.note}</p>` : ''}
+      </div>
+      ${canEdit ? html`<div class="list-tools">
+        <button type="button" class="icon-btn" data-move="up" aria-label="Monter ${a.title}" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="icon-btn" data-move="down" aria-label="Descendre ${a.title}" ${i === list.albums.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="text-btn" data-remove-item="${a.slug}">Retirer</button>
+      </div>` : ''}
+    </li>`)}</ol>` : html`<p class="empty-note">Cette liste est vide. ${canEdit ? 'Ajoute des albums depuis leur page (menu « Ajouter à une liste »).' : ''}</p>`}
+
+    ${mine ? html`<div class="panel collab-panel" data-collab-panel>
+      <h2 class="h-section">Liste à plusieurs</h2>
+      <p>Invite des amis : ils pourront ajouter, classer et annoter des albums avec toi.</p>
+      <ul class="persons" data-collaborators>${list.collaborators.map((c) => html`<li class="person">
+        <a class="person-id" href="/membre/${c.username}">${avatar(c)} <span><strong>${c.display_name}</strong> <small>@${c.username}</small></span></a>
+        <button type="button" class="btn btn-sm btn-quiet" data-remove-collab="${c.username}">Retirer</button>
+      </li>`)}</ul>
+      ${friends.length ? html`<form class="form-inline collab-form" data-collab-form>
+        <label class="visually-hidden" for="collab-user">Ami à inviter</label>
+        <select id="collab-user" name="username">${friends.filter((f) => !list.collaborators.some((c) => c.username === f.username)).map((f) => html`<option value="${f.username}">${f.display_name} (@${f.username})</option>`)}</select>
+        <button class="btn btn-primary btn-sm" type="submit">Inviter</button>
+      </form>` : html`<p class="empty-note">Il te faut des amis (abonnements réciproques) pour les inviter. <a href="/amis">Trouver des amis</a></p>`}
+    </div>` : ''}
+    ${collab ? html`<p><button type="button" class="text-btn text-danger" data-leave-list="${user.username}">Quitter cette liste</button></p>` : ''}
     ${mine ? html`<p><button type="button" class="text-btn text-danger" data-delete-list="${list.id}">Supprimer la liste</button></p>` : ''}
   </section>`;
 }
@@ -220,10 +256,14 @@ const NOTIF_TEXT = {
   friend: () => 'te suit en retour : vous êtes amis.',
   like: (n) => html`a aimé ta chronique de <em>${n.album_title}</em>.`,
   comment: (n) => html`a commenté ta chronique de <em>${n.album_title}</em> : « ${n.comment && n.comment.length > 120 ? `${n.comment.slice(0, 119)}…` : n.comment} »`,
+  list_invite: (n) => html`t'invite à compléter sa liste <em>${n.extra}</em>.`,
+  badge: (n) => html`— nouveau badge : <strong>${BADGE_NAMES[n.extra] || n.extra}</strong> !`,
 };
 
 export function notificationsPage({ list }) {
-  const link = (n) => (n.review_id ? `/chronique/${n.review_id}${n.type === 'comment' ? '#commentaires' : ''}` : `/membre/${n.username}`);
+  const link = (n) => (n.type === 'badge' ? `/membre/${n.username}/badges`
+    : n.list_id ? `/liste/${n.list_id}`
+    : n.review_id ? `/chronique/${n.review_id}${n.type === 'comment' ? '#commentaires' : ''}` : `/membre/${n.username}`);
   return html`
   <section class="page-head">
     <h1 class="display">Notifications.</h1>

@@ -136,7 +136,7 @@ export function albumPage({ album, reviews, friendsReviews, state, user, lists, 
               <span class="visually-hidden">Ajouter à une liste</span>
               <select data-add-to-list>
                 <option value="">Ajouter à une liste…</option>
-                ${lists.map((l) => html`<option value="${l.id}">${l.title}</option>`)}
+                ${lists.map((l) => html`<option value="${l.id}">${l.title}${l.shared ? ' (partagée)' : ''}</option>`)}
               </select>
             </label>` : ''}
           </div>

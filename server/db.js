@@ -238,6 +238,32 @@ function migrate(db) {
       detail TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );`);
+  // Listes collaboratives : note par album et auteur de l'ajout.
+  const itemCols = db.prepare('PRAGMA table_info(list_items)').all().map((c) => c.name);
+  if (!itemCols.includes('note')) {
+    db.exec("ALTER TABLE list_items ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+    db.exec('ALTER TABLE list_items ADD COLUMN added_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS list_collaborators (
+      list_id INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      added_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (list_id, user_id)
+    );
+    -- Badges obtenus (la date sert à l'ordre d'affichage et à la notification).
+    CREATE TABLE IF NOT EXISTS user_badges (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      badge TEXT NOT NULL,
+      earned_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, badge)
+    );`);
+  const notifCols = db.prepare('PRAGMA table_info(notifications)').all().map((c) => c.name);
+  if (!notifCols.includes('list_id')) {
+    db.exec('ALTER TABLE notifications ADD COLUMN list_id INTEGER REFERENCES lists(id) ON DELETE CASCADE');
+    db.exec('ALTER TABLE notifications ADD COLUMN extra TEXT');
+  }
+
   // Conservation (voir la politique de confidentialité) : signalements traités et journal, 1 an.
   db.exec("DELETE FROM reports WHERE resolved_at < datetime('now', '-1 year')");
   db.exec("DELETE FROM user_reports WHERE resolved_at < datetime('now', '-1 year')");

@@ -36,6 +36,10 @@ export async function api(path, { method = 'GET', body, file } = {}) {
     throw new ApiError(data.error || 'Connecte-toi pour continuer.', 401);
   }
   if (!res.ok) throw new ApiError(data.error || 'Une erreur est survenue.', res.status, data.fields);
+  // Badge débloqué par cette action : annoncé après le message de l'action elle-même.
+  if (data.newBadges?.length) {
+    import('./ui.js').then(({ toast }) => data.newBadges.forEach((b, i) => setTimeout(() => toast(`Nouveau badge : ${b.emoji} ${b.name}`), 1800 * (i + 1))));
+  }
   return data;
 }
 

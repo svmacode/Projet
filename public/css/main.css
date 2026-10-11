@@ -1759,3 +1759,47 @@ body::after {
 .footer-install { display: block; padding: 0; margin-top: 8px; border: 0; background: none; font: inherit; color: var(--link-light, #0066cc); cursor: pointer; text-align: left; }
 .footer-install:hover { text-decoration: underline; }
 .offline { min-height: 70vh; display: grid; align-content: center; justify-items: center; }
+
+/* ---------- Listes (classées, notes, à plusieurs) ---------- */
+.list-page { max-width: 880px; margin: 0 auto; display: grid; gap: 32px; }
+.list-items { list-style: none; margin: 0; padding: 0; display: grid; }
+.list-item { display: grid; grid-template-columns: 32px 72px 1fr auto; gap: 16px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.list-rank { font-size: 22px; font-weight: 800; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
+.list-cover .cover { width: 72px; height: 72px; border-radius: 8px; }
+.list-text { display: grid; gap: 4px; min-width: 0; }
+.list-title { font-weight: 700; color: var(--ink); }
+.list-meta { font-size: 14px; color: var(--ink-2); }
+.list-note { width: 100%; resize: vertical; min-height: 36px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: rgb(255 255 255 / 0.06); color: var(--ink); font: inherit; font-size: 14px; }
+.list-note:hover, .list-note:focus { border-color: var(--line); outline: none; }
+.list-note-text { margin: 2px 0 0; font-size: 15px; font-style: italic; color: var(--ink-2); }
+.list-tools { display: flex; gap: 6px; align-items: center; }
+.icon-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; font-size: 15px; }
+.icon-btn:disabled { opacity: 0.3; cursor: default; }
+.icon-btn:not(:disabled):hover { background: var(--panel); }
+.collab-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.collab-form select { min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--page, transparent); color: var(--ink); font: inherit; }
+.collab-panel .persons { justify-self: stretch; }
+@media (max-width: 600px) {
+  .list-item { grid-template-columns: 24px 56px 1fr; }
+  .list-cover .cover { width: 56px; height: 56px; }
+  .list-tools { grid-column: 2 / -1; }
+}
+
+/* ---------- Badges ---------- */
+.badge-strip { display: inline-flex; align-items: center; gap: 4px; margin: 20px 0 0; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--panel); color: var(--ink); }
+.badge-strip:hover { background: var(--quiet, var(--panel)); }
+.badge-strip-label { margin-left: 6px; font-size: 14px; font-weight: 600; }
+.badge-strip-empty { padding: 8px 16px; font-size: 14px; color: var(--ink-2); }
+.badge-medal { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-size: 16px; background: radial-gradient(circle at 30% 30%, #fff6d6, #f5c451 55%, #b8862b); box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.15); }
+.badge-medal-lg { width: 64px; height: 64px; font-size: 32px; }
+.badges-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.badge-card { display: grid; gap: 6px; justify-items: center; text-align: center; padding: 24px 18px; border-radius: var(--radius-l); background: var(--panel); }
+.badge-card:not(.is-earned) .badge-medal { filter: grayscale(1); opacity: 0.4; }
+.badge-card:not(.is-earned) strong { color: var(--ink-2); }
+.badge-card.is-earned { box-shadow: inset 0 0 0 1px rgb(245 196 81 / 0.45); }
+.badge-text { font-size: 14px; color: var(--ink-2); }
+.badge-date { font-size: 12px; color: #f5c451; }
+.badge-progress { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; width: 100%; font-size: 12px; color: var(--ink-2); }
+.badge-progress svg { width: 100%; height: 6px; color: var(--blue); }
+.badge-progress rect { fill: currentColor; }
+.badge-progress rect.track { fill: var(--line); }

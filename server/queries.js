@@ -180,8 +180,13 @@ export function makeQueries(db) {
       u.wishlist = db.prepare(`${ALBUM_SELECT} JOIN user_albums s ON s.album_id = al.id WHERE s.user_id = ? AND s.wishlist = 1 ORDER BY s.updated_at DESC LIMIT 24`)
         .all(u.id).map(albumView);
       u.lists = db.prepare(`
-        SELECT l.id, l.title, l.description, (SELECT COUNT(*) FROM list_items WHERE list_id = l.id) AS count
+        SELECT l.id, l.title, l.description, (SELECT COUNT(*) FROM list_items WHERE list_id = l.id) AS count,
+          (SELECT COUNT(*) FROM list_collaborators WHERE list_id = l.id) AS collaborators
         FROM lists l WHERE l.user_id = ? ORDER BY l.created_at DESC`).all(u.id);
+      u.sharedLists = db.prepare(`
+        SELECT l.id, l.title, o.username AS owner, (SELECT COUNT(*) FROM list_items WHERE list_id = l.id) AS count
+        FROM list_collaborators c JOIN lists l ON l.id = c.list_id JOIN users o ON o.id = l.user_id
+        WHERE c.user_id = ? ORDER BY c.added_at DESC`).all(u.id);
       u.friends = q.friends(u.id);
       return u;
     },
@@ -209,7 +214,7 @@ export function makeQueries(db) {
 
     notifications(userId, limit = 60) {
       return db.prepare(`
-        SELECT n.id, n.type, n.created_at, n.read_at, n.review_id, n.comment_id,
+        SELECT n.id, n.type, n.created_at, n.read_at, n.review_id, n.comment_id, n.list_id, n.extra,
           u.username, u.display_name, u.avatar, al.slug AS album_slug, al.title AS album_title,
           (SELECT body FROM comments WHERE id = n.comment_id) AS comment
         FROM notifications n JOIN users u ON u.id = n.actor_id
@@ -319,13 +324,20 @@ export function makeQueries(db) {
         SELECT l.id, l.title, l.description, l.created_at, u.username, u.display_name, u.avatar, u.id AS user_id
         FROM lists l JOIN users u ON u.id = l.user_id WHERE l.id = ?`).get(id);
       if (!l) return null;
-      l.albums = db.prepare(`${ALBUM_SELECT} JOIN list_items li ON li.album_id = al.id WHERE li.list_id = ? ORDER BY li.position`)
-        .all(id).map(albumView);
+      l.albums = db.prepare(`${ALBUM_SELECT.replace('SELECT al.slug', 'SELECT li.note, li.position, ub.username AS added_by, al.slug')}
+        JOIN list_items li ON li.album_id = al.id LEFT JOIN users ub ON ub.id = li.added_by
+        WHERE li.list_id = ? ORDER BY li.position, li.rowid`)
+        .all(id).map((row) => ({ ...albumView(row), note: row.note, addedBy: row.added_by }));
+      l.collaborators = db.prepare(`SELECT u.username, u.display_name, u.avatar FROM list_collaborators c JOIN users u ON u.id = c.user_id
+        WHERE c.list_id = ? ORDER BY c.added_at`).all(id);
       return l;
     },
 
+    // Listes où le membre peut ajouter un album : les siennes, puis celles où il est invité.
     myLists(userId) {
-      return db.prepare('SELECT id, title FROM lists WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+      return db.prepare(`SELECT id, title, 0 AS shared FROM lists WHERE user_id = ?
+        UNION ALL SELECT l.id, l.title, 1 AS shared FROM list_collaborators c JOIN lists l ON l.id = c.list_id WHERE c.user_id = ?`)
+        .all(userId, userId);
     },
 
     // Recherche tolérante : sans accents, sans ponctuation, mots dans n'importe quel ordre.

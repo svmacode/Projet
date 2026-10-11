@@ -112,3 +112,22 @@ export function yearPage({ profile: p, b, years, isMe }) {
     </footer>
   </article>`;
 }
+
+export function badgesPage({ profile: p, list }) {
+  const got = list.filter((b) => b.earnedAt);
+  return html`
+  <section class="page-head page-head-dark">
+    <p class="kick-link"><a href="/membre/${p.username}">${icon('chevron-left')} ${p.display_name}</a></p>
+    <h1 class="display">Badges.</h1>
+    <p class="lede">${got.length} sur ${list.length} débloqués.</p>
+  </section>
+  <section class="page-body">
+    <ul class="badges-grid">${list.map((b) => html`<li class="badge-card ${b.earnedAt ? 'is-earned' : ''}">
+      <span class="badge-medal badge-medal-lg" aria-hidden="true">${b.emoji}</span>
+      <strong>${b.name}</strong>
+      <span class="badge-text">${b.text}</span>
+      ${b.earnedAt ? html`<span class="badge-date">Obtenu le ${new Date(`${b.earnedAt.replace(' ', 'T')}Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>`
+        : html`<span class="badge-progress"><svg viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true"><rect class="track" width="100" height="6" rx="3"></rect><rect width="${((b.progress / b.goal) * 100).toFixed(1)}" height="6" rx="3"></rect></svg><span>${b.progress}/${b.goal}</span></span>`}
+    </li>`)}</ul>
+  </section>`;
+}

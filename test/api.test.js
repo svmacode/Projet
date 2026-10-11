@@ -338,8 +338,9 @@ test('commentaires et notifications : publier, notifier, supprimer, signaler ; b
   assert.equal(c.status, 201, JSON.stringify(c.data));
   assert.equal((await lecteur.call('POST', `/api/v1/reviews/${reviewId}/comments`, { body: '' })).status, 400);
   const notifs = await auteur.call('GET', '/api/v1/notifications');
-  assert.equal(notifs.data.unread, 3);
-  assert.deepEqual(notifs.data.notifications.map((n) => n.type).sort(), ['comment', 'follow', 'like']);
+  const social = notifs.data.notifications.filter((n) => n.type !== 'badge'); // les badges ont leurs propres notifications
+  assert.equal(social.length, 3);
+  assert.deepEqual(social.map((n) => n.type).sort(), ['comment', 'follow', 'like']);
   // La page de la chronique affiche le commentaire, échappé.
   const page = await client().call('GET', `/chronique/${reviewId}`);
   assert.equal(page.status, 200);
@@ -422,4 +423,52 @@ test('application installable : manifeste, service worker, page hors ligne', asy
   assert.doesNotMatch(code, /__VERSION__/);
   assert.match(code, /hors-ligne/);
   assert.match((await c.call('GET', '/hors-ligne')).data, /Hors ligne/);
+});
+
+test('listes à plusieurs : inviter un ami, ajouter, annoter, classer, quitter', async () => {
+  const owner = client();
+  const friend = client();
+  const stranger = client();
+  await register(owner, 'proprio');
+  await register(friend, 'copain');
+  await register(stranger, 'inconnu');
+  const { data: { id } } = await owner.call('POST', '/api/v1/lists', { title: 'Nos classiques', description: '' });
+  // Seuls les amis (abonnements réciproques) peuvent être invités.
+  assert.equal((await owner.call('POST', `/api/v1/lists/${id}/collaborators`, { username: 'copain' })).status, 403);
+  await owner.call('POST', '/api/v1/users/copain/follow');
+  await friend.call('POST', '/api/v1/users/proprio/follow');
+  assert.equal((await owner.call('POST', `/api/v1/lists/${id}/collaborators`, { username: 'copain' })).status, 200);
+  assert.ok((await friend.call('GET', '/api/v1/notifications')).data.notifications.some((n) => n.type === 'list_invite'));
+  // L'invité ajoute et annote ; un inconnu ne peut rien faire.
+  assert.equal((await friend.call('POST', `/api/v1/lists/${id}/items`, { album: 'pnl-dans-la-legende' })).status, 200);
+  assert.equal((await owner.call('POST', `/api/v1/lists/${id}/items`, { album: 'laylow-trinity' })).status, 200);
+  assert.equal((await stranger.call('POST', `/api/v1/lists/${id}/items`, { album: 'jul-my-world' })).status, 403);
+  assert.equal((await friend.call('PUT', `/api/v1/lists/${id}/items/pnl-dans-la-legende`, { note: 'Le début de tout.' })).status, 200);
+  // Classement : Trinity passe en premier.
+  await friend.call('POST', `/api/v1/lists/${id}/items/laylow-trinity/move`, { direction: 'up' });
+  const list = (await client().call('GET', `/api/v1/lists/${id}`)).data.list;
+  assert.deepEqual(list.albums.map((a) => a.slug), ['laylow-trinity', 'pnl-dans-la-legende']);
+  assert.equal(list.albums[1].note, 'Le début de tout.');
+  assert.equal(list.albums[1].addedBy, 'copain');
+  assert.deepEqual(list.collaborators.map((c) => c.username), ['copain']);
+  // Seul l'auteur supprime la liste ; l'invité peut la quitter.
+  assert.equal((await friend.call('DELETE', `/api/v1/lists/${id}`)).status, 403);
+  assert.equal((await friend.call('DELETE', `/api/v1/lists/${id}/collaborators/copain`)).status, 200);
+  assert.equal((await friend.call('POST', `/api/v1/lists/${id}/items`, { album: 'jul-my-world' })).status, 403);
+});
+
+test('badges : débloqués par l\'activité, annoncés et affichés', async () => {
+  const c = client();
+  await register(c, 'collectionneuse');
+  const first = await c.call('PUT', '/api/v1/albums/pnl-dans-la-legende/state', { listened: true });
+  assert.ok(first.data.newBadges?.some((b) => b.id === 'ecoute-1'), JSON.stringify(first.data));
+  // Le même badge n'est annoncé qu'une fois.
+  const again = await c.call('PUT', '/api/v1/albums/laylow-trinity/state', { listened: true });
+  assert.ok(!again.data.newBadges?.some((b) => b.id === 'ecoute-1'));
+  const page = await c.call('GET', '/membre/collectionneuse/badges');
+  assert.equal(page.status, 200);
+  assert.match(page.data, /Première écoute/);
+  assert.match(page.data, /2\/10/); // progression vers « Oreille curieuse »
+  assert.match((await c.call('GET', '/membre/collectionneuse')).data, /badge-strip/);
+  assert.ok((await c.call('GET', '/api/v1/notifications')).data.notifications.some((n) => n.type === 'badge'));
 });

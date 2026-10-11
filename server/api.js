@@ -12,6 +12,7 @@ import { catalogStatus } from './auto-images.js';
 import { saveUpload, removeAvatarFile, avatarUrl } from './avatars.js';
 import { moderation } from './moderation.js';
 import { notifier } from './notify.js';
+import { badgeEngine } from './badges.js';
 import { albumDetails, listenLinks } from './album-details.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
@@ -37,6 +38,24 @@ function catchAsync(router) {
 export function apiRouter(db, q) {
   const api = catchAsync(express.Router());
   const notify = notifier(db);
+  const badges = badgeEngine(db, notify);
+
+  // Après chaque action réussie d'un membre (POST, PUT, DELETE), ses badges sont recalculés ; les nouveaux
+  // sont ajoutés à la réponse (« newBadges ») pour que le navigateur les annonce.
+  api.use((req, res, next) => {
+    if (req.method === 'GET' || !req.user || req.path.startsWith('/admin/')) return next();
+    const json = res.json.bind(res);
+    res.json = (body) => {
+      if (res.statusCode < 400 && body && typeof body === 'object' && !Array.isArray(body)) {
+        try {
+          const fresh = badges.check(req.user.id);
+          if (fresh.length) body = { ...body, newBadges: fresh };
+        } catch { /* un badge ne doit jamais faire échouer l'action */ }
+      }
+      return json(body);
+    };
+    next();
+  });
   const blocked = (a, b) => Boolean(db.prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)').get(a, b, b, a));
   api.use(express.json({ limit: '20kb' }));
   api.use(limiter(1, 120, 'Trop de requêtes, réessaie dans une minute.'));
@@ -301,6 +320,7 @@ export function apiRouter(db, q) {
     else {
       db.prepare('INSERT INTO review_likes (user_id, review_id) VALUES (?, ?)').run(req.user.id, id);
       notify({ to: review.user_id, actor: req.user.id, type: 'like', reviewId: id });
+      badges.check(review.user_id);
     }
     const { n } = db.prepare('SELECT COUNT(*) n FROM review_likes WHERE review_id = ?').get(id);
     res.json({ liked: !liked, likes: n });
@@ -402,6 +422,7 @@ export function apiRouter(db, q) {
     const { changes } = db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)').run(req.user.id, u.id);
     const friends = Boolean(db.prepare('SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?').get(u.id, req.user.id));
     if (changes) notify({ to: u.id, actor: req.user.id, type: friends ? 'friend' : 'follow' });
+    if (friends) badges.check(u.id);
     res.json({ following: true, friends });
   });
 
@@ -464,10 +485,24 @@ export function apiRouter(db, q) {
   });
 
   const ownList = (req, res) => {
-    const list = db.prepare('SELECT id, user_id FROM lists WHERE id = ?').get(Number(req.params.id));
+    const list = db.prepare('SELECT id, user_id, title FROM lists WHERE id = ?').get(Number(req.params.id));
     if (!list) { res.status(404).json({ error: 'Liste introuvable.' }); return null; }
     if (list.user_id !== req.user.id) { res.status(403).json({ error: "Ce n'est pas ta liste." }); return null; }
     return list;
+  };
+  // Liste modifiable : par son auteur ou par un membre invité à la compléter.
+  const editableList = (req, res) => {
+    const list = db.prepare('SELECT id, user_id, title FROM lists WHERE id = ?').get(Number(req.params.id));
+    if (!list) { res.status(404).json({ error: 'Liste introuvable.' }); return null; }
+    const collab = db.prepare('SELECT 1 FROM list_collaborators WHERE list_id = ? AND user_id = ?').get(list.id, req.user.id);
+    if (list.user_id !== req.user.id && !collab) { res.status(403).json({ error: "Tu ne peux pas modifier cette liste." }); return null; }
+    return list;
+  };
+  // Positions 1, 2, 3… sans trou (après un retrait).
+  const compact = (listId) => {
+    const ids = db.prepare('SELECT album_id FROM list_items WHERE list_id = ? ORDER BY position, rowid').all(listId);
+    const set = db.prepare('UPDATE list_items SET position = ? WHERE list_id = ? AND album_id = ?');
+    ids.forEach((r, i) => set.run(i + 1, listId, r.album_id));
   };
 
   api.get('/lists/:id', (req, res) => {
@@ -478,7 +513,7 @@ export function apiRouter(db, q) {
   });
 
   api.post('/lists/:id/items', requireAuth, writeLimiter, (req, res) => {
-    const list = ownList(req, res);
+    const list = editableList(req, res);
     if (!list) return;
     const data = validate(schemas.listItem, req, res);
     if (!data) return;
@@ -486,15 +521,70 @@ export function apiRouter(db, q) {
     if (!albumId) return res.status(404).json({ error: 'Album introuvable.' });
     const { n } = db.prepare('SELECT COUNT(*) n FROM list_items WHERE list_id = ?').get(list.id);
     if (n >= 200) return res.status(400).json({ error: 'Une liste contient 200 albums maximum.' });
-    db.prepare('INSERT OR IGNORE INTO list_items (list_id, album_id, position) VALUES (?, ?, ?)').run(list.id, albumId, n + 1);
+    db.prepare('INSERT OR IGNORE INTO list_items (list_id, album_id, position, added_by) VALUES (?, ?, ?, ?)').run(list.id, albumId, n + 1, req.user.id);
     res.json({ ok: true });
   });
 
   api.delete('/lists/:id/items/:album', requireAuth, (req, res) => {
-    const list = ownList(req, res);
+    const list = editableList(req, res);
     if (!list) return;
     const albumId = q.albumId(req.params.album);
     db.prepare('DELETE FROM list_items WHERE list_id = ? AND album_id = ?').run(list.id, albumId);
+    compact(list.id);
+    res.json({ ok: true });
+  });
+
+  // Note sur un album de la liste (« pourquoi il est là »).
+  api.put('/lists/:id/items/:album', requireAuth, writeLimiter, (req, res) => {
+    const list = editableList(req, res);
+    if (!list) return;
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim().slice(0, 280) : '';
+    if (looksLikeSpam(note)) return res.status(400).json({ error: 'Trop de liens dans la note.' });
+    const { changes } = db.prepare('UPDATE list_items SET note = ? WHERE list_id = ? AND album_id = ?').run(note, list.id, q.albumId(req.params.album));
+    if (!changes) return res.status(404).json({ error: "Cet album n'est pas dans la liste." });
+    res.json({ ok: true, note });
+  });
+
+  // Monter ou descendre un album dans le classement.
+  api.post('/lists/:id/items/:album/move', requireAuth, (req, res) => {
+    const list = editableList(req, res);
+    if (!list) return;
+    compact(list.id);
+    const albumId = q.albumId(req.params.album);
+    const item = db.prepare('SELECT position FROM list_items WHERE list_id = ? AND album_id = ?').get(list.id, albumId);
+    if (!item) return res.status(404).json({ error: "Cet album n'est pas dans la liste." });
+    const target = item.position + (req.body?.direction === 'up' ? -1 : 1);
+    const other = db.prepare('SELECT album_id FROM list_items WHERE list_id = ? AND position = ?').get(list.id, target);
+    if (!other) return res.json({ ok: true, position: item.position });
+    db.prepare('UPDATE list_items SET position = ? WHERE list_id = ? AND album_id = ?').run(item.position, list.id, other.album_id);
+    db.prepare('UPDATE list_items SET position = ? WHERE list_id = ? AND album_id = ?').run(target, list.id, albumId);
+    res.json({ ok: true, position: target });
+  });
+
+  // Inviter un ami à compléter la liste (amis seulement : abonnements réciproques).
+  api.post('/lists/:id/collaborators', requireAuth, writeLimiter, (req, res) => {
+    const list = ownList(req, res);
+    if (!list) return;
+    const u = q.user(String(req.body?.username || '').replace(/^@/, '').slice(0, 40));
+    if (!u || u.suspended_at) return res.status(404).json({ error: 'Membre introuvable.' });
+    if (u.id === req.user.id) return res.status(400).json({ error: "C'est déjà ta liste." });
+    const friends = db.prepare(`SELECT 1 FROM follows a JOIN follows b ON b.follower_id = a.followee_id AND b.followee_id = a.follower_id
+      WHERE a.follower_id = ? AND a.followee_id = ?`).get(req.user.id, u.id);
+    if (!friends || blocked(req.user.id, u.id)) return res.status(403).json({ error: 'Tu ne peux inviter que tes amis (abonnements réciproques).' });
+    const { n } = db.prepare('SELECT COUNT(*) n FROM list_collaborators WHERE list_id = ?').get(list.id);
+    if (n >= 10) return res.status(400).json({ error: '10 invités maximum par liste.' });
+    const { changes } = db.prepare('INSERT OR IGNORE INTO list_collaborators (list_id, user_id) VALUES (?, ?)').run(list.id, u.id);
+    if (changes) notify({ to: u.id, actor: req.user.id, type: 'list_invite', listId: list.id, extra: list.title });
+    res.json({ ok: true, collaborator: { username: u.username, displayName: u.display_name, avatar: avatarUrl(u.avatar) } });
+  });
+
+  // Retirer un invité (l'auteur), ou quitter la liste (l'invité lui-même).
+  api.delete('/lists/:id/collaborators/:username', requireAuth, (req, res) => {
+    const list = db.prepare('SELECT id, user_id FROM lists WHERE id = ?').get(Number(req.params.id));
+    const u = q.user(req.params.username);
+    if (!list || !u) return res.status(404).json({ error: 'Introuvable.' });
+    if (list.user_id !== req.user.id && u.id !== req.user.id) return res.status(403).json({ error: 'Action impossible.' });
+    db.prepare('DELETE FROM list_collaborators WHERE list_id = ? AND user_id = ?').run(list.id, u.id);
     res.json({ ok: true });
   });
 
@@ -595,6 +685,8 @@ export function apiRouter(db, q) {
       following: all('SELECT u.username FROM follows f JOIN users u ON u.id = f.followee_id WHERE f.follower_id = ?'),
       followers: all('SELECT u.username FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.followee_id = ?'),
       lists: all('SELECT id, title, description, created_at FROM lists WHERE user_id = ?'),
+      listsJoined: all('SELECT l.id, l.title, c.added_at FROM list_collaborators c JOIN lists l ON l.id = c.list_id WHERE c.user_id = ?'),
+      badges: all('SELECT badge, earned_at FROM user_badges WHERE user_id = ?'),
       reviewLikes: all('SELECT review_id, created_at FROM review_likes WHERE user_id = ?'),
       blocked: all('SELECT u.username, b.created_at FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ?'),
       comments: all('SELECT review_id, body, created_at FROM comments WHERE user_id = ?'),

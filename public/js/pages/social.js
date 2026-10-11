@@ -103,16 +103,84 @@ if (newList) {
   });
 }
 
-const listGrid = document.querySelector('[data-list]');
-listGrid?.addEventListener('click', async (e) => {
-  const btn = e.target.closest('[data-remove-item]');
-  if (!btn) return;
-  try {
-    await api(`/lists/${listGrid.dataset.list}/items/${btn.dataset.removeItem}`, { method: 'DELETE' });
-    btn.closest('li').remove();
-    toast('Album retiré de la liste');
-  } catch (err) { fail(err); }
-});
+// ---------- Page d'une liste (aussi à plusieurs) ----------
+const listPage = document.querySelector('[data-list]');
+if (listPage) {
+  const id = listPage.dataset.list;
+  const renumber = () => {
+    const items = [...listPage.querySelectorAll('.list-item')];
+    items.forEach((li, i) => {
+      li.querySelector('.list-rank').textContent = i + 1;
+      const up = li.querySelector('[data-move="up"]');
+      const down = li.querySelector('[data-move="down"]');
+      if (up) up.disabled = i === 0;
+      if (down) down.disabled = i === items.length - 1;
+    });
+  };
+
+  listPage.addEventListener('click', async (e) => {
+    const remove = e.target.closest('[data-remove-item]');
+    if (remove) {
+      try {
+        await api(`/lists/${id}/items/${remove.dataset.removeItem}`, { method: 'DELETE' });
+        remove.closest('li').remove();
+        renumber();
+        toast('Album retiré de la liste');
+      } catch (err) { fail(err); }
+      return;
+    }
+    const move = e.target.closest('[data-move]');
+    if (move) {
+      const li = move.closest('.list-item');
+      try {
+        await api(`/lists/${id}/items/${li.dataset.item}/move`, { method: 'POST', body: { direction: move.dataset.move } });
+        if (move.dataset.move === 'up' && li.previousElementSibling) li.previousElementSibling.before(li);
+        if (move.dataset.move === 'down' && li.nextElementSibling) li.nextElementSibling.after(li);
+        renumber();
+        move.focus();
+      } catch (err) { fail(err); }
+      return;
+    }
+    const removeCollab = e.target.closest('[data-remove-collab]');
+    if (removeCollab) {
+      try {
+        await api(`/lists/${id}/collaborators/${removeCollab.dataset.removeCollab}`, { method: 'DELETE' });
+        removeCollab.closest('li').remove();
+        toast('Invité retiré');
+      } catch (err) { fail(err); }
+      return;
+    }
+    const leave = e.target.closest('[data-leave-list]');
+    if (leave && confirm('Quitter cette liste ? Tu ne pourras plus la modifier.')) {
+      try {
+        await api(`/lists/${id}/collaborators/${leave.dataset.leaveList}`, { method: 'DELETE' });
+        location.reload();
+      } catch (err) { fail(err); }
+    }
+  });
+
+  // Notes : enregistrées automatiquement quand on quitte le champ.
+  listPage.addEventListener('change', async (e) => {
+    const note = e.target.closest('[data-note]');
+    if (!note) return;
+    try {
+      await api(`/lists/${id}/items/${note.dataset.note}`, { method: 'PUT', body: { note: note.value } });
+      toast('Note enregistrée');
+    } catch (err) { fail(err); }
+  });
+
+  listPage.querySelector('[data-collab-form]')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const btn = form.querySelector('[type="submit"]');
+    busy(btn, true);
+    try {
+      await api(`/lists/${id}/collaborators`, { method: 'POST', body: { username: form.username.value } });
+      toast('Invitation envoyée');
+      location.reload();
+    } catch (err) { fail(err); busy(btn, false); }
+  });
+}
 
 document.querySelector('[data-delete-list]')?.addEventListener('click', async (e) => {
   if (!confirm('Supprimer définitivement cette liste ?')) return;
