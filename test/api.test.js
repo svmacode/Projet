@@ -321,3 +321,38 @@ test('bloquer un membre : abonnements retirés, plus de suivi, profil caché, ch
   assert.equal((await a.call('DELETE', '/api/v1/users/importun/block')).status, 200);
   assert.equal((await b.call('GET', '/membre/bloqueuse')).status, 200);
 });
+
+test('commentaires et notifications : publier, notifier, supprimer, signaler ; blocage respecté', async () => {
+  const auteur = client();
+  const lecteur = client();
+  await register(auteur, 'chroniqueur');
+  await register(lecteur, 'lectrice');
+  const posted = await auteur.call('POST', '/api/v1/albums/laylow-trinity/reviews', { rating: 9, body: 'Un film plus qu un album.' });
+  const reviewId = posted.data.review?.id ?? posted.data.id;
+  // Suivre + aimer + commenter → trois notifications pour l'auteur.
+  await lecteur.call('POST', '/api/v1/users/chroniqueur/follow');
+  await lecteur.call('POST', `/api/v1/reviews/${reviewId}/like`);
+  await lecteur.call('POST', `/api/v1/reviews/${reviewId}/like`); // retirer
+  await lecteur.call('POST', `/api/v1/reviews/${reviewId}/like`); // ré-aimer : pas de doublon
+  const c = await lecteur.call('POST', `/api/v1/reviews/${reviewId}/comments`, { body: 'Entièrement d accord <script>x</script>' });
+  assert.equal(c.status, 201, JSON.stringify(c.data));
+  assert.equal((await lecteur.call('POST', `/api/v1/reviews/${reviewId}/comments`, { body: '' })).status, 400);
+  const notifs = await auteur.call('GET', '/api/v1/notifications');
+  assert.equal(notifs.data.unread, 3);
+  assert.deepEqual(notifs.data.notifications.map((n) => n.type).sort(), ['comment', 'follow', 'like']);
+  // La page de la chronique affiche le commentaire, échappé.
+  const page = await client().call('GET', `/chronique/${reviewId}`);
+  assert.equal(page.status, 200);
+  assert.match(page.data, /Entièrement d accord &lt;script&gt;/);
+  // La page Notifications marque tout comme lu.
+  assert.match((await auteur.call('GET', '/notifications')).data, /a commenté ta chronique/);
+  assert.equal((await auteur.call('GET', '/api/v1/notifications')).data.unread, 0);
+  // Signaler puis supprimer (par l'auteur de la chronique).
+  assert.equal((await auteur.call('POST', `/api/v1/comments/${c.data.comment.id}/report`, { reason: 'Test de signalement' })).status, 200);
+  assert.equal((await client().call('DELETE', `/api/v1/comments/${c.data.comment.id}`)).status, 401);
+  assert.equal((await auteur.call('DELETE', `/api/v1/comments/${c.data.comment.id}`)).status, 200);
+  // Bloqué : plus de commentaire possible ni de notification.
+  await auteur.call('POST', '/api/v1/users/lectrice/block');
+  assert.equal((await lecteur.call('POST', `/api/v1/reviews/${reviewId}/comments`, { body: 'Encore moi' })).status, 403);
+  assert.equal((await lecteur.call('GET', `/chronique/${reviewId}`)).status, 404);
+});

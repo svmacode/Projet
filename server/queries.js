@@ -127,7 +127,7 @@ export function makeQueries(db) {
     reviewsForAlbum(albumId, viewerId = 0, { limit = 30, friendsOnly = false } = {}) {
       return db.prepare(`
         SELECT r.id, r.rating, r.body, r.listened_on, r.created_at,
-          u.username, u.display_name, u.avatar,
+          u.username, u.display_name, u.avatar, (SELECT COUNT(*) FROM comments c WHERE c.review_id = r.id AND c.hidden_at IS NULL) AS comments,
           (SELECT COUNT(*) FROM review_likes WHERE review_id = r.id) AS likes,
           EXISTS(SELECT 1 FROM review_likes WHERE review_id = r.id AND user_id = ?) AS liked_by_me,
           (SELECT liked FROM user_albums WHERE user_id = r.user_id AND album_id = r.album_id) AS loved
@@ -140,7 +140,7 @@ export function makeQueries(db) {
 
     recentReviews(limit = 12, viewerId = 0) {
       return db.prepare(`
-        SELECT r.id, r.rating, r.body, r.created_at, u.username, u.display_name, u.avatar, al.slug AS album_slug
+        SELECT r.id, r.rating, r.body, r.created_at, u.username, u.display_name, u.avatar, al.slug AS album_slug, (SELECT COUNT(*) FROM comments c WHERE c.review_id = r.id AND c.hidden_at IS NULL) AS comments
         FROM reviews r JOIN users u ON u.id = r.user_id JOIN albums al ON al.id = r.album_id
         WHERE r.body <> '' AND ${VISIBLE} AND ${UNBLOCKED} ORDER BY r.created_at DESC LIMIT ?`).all(viewerId, viewerId, limit)
         .map((r) => ({ ...r, album: q.album(r.album_slug) }));
@@ -184,6 +184,43 @@ export function makeQueries(db) {
         FROM lists l WHERE l.user_id = ? ORDER BY l.created_at DESC`).all(u.id);
       u.friends = q.friends(u.id);
       return u;
+    },
+
+    // Une chronique et son fil de commentaires (page /chronique/:id).
+    reviewThread(id, viewerId = 0, { admin = false } = {}) {
+      const r = db.prepare(`
+        SELECT r.id, r.rating, r.body, r.listened_on, r.created_at, r.user_id, r.hidden_at,
+          u.username, u.display_name, u.avatar, u.suspended_at, al.slug,
+          (SELECT COUNT(*) FROM review_likes WHERE review_id = r.id) AS likes,
+          EXISTS(SELECT 1 FROM review_likes WHERE review_id = r.id AND user_id = ?) AS liked_by_me,
+          (SELECT liked FROM user_albums WHERE user_id = r.user_id AND album_id = r.album_id) AS loved
+        FROM reviews r JOIN users u ON u.id = r.user_id JOIN albums al ON al.id = r.album_id
+        WHERE r.id = ? AND ${UNBLOCKED}`).get(viewerId, id, viewerId, viewerId);
+      if (!r) return null;
+      if ((r.hidden_at || r.suspended_at) && !admin && r.user_id !== viewerId) return null;
+      r.album = q.album(r.slug);
+      r.comments = db.prepare(`
+        SELECT c.id, c.body, c.created_at, c.user_id, u.username, u.display_name, u.avatar
+        FROM comments c JOIN users u ON u.id = c.user_id
+        WHERE c.review_id = ? AND c.hidden_at IS NULL AND u.suspended_at IS NULL AND ${UNBLOCKED}
+        ORDER BY c.created_at ASC LIMIT 300`).all(id, viewerId, viewerId);
+      return r;
+    },
+
+    notifications(userId, limit = 60) {
+      return db.prepare(`
+        SELECT n.id, n.type, n.created_at, n.read_at, n.review_id, n.comment_id,
+          u.username, u.display_name, u.avatar, al.slug AS album_slug, al.title AS album_title,
+          (SELECT body FROM comments WHERE id = n.comment_id) AS comment
+        FROM notifications n JOIN users u ON u.id = n.actor_id
+        LEFT JOIN reviews r ON r.id = n.review_id LEFT JOIN albums al ON al.id = r.album_id
+        WHERE n.user_id = ? AND u.suspended_at IS NULL AND ${UNBLOCKED}
+        ORDER BY n.id DESC LIMIT ?`).all(userId, userId, userId, limit);
+    },
+
+    unreadNotifications(userId) {
+      return db.prepare(`SELECT COUNT(*) AS n FROM notifications n JOIN users u ON u.id = n.actor_id
+        WHERE n.user_id = ? AND n.read_at IS NULL AND u.suspended_at IS NULL AND ${UNBLOCKED}`).get(userId, userId, userId).n;
     },
 
     blockedBy(userId) {
@@ -270,7 +307,7 @@ export function makeQueries(db) {
 
     feed(userId, limit = 50) {
       return db.prepare(`
-        SELECT r.id, r.rating, r.body, r.listened_on, r.created_at, u.username, u.display_name, u.avatar, al.slug
+        SELECT r.id, r.rating, r.body, r.listened_on, r.created_at, u.username, u.display_name, u.avatar, al.slug, (SELECT COUNT(*) FROM comments c WHERE c.review_id = r.id AND c.hidden_at IS NULL) AS comments
         FROM reviews r JOIN users u ON u.id = r.user_id JOIN albums al ON al.id = r.album_id
         WHERE r.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?) AND ${VISIBLE} AND ${UNBLOCKED}
         ORDER BY r.created_at DESC LIMIT ?`).all(userId, userId, userId, limit)

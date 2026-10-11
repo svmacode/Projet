@@ -64,13 +64,14 @@ export function review(r, { showAlbum = false, viewer = null } = {}) {
         <a class="review-author" href="/membre/${r.username}">${avatar(r)} <span>${r.display_name}</span></a>
         ${stars(r.rating)}
         ${r.loved ? icon('heart', 'Coup de cœur') : ''}
-        <time datetime="${r.listened_on || r.created_at}">${formatDate(r.listened_on || r.created_at)}</time>
+        <a class="review-date" href="/chronique/${r.id}"><time datetime="${r.listened_on || r.created_at}">${formatDate(r.listened_on || r.created_at)}</time></a>
       </header>
       ${r.body ? html`<p class="review-text" id="review-text-${r.id}">${r.body}</p>` : ''}
       ${r.likes !== undefined ? html`<footer class="review-foot">
         <button class="like-btn" type="button" data-like="${r.id}" aria-pressed="${r.liked_by_me ? 'true' : 'false'}" ${raw(viewer ? '' : 'data-auth')}>
           ${icon('heart')} <span class="like-count">${r.likes}</span><span class="visually-hidden"> j'aime</span>
         </button>
+        ${r.comments !== undefined && r.body ? html`<a class="comment-link" href="/chronique/${r.id}#commentaires">${icon('comment')} <span>${r.comments ? `${r.comments} commentaire${r.comments > 1 ? 's' : ''}` : 'Commenter'}</span></a>` : ''}
         ${r.body ? html`<button class="copy-btn" type="button" data-copy="#review-text-${r.id}" aria-label="Copier la chronique">${icon('copy')}<span>Copier</span></button>` : ''}
         ${viewer && viewer.username !== r.username ? html`<button class="text-btn" type="button" data-report="${r.id}">Signaler</button>` : ''}
         ${viewer && viewer.username === r.username ? html`<button class="text-btn" type="button" data-delete-review="${r.id}">Supprimer</button>` : ''}

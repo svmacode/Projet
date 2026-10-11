@@ -1627,3 +1627,33 @@ body::after {
 @media (min-width: 734px) { .profile-cta { justify-items: end; } }
 .profile-more { display: flex; gap: 16px; font-size: 14px; }
 .notice-danger { background: var(--red-light); color: #fff; }
+
+/* ======================================================================
+   Commentaires et notifications
+   ====================================================================== */
+.comment-link { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--ink-2); }
+.comment-link .icon { width: 16px; height: 16px; }
+.comment-link:hover { color: var(--ink); }
+.review-date { color: inherit; }
+.review-date:hover { text-decoration: underline; }
+.thread { max-width: 760px; display: grid; gap: 32px; }
+.comments .h-section, .notifications .h-section { display: flex; align-items: center; gap: 10px; }
+.comments .count { font-size: 13px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--panel); color: var(--ink-2); }
+.comment-list { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 4px; }
+.comment { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+.comment:first-child { border-top: 0; }
+.comment.is-new { animation: comment-in 0.5s var(--ease-out, ease-out); }
+@keyframes comment-in { from { opacity: 0; transform: translateY(8px); } }
+.comment-author { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); }
+.comment time { font-size: 13px; color: var(--ink-2); align-self: center; }
+.comment-body { grid-column: 1 / -1; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment-actions { grid-column: 1 / -1; display: flex; gap: 14px; font-size: 13px; }
+.comment-form { margin-top: 12px; }
+.gnav-bell { position: relative; }
+.gnav-bell .badge { position: absolute; top: 2px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #ff3b30; color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+.notif-list { list-style: none; margin: 0; padding: 0; max-width: 760px; }
+.notif a { display: flex; align-items: center; gap: 14px; padding: 14px 12px; border-radius: var(--radius-m); color: var(--ink); }
+.notif a:hover { background: var(--panel); }
+.notif.is-new a { background: var(--panel); }
+.notif.is-new a::after { content: ''; width: 8px; height: 8px; margin-left: auto; flex: none; border-radius: 50%; background: var(--blue); }
+.notif time { display: block; font-size: 13px; color: var(--ink-2); margin-top: 2px; }

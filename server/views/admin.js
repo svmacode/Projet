@@ -7,7 +7,7 @@ const action = (label, url, { ask, confirm, danger = false } = {}) => html`<butt
 
 const reasons = (list) => html`<ul class="mod-reasons">${list.map((r) => html`<li><strong>@${r.by}</strong> · ${formatDate(r.at)} : ${r.reason}</li>`)}</ul>`;
 
-export function adminPage({ stats, reviewReports, userReports, members, query, journal }) {
+export function adminPage({ stats, reviewReports, userReports, commentReports = [], members, query, journal }) {
   return html`
   <section class="page-head">
     <h1 class="display">Modération.</h1>
@@ -37,6 +37,21 @@ export function adminPage({ stats, reviewReports, userReports, members, query, j
             ${r.author_suspended ? '' : action(`Suspendre @${r.author}`, `/admin/users/${r.author}/suspend`, { ask: `Raison de la suspension de @${r.author} :`, danger: true })}
           </div>
         </article>`) : html`<p class="empty-note">Aucune chronique signalée. Tout va bien.</p>`}
+    </section>
+
+    <section aria-labelledby="cr-t">
+      <h2 id="cr-t" class="h-section">Commentaires signalés <span class="count">${commentReports.length}</span></h2>
+      ${commentReports.length ? commentReports.map((c) => html`
+        <article class="mod-card panel">
+          <p class="mod-meta"><a href="/membre/${c.author}">@${c.author}</a> sous <a href="/chronique/${c.review_id}">une chronique</a> · ${formatDate(c.comment_at)} · <strong>${c.count} signalement${c.count > 1 ? 's' : ''}</strong></p>
+          <blockquote class="mod-quote">${c.body}</blockquote>
+          ${reasons(c.reasons)}
+          <div class="mod-actions">
+            ${action('Masquer le commentaire', `/admin/comments/${c.comment_id}/hide`, { ask: 'Raison du masquage :', danger: true })}
+            ${action('Laisser en ligne', `/admin/comments/${c.comment_id}/dismiss`, { confirm: 'Rejeter ces signalements ?' })}
+            ${c.author_suspended ? '' : action(`Suspendre @${c.author}`, `/admin/users/${c.author}/suspend`, { ask: `Raison de la suspension de @${c.author} :`, danger: true })}
+          </div>
+        </article>`) : html`<p class="empty-note">Aucun commentaire signalé.</p>`}
     </section>
 
     <section aria-labelledby="ur-t">

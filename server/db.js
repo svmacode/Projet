@@ -190,6 +190,38 @@ function migrate(db) {
       PRIMARY KEY (blocker_id, blocked_id),
       CHECK (blocker_id <> blocked_id)
     );
+    -- Commentaires sous les chroniques.
+    CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY,
+      review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      hidden_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS comments_review ON comments(review_id, created_at);
+    CREATE TABLE IF NOT EXISTS comment_reports (
+      id INTEGER PRIMARY KEY,
+      reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      comment_id INTEGER NOT NULL REFERENCES comments(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      resolved_at TEXT,
+      resolution TEXT,
+      UNIQUE (reporter_id, comment_id)
+    );
+    -- Notifications : nouvel abonné, nouvel ami, j'aime, commentaire. Conservées 6 mois.
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      actor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type TEXT NOT NULL,
+      review_id INTEGER REFERENCES reviews(id) ON DELETE CASCADE,
+      comment_id INTEGER REFERENCES comments(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      read_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_id, created_at);
     -- Journal de modération (qui a fait quoi, quand) : conservé 1 an.
     CREATE TABLE IF NOT EXISTS mod_log (
       id INTEGER PRIMARY KEY,
@@ -203,6 +235,8 @@ function migrate(db) {
   db.exec("DELETE FROM reports WHERE resolved_at < datetime('now', '-1 year')");
   db.exec("DELETE FROM user_reports WHERE resolved_at < datetime('now', '-1 year')");
   db.exec("DELETE FROM mod_log WHERE created_at < datetime('now', '-1 year')");
+  db.exec("DELETE FROM comment_reports WHERE resolved_at < datetime('now', '-1 year')");
+  db.exec("DELETE FROM notifications WHERE created_at < datetime('now', '-6 months')");
   if (!userCols.includes('utm_source')) {
     db.exec('ALTER TABLE users ADD COLUMN utm_source TEXT');
     db.exec('ALTER TABLE users ADD COLUMN utm_medium TEXT');

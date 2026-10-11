@@ -37,10 +37,11 @@ export function privacyPage() {
       <tbody>
         <tr><td>Pseudo, adresse e-mail, mot de passe (stocké sous forme de hachage scrypt, jamais en clair)</td><td>Créer et sécuriser ton compte</td><td>Exécution du contrat (CGU)</td><td>Tant que le compte existe</td></tr>
         <tr><td>Nom affiché, bio, albums favoris, photo de profil (facultative)</td><td>Ton profil public</td><td>Exécution du contrat</td><td>Tant que le compte existe ; une photo remplacée ou retirée est effacée aussitôt</td></tr>
-        <tr><td>Notes, écoutes, chroniques, listes, j'aime, abonnements</td><td>Le service MyRapFr lui-même</td><td>Exécution du contrat</td><td>Tant que le compte existe, ou jusqu'à suppression par toi</td></tr>
+        <tr><td>Notes, écoutes, chroniques, commentaires, listes, j'aime, abonnements</td><td>Le service MyRapFr lui-même</td><td>Exécution du contrat</td><td>Tant que le compte existe, ou jusqu'à suppression par toi</td></tr>
         <tr><td>Cookie de session (identifiant aléatoire)</td><td>Te garder connecté</td><td>Intérêt légitime, cookie strictement nécessaire</td><td>30 jours maximum</td></tr>
         <tr><td>Adresse IP (en mémoire vive uniquement)</td><td>Limiter les abus (anti-spam, tentatives de connexion)</td><td>Intérêt légitime</td><td>15 minutes à 1 heure, jamais écrite sur disque</td></tr>
         <tr><td>Signalements (chroniques et profils) et journal des décisions de modération</td><td>Modérer les contenus et pouvoir justifier les décisions</td><td>Intérêt légitime et obligation légale (LCEN, DSA)</td><td>Jusqu'au traitement, puis 1 an</td></tr>
+        <tr><td>Notifications (nouvel abonné, j'aime, commentaire)</td><td>Te prévenir de l'activité qui te concerne</td><td>Exécution du contrat</td><td>6 mois</td></tr>
         <tr><td>Membres que tu as bloqués</td><td>Te protéger des interactions non souhaitées</td><td>Exécution du contrat</td><td>Jusqu'au déblocage ou à la suppression du compte</td></tr>
         <tr><td>Compteurs de campagnes (UTM), sans aucun identifiant</td><td>Savoir quels liens partagés amènent des visiteurs</td><td>Intérêt légitime (statistique anonyme)</td><td>90 jours</td></tr>
         <tr><td>Campagne d'arrivée associée à ton compte</td><td>Savoir quels partages amènent des inscriptions</td><td>Consentement (bandeau cookies)</td><td>Tant que le compte existe</td></tr>

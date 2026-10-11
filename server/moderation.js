@@ -42,6 +42,37 @@ export function moderation(db) {
         .map((row) => ({ ...row, reasons: JSON.parse(row.reasons) }));
     },
 
+    // Commentaires signalés.
+    commentReports() {
+      return db.prepare(`
+        SELECT c.id AS comment_id, c.body, c.created_at AS comment_at, c.review_id,
+          u.username AS author, u.suspended_at AS author_suspended,
+          COUNT(rep.id) AS count, MIN(rep.created_at) AS first_at,
+          json_group_array(json_object('by', ru.username, 'reason', rep.reason, 'at', rep.created_at)) AS reasons
+        FROM comment_reports rep
+        JOIN comments c ON c.id = rep.comment_id
+        JOIN users u ON u.id = c.user_id
+        JOIN users ru ON ru.id = rep.reporter_id
+        WHERE rep.resolved_at IS NULL
+        GROUP BY c.id ORDER BY count DESC, first_at ASC`).all()
+        .map((row) => ({ ...row, reasons: JSON.parse(row.reasons) }));
+    },
+
+    hideComment(adminId, commentId, reason) {
+      const c = db.prepare('SELECT c.id, u.username FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?').get(commentId);
+      if (!c) return false;
+      db.prepare("UPDATE comments SET hidden_at = datetime('now') WHERE id = ?").run(commentId);
+      db.prepare("UPDATE comment_reports SET resolved_at = datetime('now'), resolution = 'commentaire masqué' WHERE comment_id = ? AND resolved_at IS NULL").run(commentId);
+      log(adminId, 'commentaire masqué', `commentaire ${commentId} de @${c.username}`, reason);
+      return true;
+    },
+
+    dismissCommentReports(adminId, commentId) {
+      const { changes } = db.prepare("UPDATE comment_reports SET resolved_at = datetime('now'), resolution = 'rejeté' WHERE comment_id = ? AND resolved_at IS NULL").run(commentId);
+      if (changes) log(adminId, 'signalement rejeté', `commentaire ${commentId}`);
+      return changes > 0;
+    },
+
     journal(limit = 30) {
       return db.prepare(`
         SELECT l.action, l.target, l.detail, l.created_at, a.username AS admin
@@ -125,6 +156,8 @@ export function moderation(db) {
       db.prepare("UPDATE user_reports SET resolved_at = datetime('now'), resolution = 'compte suspendu' WHERE user_id = ? AND resolved_at IS NULL").run(u.id);
       db.prepare(`UPDATE reports SET resolved_at = datetime('now'), resolution = 'compte suspendu'
         WHERE resolved_at IS NULL AND review_id IN (SELECT id FROM reviews WHERE user_id = ?)`).run(u.id);
+      db.prepare(`UPDATE comment_reports SET resolved_at = datetime('now'), resolution = 'compte suspendu'
+        WHERE resolved_at IS NULL AND comment_id IN (SELECT id FROM comments WHERE user_id = ?)`).run(u.id);
       log(adminId, 'compte suspendu', `@${u.username}`, reason);
       return { ok: true };
     },
@@ -140,7 +173,8 @@ export function moderation(db) {
     counts() {
       const one = (sql) => Object.values(db.prepare(sql).get())[0];
       return one('SELECT COUNT(DISTINCT review_id) FROM reports WHERE resolved_at IS NULL')
-        + one('SELECT COUNT(DISTINCT user_id) FROM user_reports WHERE resolved_at IS NULL');
+        + one('SELECT COUNT(DISTINCT user_id) FROM user_reports WHERE resolved_at IS NULL')
+        + one('SELECT COUNT(DISTINCT comment_id) FROM comment_reports WHERE resolved_at IS NULL');
     },
   };
 }

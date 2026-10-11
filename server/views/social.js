@@ -175,3 +175,64 @@ export function friendsPage({ hub, inviteUrl }) {
     </div>
   </section>`;
 }
+
+// Une chronique et ses commentaires.
+export function reviewPage({ r, user, canComment }) {
+  const own = (c) => user && (user.username === c.username || user.username === r.username || user.admin);
+  return html`
+  <section class="page-body thread">
+    <p class="kick-link"><a href="/album/${r.album.slug}">${icon('chevron-left')} ${r.album.title}</a></p>
+    ${r.hidden_at ? html`<p class="notice notice-danger">Chronique masquée par la modération${user?.admin ? '' : ' : elle n\'est visible que par toi'}.</p>` : ''}
+    ${review({ ...r, comments: undefined }, { showAlbum: true, viewer: user })}
+
+    <section id="commentaires" class="comments" aria-labelledby="comments-t">
+      <h2 id="comments-t" class="h-section">Commentaires <span class="count" data-comment-count>${r.comments.length}</span></h2>
+      <ol class="comment-list" data-comments>
+        ${r.comments.map((c) => html`<li class="comment" data-comment="${c.id}">
+          <a class="comment-author" href="/membre/${c.username}">${avatar(c)} <strong>${c.display_name}</strong></a>
+          <time datetime="${c.created_at}">${formatDate(c.created_at)}</time>
+          <p class="comment-body">${c.body}</p>
+          ${user ? html`<div class="comment-actions">
+            ${user.username !== c.username ? html`<button type="button" class="text-btn" data-report-comment="${c.id}">Signaler</button>` : ''}
+            ${own(c) ? html`<button type="button" class="text-btn" data-delete-comment="${c.id}">Supprimer</button>` : ''}
+          </div>` : ''}
+        </li>`)}
+      </ol>
+      ${r.comments.length ? '' : html`<p class="empty-note" data-no-comment>Aucun commentaire pour l'instant.</p>`}
+      ${!user ? html`<p><a class="btn btn-quiet" href="/connexion?retour=/chronique/${r.id}">Connecte-toi pour commenter</a></p>`
+        : !canComment ? html`<p class="empty-note">${user.verified ? 'Tu ne peux pas commenter cette chronique.' : 'Confirme ton adresse e-mail pour commenter.'}</p>`
+        : html`<form class="form comment-form" data-comment-form="${r.id}" novalidate>
+          <div class="field">
+            <label for="comment-body">Ton commentaire</label>
+            <textarea id="comment-body" name="body" rows="3" maxlength="1000" required placeholder="Réponds à ${r.display_name}…"></textarea>
+            <p class="field-error" data-error-for="body"></p>
+          </div>
+          <button class="btn btn-primary" type="submit">Publier</button>
+        </form>`}
+    </section>
+  </section>`;
+}
+
+const NOTIF_TEXT = {
+  follow: () => 'a commencé à te suivre.',
+  friend: () => 'te suit en retour : vous êtes amis.',
+  like: (n) => html`a aimé ta chronique de <em>${n.album_title}</em>.`,
+  comment: (n) => html`a commenté ta chronique de <em>${n.album_title}</em> : « ${n.comment && n.comment.length > 120 ? `${n.comment.slice(0, 119)}…` : n.comment} »`,
+};
+
+export function notificationsPage({ list }) {
+  const link = (n) => (n.review_id ? `/chronique/${n.review_id}${n.type === 'comment' ? '#commentaires' : ''}` : `/membre/${n.username}`);
+  return html`
+  <section class="page-head">
+    <h1 class="display">Notifications.</h1>
+    <p class="lede">Abonnés, amis, j'aime et commentaires. Conservées six mois.</p>
+  </section>
+  <section class="page-body notifications">
+    ${list.length ? html`<ul class="notif-list">${list.map((n) => html`<li class="notif ${n.read_at ? '' : 'is-new'}">
+      <a href="${link(n)}">
+        ${avatar(n, 'avatar-lg')}
+        <span><strong>${n.display_name}</strong> ${(NOTIF_TEXT[n.type] || (() => ''))(n)} <time datetime="${n.created_at}">${formatDate(n.created_at)}</time></span>
+      </a>
+    </li>`)}</ul>` : html`<p class="empty-note">Rien de neuf pour l'instant. Suis des membres et publie des chroniques : leurs réactions arriveront ici.</p>`}
+  </section>`;
+}

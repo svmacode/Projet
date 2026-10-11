@@ -6,7 +6,7 @@ import { issueFormToken } from './security.js';
 import { layout } from './views/layout.js';
 import { homePage } from './views/home.js';
 import { albumsPage, albumPage, artistsPage, artistPage, searchPage, catalogueUrl } from './views/catalog.js';
-import { profilePage, followPage, listPage, feedPage, friendsPage } from './views/social.js';
+import { profilePage, followPage, listPage, feedPage, friendsPage, reviewPage, notificationsPage } from './views/social.js';
 import { registerPage, loginPage, forgotPage, resetPage, confirmPage, settingsPage } from './views/account.js';
 import { adminPage } from './views/admin.js';
 import { moderation } from './moderation.js';
@@ -35,7 +35,9 @@ export function pagesRouter(db, q) {
 
   const send = (req, res, opts) => {
     res.set('Cache-Control', 'no-cache');
-    const user = req.user ? { ...req.user, pendingReports: req.user.admin ? mod.counts() : 0 } : null;
+    const user = req.user
+      ? { ...req.user, pendingReports: req.user.admin ? mod.counts() : 0, unread: q.unreadNotifications(req.user.id) }
+      : null;
     res.status(opts.status || 200).send(layout({ ...opts, user, csrf: req.csrfToken }));
   };
 
@@ -167,10 +169,33 @@ export function pagesRouter(db, q) {
     send(req, res, {
       title: 'Modération', path: '/admin', theme: 'light', noindex: true,
       body: adminPage({
-        stats: mod.stats(), reviewReports: mod.reviewReports(), userReports: mod.userReports(),
+        stats: mod.stats(), reviewReports: mod.reviewReports(), userReports: mod.userReports(), commentReports: mod.commentReports(),
         members: mod.findMembers(query), query, journal: mod.journal(),
       }),
       scripts: ['/js/pages/admin.js'],
+    });
+  });
+
+  r.get('/chronique/:id', (req, res) => {
+    const id = Number.parseInt(req.params.id, 10);
+    const r = Number.isSafeInteger(id) ? q.reviewThread(id, req.user?.id || 0, { admin: Boolean(req.user?.admin) }) : null;
+    if (!r || !r.album) return notFound(req, res);
+    const canComment = Boolean(req.user?.verified && !r.hidden_at && r.body);
+    send(req, res, {
+      title: `Chronique de ${r.display_name} sur ${r.album.title}`, path: `/chronique/${r.id}`, theme: 'dark',
+      description: truncate(r.body || `${r.display_name} a noté ${r.album.title} de ${r.album.artist.name}.`),
+      image: `/img/og/${r.album.slug}.jpg`, noindex: Boolean(r.hidden_at),
+      body: reviewPage({ r, user: req.user, canComment }), scripts: ['/js/pages/album.js', '/js/pages/thread.js'],
+    });
+  });
+
+  r.get('/notifications', (req, res) => {
+    if (!needUser(req, res)) return;
+    const list = q.notifications(req.user.id);
+    db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND read_at IS NULL").run(req.user.id);
+    send(req, res, {
+      title: 'Notifications', path: '/notifications', theme: 'light', noindex: true,
+      body: notificationsPage({ list }),
     });
   });
 

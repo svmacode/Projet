@@ -11,6 +11,7 @@ import { readFilters } from './pages.js';
 import { catalogStatus } from './auto-images.js';
 import { saveUpload, removeAvatarFile, avatarUrl } from './avatars.js';
 import { moderation } from './moderation.js';
+import { notifier } from './notify.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
   windowMs: windowMinutes * 60_000,
@@ -34,6 +35,7 @@ function catchAsync(router) {
 
 export function apiRouter(db, q) {
   const api = catchAsync(express.Router());
+  const notify = notifier(db);
   const blocked = (a, b) => Boolean(db.prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)').get(a, b, b, a));
   api.use(express.json({ limit: '20kb' }));
   api.use(limiter(1, 120, 'Trop de requêtes, réessaie dans une minute.'));
@@ -280,10 +282,15 @@ export function apiRouter(db, q) {
 
   api.post('/reviews/:id/like', requireAuth, writeLimiter, (req, res) => {
     const id = Number(req.params.id);
-    if (!db.prepare('SELECT 1 FROM reviews WHERE id = ?').get(id)) return res.status(404).json({ error: 'Chronique introuvable.' });
+    const review = db.prepare('SELECT id, user_id FROM reviews WHERE id = ?').get(id);
+    if (!review) return res.status(404).json({ error: 'Chronique introuvable.' });
+    if (blocked(req.user.id, review.user_id)) return res.status(403).json({ error: 'Action impossible.' });
     const liked = db.prepare('SELECT 1 FROM review_likes WHERE user_id = ? AND review_id = ?').get(req.user.id, id);
     if (liked) db.prepare('DELETE FROM review_likes WHERE user_id = ? AND review_id = ?').run(req.user.id, id);
-    else db.prepare('INSERT INTO review_likes (user_id, review_id) VALUES (?, ?)').run(req.user.id, id);
+    else {
+      db.prepare('INSERT INTO review_likes (user_id, review_id) VALUES (?, ?)').run(req.user.id, id);
+      notify({ to: review.user_id, actor: req.user.id, type: 'like', reviewId: id });
+    }
     const { n } = db.prepare('SELECT COUNT(*) n FROM review_likes WHERE review_id = ?').get(id);
     res.json({ liked: !liked, likes: n });
   });
@@ -296,6 +303,57 @@ export function apiRouter(db, q) {
     db.prepare(`INSERT INTO reports (reporter_id, review_id, reason) VALUES (?, ?, ?)
       ON CONFLICT(reporter_id, review_id) DO UPDATE SET reason = excluded.reason, created_at = datetime('now'), resolved_at = NULL, resolution = NULL`)
       .run(req.user.id, id, data.reason);
+    res.json({ ok: true });
+  });
+
+  // ---------- Commentaires ----------
+  api.post('/reviews/:id/comments', requireVerified, writeLimiter, (req, res) => {
+    const data = validate(schemas.comment, req, res);
+    if (!data) return;
+    if (looksLikeSpam(data.body)) return res.status(400).json({ error: 'Trop de liens dans ton commentaire.', fields: { body: 'Deux liens maximum.' } });
+    const review = db.prepare(`SELECT r.id, r.user_id FROM reviews r JOIN users u ON u.id = r.user_id
+      WHERE r.id = ? AND r.hidden_at IS NULL AND u.suspended_at IS NULL`).get(Number(req.params.id));
+    if (!review) return res.status(404).json({ error: 'Chronique introuvable.' });
+    if (blocked(req.user.id, review.user_id)) return res.status(403).json({ error: 'Tu ne peux pas commenter cette chronique.' });
+    const { lastInsertRowid } = db.prepare('INSERT INTO comments (review_id, user_id, body) VALUES (?, ?, ?)').run(review.id, req.user.id, data.body);
+    const commentId = Number(lastInsertRowid);
+    notify({ to: review.user_id, actor: req.user.id, type: 'comment', reviewId: review.id, commentId });
+    res.status(201).json({
+      comment: { id: commentId, body: data.body, username: req.user.username, displayName: req.user.displayName, avatar: avatarUrl(req.user.avatar) },
+    });
+  });
+
+  // Supprimer : l'auteur du commentaire, l'auteur de la chronique ou un administrateur.
+  api.delete('/comments/:id', requireAuth, (req, res) => {
+    const c = db.prepare(`SELECT c.id, c.user_id, r.user_id AS review_author, u.username FROM comments c
+      JOIN reviews r ON r.id = c.review_id JOIN users u ON u.id = c.user_id WHERE c.id = ?`).get(Number(req.params.id));
+    if (!c) return res.status(404).json({ error: 'Commentaire introuvable.' });
+    if (![c.user_id, c.review_author].includes(req.user.id) && !req.user.admin) return res.status(403).json({ error: 'Action impossible.' });
+    db.prepare('DELETE FROM comments WHERE id = ?').run(c.id);
+    if (req.user.admin && ![c.user_id, c.review_author].includes(req.user.id)) {
+      db.prepare('INSERT INTO mod_log (admin_id, action, target) VALUES (?, ?, ?)').run(req.user.id, 'commentaire supprimé', `commentaire ${c.id} de @${c.username}`);
+    }
+    res.json({ ok: true });
+  });
+
+  api.post('/comments/:id/report', requireAuth, limiter(60, 10, 'Trop de signalements.'), (req, res) => {
+    const data = validate(schemas.report, req, res);
+    if (!data) return;
+    const id = Number(req.params.id);
+    if (!db.prepare('SELECT 1 FROM comments WHERE id = ?').get(id)) return res.status(404).json({ error: 'Commentaire introuvable.' });
+    db.prepare(`INSERT INTO comment_reports (reporter_id, comment_id, reason) VALUES (?, ?, ?)
+      ON CONFLICT(reporter_id, comment_id) DO UPDATE SET reason = excluded.reason, created_at = datetime('now'), resolved_at = NULL, resolution = NULL`)
+      .run(req.user.id, id, data.reason);
+    res.json({ ok: true });
+  });
+
+  // ---------- Notifications ----------
+  api.get('/notifications', requireAuth, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ unread: q.unreadNotifications(req.user.id), notifications: q.notifications(req.user.id, 30) });
+  });
+  api.post('/notifications/read', requireAuth, (req, res) => {
+    db.prepare("UPDATE notifications SET read_at = datetime('now') WHERE user_id = ? AND read_at IS NULL").run(req.user.id);
     res.json({ ok: true });
   });
 
@@ -330,8 +388,10 @@ export function apiRouter(db, q) {
     if (!u) return res.status(404).json({ error: 'Membre introuvable.' });
     if (u.id === req.user.id) return res.status(400).json({ error: 'Tu ne peux pas te suivre toi-même.' });
     if (u.suspended_at || blocked(req.user.id, u.id)) return res.status(403).json({ error: 'Impossible de suivre ce membre.' });
-    db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)').run(req.user.id, u.id);
-    res.json({ following: true, friends: Boolean(db.prepare('SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?').get(u.id, req.user.id)) });
+    const { changes } = db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)').run(req.user.id, u.id);
+    const friends = Boolean(db.prepare('SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?').get(u.id, req.user.id));
+    if (changes) notify({ to: u.id, actor: req.user.id, type: friends ? 'friend' : 'follow' });
+    res.json({ following: true, friends });
   });
 
   api.delete('/users/:username/follow', requireAuth, (req, res) => {
@@ -526,6 +586,8 @@ export function apiRouter(db, q) {
       lists: all('SELECT id, title, description, created_at FROM lists WHERE user_id = ?'),
       reviewLikes: all('SELECT review_id, created_at FROM review_likes WHERE user_id = ?'),
       blocked: all('SELECT u.username, b.created_at FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ?'),
+      comments: all('SELECT review_id, body, created_at FROM comments WHERE user_id = ?'),
+      notifications: all('SELECT type, created_at, read_at FROM notifications WHERE user_id = ?'),
       reportsMade: [
         ...all('SELECT review_id, reason, created_at FROM reports WHERE reporter_id = ?'),
         ...all('SELECT u.username AS profile, r.reason, r.created_at FROM user_reports r JOIN users u ON u.id = r.user_id WHERE r.reporter_id = ?'),
@@ -559,6 +621,11 @@ export function apiRouter(db, q) {
     const reason = reasonOf(req, res);
     if (reason) done(res, mod.hideReview(req.user.id, Number(req.params.id), reason));
   });
+  api.post('/admin/comments/:id/hide', requireAdmin, (req, res) => {
+    const reason = reasonOf(req, res);
+    if (reason) done(res, mod.hideComment(req.user.id, Number(req.params.id), reason));
+  });
+  api.post('/admin/comments/:id/dismiss', requireAdmin, (req, res) => done(res, mod.dismissCommentReports(req.user.id, Number(req.params.id))));
   api.post('/admin/reviews/:id/restore', requireAdmin, (req, res) => done(res, mod.restoreReview(req.user.id, Number(req.params.id))));
   api.post('/admin/reviews/:id/dismiss', requireAdmin, (req, res) => done(res, mod.dismissReviewReports(req.user.id, Number(req.params.id))));
   api.post('/admin/users/:username/dismiss', requireAdmin, (req, res) => done(res, mod.dismissUserReports(req.user.id, req.params.username)));
