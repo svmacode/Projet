@@ -36,18 +36,21 @@ export async function autoFetchImages(db) {
   }
 
   Object.assign(status, { running: true, phase: 'discographies', done: 0, total: 0 });
+  const downloads = [];
   try {
     const { discover } = await import('./discover.js');
     await discover({
       log,
       onArtist: async ({ slug, name, picture, deezerId, index, total }) => {
         Object.assign(status, { done: index, total });
-        seedCatalogue(db); // les albums de cet artiste sont visibles tout de suite
+        seedCatalogue(db, { artist: slug }); // les albums de cet artiste sont visibles tout de suite
         const albums = loadCatalog().albums.filter((a) => a.artist === slug);
-        await downloadKnown({ albums, artist: { slug, name, picture, deezerId } });
+        // Pochettes en tâche de fond : l'artiste suivant n'attend pas la fin des téléchargements.
+        downloads.push(downloadKnown({ albums, artist: { slug, name, picture, deezerId } }).catch(() => 0));
         status.projects = loadCatalog().albums.length;
       },
     });
+    await Promise.all(downloads);
     invalidateCatalog();
     seedCatalogue(db);
 

@@ -2,8 +2,9 @@
 // ainsi que sa photo, et sur Wikipédia un résumé pour les artistes sans biographie éditoriale.
 // Résultat dans data/discovered.json, lu par server/catalog.js.
 import fs from 'node:fs';
-import { allArtistNames, readDiscovered, discoveredFile, normName, baseTitle, invalidateCatalog } from './catalog.js';
+import { allArtistNames, readDiscovered, discoveredFile, normName, baseTitle, setDiscovered } from './catalog.js';
 import { artists as curatedArtists } from '../catalogue.js';
+import { pace } from './pacing.js';
 
 const UA = 'MyRapFr/0.1 (catalogue de rap francais)';
 const RAP = 116; // genre « Rap/Hip Hop » chez Deezer
@@ -12,8 +13,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Ce qui n'est pas un projet à part entière.
 const EXCLUDE = /\b(live|en concert|instrumental(e|s)?|a cappella|acapella|karaok[eé]|remix(es)?|best of|greatest hits|the best|l'essentiel|anthologie|compilation|playlist|bande originale)\b/i;
 
+// La cadence (quota Deezer, Wikipédia…) est gérée par server/pacing.js.
 async function getJson(url) {
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await pace(url);
     let res;
     try {
       res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
@@ -38,7 +41,6 @@ async function artistAlbums(id) {
     if (!page?.data) break;
     out.push(...page.data);
     url = page.next || null;
-    await sleep(120);
   }
   return out;
 }
@@ -49,14 +51,12 @@ async function findArtist(name) {
   const byId = new Map();
   for (const q of [`artist:"${name}"`, name]) {
     for (const a of (await getJson(`https://api.deezer.com/search/artist?q=${encodeURIComponent(q)}&limit=10`))?.data || []) byId.set(a.id, a);
-    await sleep(120);
   }
   const list = [...byId.values()].sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0));
   const exact = list.filter((a) => normName(a.name) === normName(name));
-  const candidates = (exact.length ? exact : list.slice(0, 1)).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0)).slice(0, 3);
+  const candidates = (exact.length ? exact : list.slice(0, 1)).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0)).slice(0, 2);
   let best = null;
   for (const c of candidates) {
-    await sleep(120);
     const albums = await artistAlbums(c.id);
     const typed = albums.filter((a) => a.genre_id && a.genre_id > 0);
     const rapShare = typed.length ? typed.filter((a) => a.genre_id === RAP).length / typed.length : 0.5;
@@ -88,7 +88,6 @@ export function pickProjects(slug, albums) {
 async function wikiBio(name) {
   for (const title of [`${name} (rappeur)`, `${name} (rappeuse)`, `${name} (groupe)`, name]) {
     const s = await getJson(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`);
-    await sleep(120);
     if (s?.type === 'standard' && s.extract && /\b(rap|rappeu|hip-hop|hip hop|drill|trap)/i.test(s.extract)) {
       return { bio: s.extract, bioSource: `Wikipédia, « ${s.title} », licence CC BY-SA 4.0` };
     }
@@ -97,15 +96,16 @@ async function wikiBio(name) {
 }
 
 const RECHECK = 7 * 24 * 3600_000; // une discographie est relue chaque semaine (nouvelles sorties)
+const WORKERS = 4; // artistes traités en même temps
 
-function save(found) {
+function writeNow(found) {
   const tmp = `${discoveredFile}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(found));
   fs.renameSync(tmp, discoveredFile);
 }
 
-// Parcourt les artistes un par un et enregistre chaque discographie dès qu'elle est connue :
-// le site se remplit au fur et à mesure, et un arrêt du serveur ne fait rien perdre.
+// Parcourt les artistes (plusieurs à la fois) et rend chaque discographie visible dès qu'elle est connue.
+// Un arrêt du serveur ne fait rien perdre : l'avancement est enregistré au fil de l'eau.
 // `onArtist` est appelé après chaque artiste (mise à jour de la base, téléchargement des pochettes).
 export async function discover({ log = console.log, force = false, onArtist = async () => {} } = {}) {
   const found = readDiscovered();
@@ -122,54 +122,78 @@ export async function discover({ log = console.log, force = false, onArtist = as
   if (!todo.length) return { done: 0, total: names.length, projects: Object.values(found.projects).flat().length };
   log(`Discographies : ${todo.length} artiste(s) à parcourir sur Deezer (les albums apparaissent au fur et à mesure)…`);
 
+  // Le catalogue lit directement ces données en mémoire ; le fichier est écrit au plus toutes les 3 s.
+  setDiscovered(found);
+  let lastWrite = 0;
+  const persist = (forceWrite = false) => {
+    if (forceWrite || Date.now() - lastWrite > 3000) { writeNow(found); lastWrite = Date.now(); }
+  };
+
   const report = { notFound: [], chosen: [] };
-  let i = 0;
-  for (const { slug, name } of todo) {
-    i++;
-    const known = found.artists[slug];
-    let projects = null;
-    let artist = null;
-    try {
-      if (known?.deezerId) {
-        // Artiste déjà identifié : on relit simplement sa discographie.
-        const list = await artistAlbums(known.deezerId);
-        if (list.length) {
-          projects = pickProjects(slug, list);
-          artist = { id: known.deezerId, name: known.name, picture_xl: known.picture };
+  let done = 0;
+  let next = 0;
+  const work = async () => {
+    while (next < todo.length) {
+      const { slug, name } = todo[next++];
+      const known = found.artists[slug];
+      let projects = null;
+      let artist = null;
+      try {
+        if (known?.deezerId) {
+          // Artiste déjà identifié : on relit simplement sa discographie.
+          const list = await artistAlbums(known.deezerId);
+          if (list.length) {
+            projects = pickProjects(slug, list);
+            artist = { id: known.deezerId, name: known.name, picture_xl: known.picture };
+          }
         }
+        if (!projects) {
+          const best = await findArtist(name);
+          if (best) {
+            artist = best.artist;
+            projects = pickProjects(slug, best.albums);
+            report.chosen.push({ name, deezer: artist.name, id: artist.id, fans: artist.nb_fan, rap: Math.round(best.rapShare * 100) });
+          }
+        }
+      } catch (err) {
+        log(`${name} : erreur (${err.message}), nouvel essai au prochain démarrage.`);
+        continue;
       }
+      done++;
       if (!projects) {
-        const best = await findArtist(name);
-        if (best) {
-          artist = best.artist;
-          projects = pickProjects(slug, best.albums);
-          report.chosen.push({ name, deezer: artist.name, id: artist.id, fans: artist.nb_fan, rap: Math.round(best.rapShare * 100) });
-        }
+        report.notFound.push(name);
+        found.artists[slug] = { ...known, checkedAt: Date.now(), notFound: true };
+        log(`${done}/${todo.length} ${name} : introuvable sur Deezer`);
+        persist();
+        continue;
       }
-    } catch (err) {
-      log(`${name} : erreur (${err.message}), nouvel essai au prochain démarrage.`);
-      continue;
+      const picture = artist.picture_xl && !artist.picture_xl.includes('/artist//') ? artist.picture_xl : null;
+      found.artists[slug] = { ...known, deezerId: artist.id, name: known?.name || name, picture, checkedAt: Date.now(), notFound: false };
+      found.projects[slug] = projects;
+      found.updatedAt = new Date().toISOString();
+      setDiscovered(found);
+      persist();
+      log(`${done}/${todo.length} ${name} : ${projects.length} projet(s)`);
+      await onArtist({ slug, name, picture, deezerId: artist.id, projects, index: done, total: todo.length });
     }
-    if (!projects) {
-      report.notFound.push(name);
-      found.artists[slug] = { ...known, checkedAt: Date.now(), notFound: true };
-      log(`${i}/${todo.length} ${name} : introuvable sur Deezer`);
-      save(found);
-      continue;
-    }
-    const picture = artist.picture_xl && !artist.picture_xl.includes('/artist//') ? artist.picture_xl : null;
-    found.artists[slug] = { ...known, deezerId: artist.id, name: known?.name || name, picture, checkedAt: Date.now(), notFound: false };
-    if (!curatedBio.has(slug) && !found.artists[slug].bioChecked) {
-      const bio = await wikiBio(name).catch(() => null);
-      Object.assign(found.artists[slug], bio || {}, { bioChecked: true });
-    }
-    found.projects[slug] = projects;
-    found.updatedAt = new Date().toISOString();
-    save(found);
-    invalidateCatalog();
-    log(`${i}/${todo.length} ${name} : ${projects.length} projet(s)`);
-    await onArtist({ slug, name, picture, deezerId: artist.id, projects, index: i, total: todo.length });
-    await sleep(150);
+  };
+  await Promise.all(Array.from({ length: WORKERS }, work));
+  persist(true);
+
+  // Biographies Wikipédia en dernier : elles ne retardent pas l'arrivée des albums.
+  const needBio = names.filter(({ slug }) => found.artists[slug]?.deezerId && !curatedBio.has(slug) && !found.artists[slug].bioChecked);
+  if (needBio.length) {
+    log(`Biographies : ${needBio.length} résumé(s) Wikipédia à chercher…`);
+    let b = 0;
+    await Promise.all(Array.from({ length: 3 }, async () => {
+      while (b < needBio.length) {
+        const { slug, name } = needBio[b++];
+        const bio = await wikiBio(name).catch(() => null);
+        Object.assign(found.artists[slug], bio || {}, { bioChecked: true });
+      }
+    }));
+    setDiscovered(found);
+    persist(true);
   }
 
   fs.writeFileSync(discoveredFile.replace('discovered.json', 'discover-report.json'), JSON.stringify(report, null, 1));

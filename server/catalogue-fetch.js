@@ -8,6 +8,7 @@ import sharp from 'sharp';
 import { config } from './config.js';
 import { loadCatalog } from './catalog.js';
 import { sourceAdded, sourceFor, isManual } from './imaging.js';
+import { pace } from './pacing.js';
 
 const dir = (...p) => path.join(config.root, 'data', ...p);
 const UA = 'MyRapFr/0.1 (catalogue de rap francais ; contact via le site)';
@@ -29,6 +30,7 @@ const sameArtist = (a, b) => {
 
 async function getJson(url) {
   for (let attempt = 0; attempt < 3; attempt++) {
+    await pace(url);
     const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
     if (res.status === 429 || res.status === 503) { await sleep(1500 * (attempt + 1)); continue; }
     if (!res.ok) return null;
@@ -39,8 +41,26 @@ async function getJson(url) {
   return null;
 }
 
+// Au plus 6 téléchargements d'images en même temps, quel que soit le nombre d'artistes en cours.
+let downloads = 0;
+const waiting = [];
+async function slot() {
+  if (downloads < 6) { downloads++; return; }
+  await new Promise((r) => waiting.push(r));
+  downloads++;
+}
+function release() {
+  downloads--;
+  waiting.shift()?.();
+}
+
 // Télécharge une image et vérifie que c'en est vraiment une, assez grande.
 async function saveImage(url, file, minSize = 250) {
+  await slot();
+  try { return await fetchImage(url, file, minSize); } finally { release(); }
+}
+
+async function fetchImage(url, file, minSize) {
   const res = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: AbortSignal.timeout(20000) });
   if (!res.ok) return false;
   const buf = Buffer.from(await res.arrayBuffer());
@@ -64,7 +84,6 @@ const coverSources = [
       if (!data.length) data = (await getJson(`https://api.deezer.com/search/album?q=${encodeURIComponent(`${artist} ${title}`)}&limit=10`))?.data || [];
       return data.map((d) => ({ title: d.title, artist: d.artist?.name, url: d.cover_xl, credit: 'Deezer' }));
     },
-    delay: 150,
   },
   {
     name: 'Apple Music',
@@ -77,7 +96,6 @@ const coverSources = [
         credit: 'Apple Music',
       }));
     },
-    delay: 400,
   },
   {
     name: 'MusicBrainz',
@@ -91,7 +109,6 @@ const coverSources = [
         credit: 'Cover Art Archive',
       }));
     },
-    delay: 1100, // MusicBrainz : une requête par seconde maximum
   },
 ];
 
@@ -108,14 +125,12 @@ const photoSources = [
         .filter((a) => a.strArtistThumb && RAP_TEXT.test(`${a.strGenre || ''} ${a.strStyle || ''}`))
         .map((a) => ({ artist: a.strArtist, url: a.strArtistThumb, credit: 'TheAudioDB' }));
     },
-    delay: 600,
   },
   {
     name: 'Wikipédia',
     async find(name, wiki) {
       for (const title of [wiki, `${name} (rappeur)`, `${name} (rappeuse)`, `${name} (groupe)`, name].filter(Boolean)) {
         const s = await getJson(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`);
-        await sleep(120);
         const src = s?.originalimage?.source || s?.thumbnail?.source;
         if (src && s.type === 'standard' && !/\.svg/i.test(src) && RAP_TEXT.test(s.extract || '')) {
           return [{ artist: name, url: src, credit: `Wikimedia Commons (voir ${s.content_urls?.desktop?.page || 'Wikipédia'})` }];
@@ -123,7 +138,6 @@ const photoSources = [
       }
       return [];
     },
-    delay: 200,
   },
 ];
 
@@ -206,8 +220,9 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
     if (++done % 200 === 0) { log(`… ${done}/${direct.length} pochettes`); saveCredits(); }
   });
 
-  // 2. Les autres : recherche dans plusieurs sources.
-  for (const a of searched) {
+  // 2. Les autres : recherche dans plusieurs sources, quatre albums à la fois
+  //    (la cadence de chaque service est respectée par server/pacing.js).
+  await pool(searched, 4, async (a) => {
     const slug = a.slug;
     const { title, year } = a;
     const artist = bySlug.get(a.artist)?.name || '';
@@ -216,7 +231,6 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
     for (const source of coverSources) {
       let candidates = [];
       try { candidates = await source.find(artist, title); } catch { /* source injoignable */ }
-      await sleep(source.delay);
       const ranked = candidates
         .filter((c) => c.url)
         .map((c) => ({ ...c, score: titleScore(title, c.title) + (sameArtist(artist, c.artist) ? 1 : 0) }))
@@ -239,13 +253,13 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
       saved = true;
     }
     if (saved) { covers++; sourceAdded('covers', slug); } else report.missing.push({ slug, wanted: `${artist} — ${title}` });
-  }
+  });
   saveCredits();
 
   // 3. Photos des artistes : la photo Deezer connue, sinon recherche.
   const todoArtists = artists.filter((a) => !isManual('artists', a.slug) && (force || !sourceFor('artists', a.slug)));
   if (todoArtists.length) log(`${todoArtists.length} photo(s) d'artiste à récupérer…`);
-  for (const a of todoArtists) {
+  await pool(todoArtists, 4, async (a) => {
     let saved = false;
     if (a.picture && await saveImage(a.picture, target('artists', a.slug), 300).catch(() => false)) {
       credits.artists[a.slug] = { ...credits.artists[a.slug], photoCredit: `${a.name}. Image : Deezer.`, photoDeezerId: a.deezerId || null };
@@ -254,7 +268,6 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
     for (const source of saved ? [] : photoSources) {
       let candidates = [];
       try { candidates = await source.find(a.name, a.wiki); } catch { /* source injoignable */ }
-      await sleep(source.delay);
       const best = candidates.find((c) => norm(c.artist) === norm(a.name)) || candidates.find((c) => sameArtist(a.name, c.artist));
       if (best && await saveImage(best.url, target('artists', a.slug), 300).catch(() => false)) {
         credits.artists[a.slug] = { ...credits.artists[a.slug], photoCredit: `${a.name}. Image : ${best.credit}.` };
@@ -263,7 +276,7 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
       }
     }
     if (saved) { photos++; sourceAdded('artists', a.slug); } else report.missing.push({ slug: a.slug, wanted: `photo de ${a.name}` });
-  }
+  });
 
   if (bios) {
     log('Récupération des résumés Wikipédia…');
@@ -272,7 +285,6 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
       if (s?.type === 'standard' && s.extract?.length > 80 && /\b(rap|rappeu|hip-hop|hip hop)/i.test(s.extract)) {
         credits.artists[a.slug] = { ...credits.artists[a.slug], bio: s.extract, bioSource: `Wikipédia, « ${s.title} », licence CC BY-SA 4.0` };
       }
-      await sleep(150);
     }
   }
 

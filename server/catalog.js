@@ -31,7 +31,12 @@ export function allArtistNames() {
   return [...curatedArtists.map((a) => ({ slug: a.slug, name: a.name })), ...extra];
 }
 
+// Pendant une récupération, les données les plus récentes sont gardées en mémoire (plus rapide que relire le fichier).
+let memory = null;
+export function setDiscovered(found) { memory = found; cache = null; }
+
 export function readDiscovered() {
+  if (memory) return memory;
   try { return JSON.parse(fs.readFileSync(discoveredFile, 'utf8')); } catch { return { artists: {}, projects: {} }; }
 }
 

@@ -160,7 +160,7 @@ function migrate(db) {
 }
 
 // Insère ou met à jour le catalogue sans toucher aux données des membres.
-export function seedCatalogue(db) {
+export function seedCatalogue(db, { artist: onlyArtist } = {}) {
   const credits = readCredits();
   const upArtist = db.prepare(`
     INSERT INTO artists (slug, name, origin, bio, bio_source, photo_credit)
@@ -172,7 +172,12 @@ export function seedCatalogue(db) {
     VALUES (?, ?, (SELECT id FROM artists WHERE slug = ?), ?, ?, ?, ?)
     ON CONFLICT(slug) DO UPDATE SET title = excluded.title, artist_id = excluded.artist_id,
       year = excluded.year, cover_credit = excluded.cover_credit, kind = excluded.kind, curated = excluded.curated`);
-  const { artists, albums } = loadCatalog();
+  let { artists, albums } = loadCatalog();
+  // Pendant la récupération : seulement l'artiste qui vient d'arriver (bien plus rapide).
+  if (onlyArtist) {
+    artists = artists.filter((a) => a.slug === onlyArtist);
+    albums = albums.filter((a) => a.artist === onlyArtist);
+  }
   db.exec('BEGIN');
   try {
     for (const a of artists) {
