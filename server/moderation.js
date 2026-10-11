@@ -73,6 +73,33 @@ export function moderation(db) {
       return changes > 0;
     },
 
+    // Messages privés signalés par leur destinataire (seuls ceux-là sont visibles par les administrateurs).
+    messageReports() {
+      return db.prepare(`
+        SELECT m.id AS message_id, m.body, m.created_at AS message_at, s.username AS author, s.suspended_at AS author_suspended,
+          COUNT(rep.id) AS count, MIN(rep.created_at) AS first_at,
+          json_group_array(json_object('by', ru.username, 'reason', rep.reason, 'at', rep.created_at)) AS reasons
+        FROM message_reports rep JOIN messages m ON m.id = rep.message_id
+        JOIN users s ON s.id = m.sender_id JOIN users ru ON ru.id = rep.reporter_id
+        WHERE rep.resolved_at IS NULL GROUP BY m.id ORDER BY first_at ASC`).all()
+        .map((row) => ({ ...row, reasons: JSON.parse(row.reasons) }));
+    },
+
+    deleteMessage(adminId, messageId, reason) {
+      const m = db.prepare('SELECT m.id, u.username FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.id = ?').get(messageId);
+      if (!m) return false;
+      db.prepare("UPDATE message_reports SET resolved_at = datetime('now'), resolution = 'message supprimé' WHERE message_id = ? AND resolved_at IS NULL").run(messageId);
+      db.prepare('UPDATE messages SET sender_deleted = 1, recipient_deleted = 1, body = \'\' WHERE id = ?').run(messageId);
+      log(adminId, 'message privé supprimé', `message de @${m.username}`, reason);
+      return true;
+    },
+
+    dismissMessageReports(adminId, messageId) {
+      const { changes } = db.prepare("UPDATE message_reports SET resolved_at = datetime('now'), resolution = 'rejeté' WHERE message_id = ? AND resolved_at IS NULL").run(messageId);
+      if (changes) log(adminId, 'signalement rejeté', `message privé ${messageId}`);
+      return changes > 0;
+    },
+
     journal(limit = 30) {
       return db.prepare(`
         SELECT l.action, l.target, l.detail, l.created_at, a.username AS admin
@@ -174,7 +201,8 @@ export function moderation(db) {
       const one = (sql) => Object.values(db.prepare(sql).get())[0];
       return one('SELECT COUNT(DISTINCT review_id) FROM reports WHERE resolved_at IS NULL')
         + one('SELECT COUNT(DISTINCT user_id) FROM user_reports WHERE resolved_at IS NULL')
-        + one('SELECT COUNT(DISTINCT comment_id) FROM comment_reports WHERE resolved_at IS NULL');
+        + one('SELECT COUNT(DISTINCT comment_id) FROM comment_reports WHERE resolved_at IS NULL')
+        + one('SELECT COUNT(DISTINCT message_id) FROM message_reports WHERE resolved_at IS NULL');
     },
   };
 }

@@ -18,6 +18,8 @@ import { chartsQueries } from './charts.js';
 import { badgeEngine } from './badges.js';
 import { badgesPage } from './views/stats.js';
 import { recommender } from './recommend.js';
+import { messaging } from './messages.js';
+import { inboxPage, threadPage } from './views/messages.js';
 import { checkUnsubscribe } from './digest.js';
 import { mailEnabled } from './mailer.js';
 import { chartsPage, challengePage, challengeCard } from './views/charts.js';
@@ -50,11 +52,12 @@ export function pagesRouter(db, q) {
   const charts = chartsQueries(db);
   const badges = badgeEngine(db);
   const recommend = recommender(db);
+  const dm = messaging(db);
 
   const send = (req, res, opts) => {
     res.set('Cache-Control', 'no-cache');
     const user = req.user
-      ? { ...req.user, pendingReports: req.user.admin ? mod.counts() : 0, unread: q.unreadNotifications(req.user.id) }
+      ? { ...req.user, pendingReports: req.user.admin ? mod.counts() : 0, unread: q.unreadNotifications(req.user.id), unreadMessages: dm.unread(req.user.id) }
       : null;
     res.status(opts.status || 200).send(layout({ ...opts, user, csrf: req.csrfToken }));
   };
@@ -228,7 +231,7 @@ export function pagesRouter(db, q) {
     send(req, res, {
       title: 'Modération', path: '/admin', theme: 'light', noindex: true,
       body: adminPage({
-        stats: mod.stats(), reviewReports: mod.reviewReports(), userReports: mod.userReports(), commentReports: mod.commentReports(),
+        stats: mod.stats(), reviewReports: mod.reviewReports(), userReports: mod.userReports(), commentReports: mod.commentReports(), messageReports: mod.messageReports(),
         members: mod.findMembers(query), query, journal: mod.journal(),
       }),
       scripts: ['/js/pages/admin.js'],
@@ -245,6 +248,28 @@ export function pagesRouter(db, q) {
       description: truncate(r.body || `${r.display_name} a noté ${r.album.title} de ${r.album.artist.name}.`),
       image: `/img/og/${r.album.slug}.jpg`, noindex: Boolean(r.hidden_at),
       body: reviewPage({ r, user: req.user, canComment }), scripts: ['/js/pages/album.js', '/js/pages/thread.js'],
+    });
+  });
+
+  r.get('/messages', (req, res) => {
+    if (!needUser(req, res)) return;
+    send(req, res, {
+      title: 'Messages', path: '/messages', theme: 'light', noindex: true,
+      body: inboxPage({ conversations: dm.conversations(req.user.id), friends: q.friends(req.user.id) }),
+    });
+  });
+
+  r.get('/messages/:username', (req, res) => {
+    if (!needUser(req, res)) return;
+    const peer = q.user(req.params.username);
+    if (!peer || peer.suspended_at || peer.id === req.user.id) return notFound(req, res);
+    const messages = dm.thread(req.user.id, peer.id);
+    const canMessage = dm.canMessage(req.user.id, peer.id);
+    if (!messages.length && !canMessage) return notFound(req, res);
+    dm.markRead(req.user.id, peer.id);
+    send(req, res, {
+      title: `Conversation avec ${peer.display_name}`, path: '/messages', theme: 'light', noindex: true,
+      body: threadPage({ peer, messages, canMessage, verified: req.user.verified }), scripts: ['/js/pages/messages.js'],
     });
   });
 

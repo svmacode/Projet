@@ -501,3 +501,38 @@ test('pour toi, album du jour, au hasard, résumé hebdomadaire', async () => {
   assert.equal((await client().call('GET', url.pathname + url.search)).status, 200);
   assert.equal(db.prepare('SELECT digest FROM users WHERE id = ?').get(user.id).digest, 0);
 });
+
+test('messages privés : entre amis seulement, lus, effacés, signalés, blocage respecté', async () => {
+  const a = client();
+  const b = client();
+  const c = client();
+  await register(a, 'alice');
+  await register(b, 'bachir');
+  await register(c, 'curieux');
+  // Pas amis : impossible d'écrire.
+  assert.equal((await a.call('POST', '/api/v1/messages/bachir', { body: 'Salut !' })).status, 403);
+  await a.call('POST', '/api/v1/users/bachir/follow');
+  await b.call('POST', '/api/v1/users/alice/follow');
+  const sent = await a.call('POST', '/api/v1/messages/bachir', { body: 'Salut <b>Bachir</b> !' });
+  assert.equal(sent.status, 201, JSON.stringify(sent.data));
+  // Bachir a un message non lu, l'ouvre (marqué lu) ; le texte est échappé dans la page.
+  assert.equal((await b.call('GET', '/api/v1/messages')).data.unread, 1);
+  const page = await b.call('GET', '/messages/alice');
+  assert.equal(page.status, 200);
+  assert.match(page.data, /Salut &lt;b&gt;Bachir&lt;\/b&gt;/);
+  assert.equal((await b.call('GET', '/api/v1/messages')).data.unread, 0);
+  // Un tiers ne voit pas la conversation.
+  assert.equal((await c.call('GET', '/messages/alice')).status, 404);
+  assert.equal((await c.call('GET', '/api/v1/messages/alice')).data.messages.length, 0);
+  // Signalement : seul le destinataire peut signaler.
+  const id = sent.data.message.id;
+  assert.equal((await a.call('POST', `/api/v1/message/${id}/report`, { reason: 'test' })).status, 404);
+  assert.equal((await b.call('POST', `/api/v1/message/${id}/report`, { reason: 'Message déplacé' })).status, 200);
+  // Effacer sa copie : l'autre garde la sienne.
+  assert.equal((await b.call('DELETE', `/api/v1/message/${id}`)).status, 200);
+  assert.equal((await b.call('GET', '/api/v1/messages/alice')).data.messages.length, 0);
+  assert.equal((await a.call('GET', '/api/v1/messages/bachir')).data.messages.length, 1);
+  // Bloquer coupe la conversation.
+  await b.call('POST', '/api/v1/users/alice/block');
+  assert.equal((await a.call('POST', '/api/v1/messages/bachir', { body: 'Encore moi' })).status, 403);
+});

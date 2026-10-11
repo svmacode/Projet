@@ -255,6 +255,29 @@ function migrate(db) {
       added_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (list_id, user_id)
     );
+    -- Messages privés entre amis. Chacun peut effacer sa copie ; le message disparaît quand les deux l'ont fait.
+    CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY,
+      sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      read_at TEXT,
+      sender_deleted INTEGER NOT NULL DEFAULT 0,
+      recipient_deleted INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS messages_pair ON messages(sender_id, recipient_id, id);
+    CREATE INDEX IF NOT EXISTS messages_inbox ON messages(recipient_id, read_at);
+    CREATE TABLE IF NOT EXISTS message_reports (
+      id INTEGER PRIMARY KEY,
+      reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      resolved_at TEXT,
+      resolution TEXT,
+      UNIQUE (reporter_id, message_id)
+    );
     -- Badges obtenus (la date sert à l'ordre d'affichage et à la notification).
     CREATE TABLE IF NOT EXISTS user_badges (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -273,6 +296,8 @@ function migrate(db) {
   db.exec("DELETE FROM user_reports WHERE resolved_at < datetime('now', '-1 year')");
   db.exec("DELETE FROM mod_log WHERE created_at < datetime('now', '-1 year')");
   db.exec("DELETE FROM comment_reports WHERE resolved_at < datetime('now', '-1 year')");
+  db.exec("DELETE FROM message_reports WHERE resolved_at < datetime('now', '-1 year')");
+  db.exec('DELETE FROM messages WHERE sender_deleted = 1 AND recipient_deleted = 1');
   db.exec("DELETE FROM notifications WHERE created_at < datetime('now', '-6 months')");
   if (!userCols.includes('utm_source')) {
     db.exec('ALTER TABLE users ADD COLUMN utm_source TEXT');

@@ -77,6 +77,14 @@ export async function seedDemo(db) {
     db.prepare("UPDATE list_items SET note = 'Le disque qui a tout lancé en 1997.' WHERE list_id = ? AND note = '' AND album_id = (SELECT id FROM albums WHERE slug = 'iam-l-ecole-du-micro-d-argent')").run(foundations.id);
   }
 
+  // Conversation d'exemple entre Karim et Sofia (amis).
+  if (!db.prepare('SELECT 1 FROM messages WHERE sender_id = ? AND recipient_id = ?').get(ids.karim_demo, ids.sofia_demo)) {
+    const say = db.prepare("INSERT INTO messages (sender_id, recipient_id, body, created_at) VALUES (?, ?, ?, datetime('now', ?))");
+    say.run(ids.karim_demo, ids.sofia_demo, "Salut ! Tu as vu que j'ai mis L'École du micro d'argent en tête des fondations ?", '-2 hours');
+    say.run(ids.sofia_demo, ids.karim_demo, 'Évidemment, c\'est sa place. Je vais ajouter Art de rue à la liste.', '-1 hours');
+    say.run(ids.karim_demo, ids.sofia_demo, 'Bonne idée. Et Opéra Puccino, on le met où ?', '-30 minutes');
+  }
+
   // Badges mérités par l'activité de démonstration.
   const badges = badgeEngine(db, notifier(db));
   for (const id of Object.values(ids)) badges.check(id);

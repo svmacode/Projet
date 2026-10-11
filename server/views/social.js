@@ -18,6 +18,7 @@ export function profilePage({ profile: p, user, badges = [] }) {
       </div>
       <div class="profile-cta">
         ${p.isMe ? html`<a class="btn btn-quiet" href="/compte">Modifier le profil</a>` : p.iBlocked ? '' : followBtn}
+        ${!p.isMe && user && p.isFollowing && p.followsMe ? html`<a class="btn btn-quiet" href="/messages/${p.username}">${icon('mail')} Message</a>` : ''}
         ${!p.isMe && user ? html`<div class="profile-more">
           ${p.iBlocked ? '' : html`<button type="button" class="text-btn" data-report-user="${p.username}">Signaler le profil</button>`}
           <button type="button" class="text-btn ${p.iBlocked ? '' : 'text-danger'}" data-block="${p.username}" aria-pressed="${p.iBlocked ? 'true' : 'false'}">${p.iBlocked ? 'Débloquer' : 'Bloquer'}</button>

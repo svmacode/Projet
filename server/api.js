@@ -13,6 +13,7 @@ import { saveUpload, removeAvatarFile, avatarUrl } from './avatars.js';
 import { moderation } from './moderation.js';
 import { notifier } from './notify.js';
 import { badgeEngine } from './badges.js';
+import { messaging } from './messages.js';
 import { albumDetails, listenLinks } from './album-details.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
@@ -378,6 +379,54 @@ export function apiRouter(db, q) {
     res.json({ ok: true });
   });
 
+  // ---------- Messages privés (entre amis) ----------
+  const dm = messaging(db);
+  const msgLimiter = limiter(60, 120, 'Tu envoies beaucoup de messages : fais une pause.');
+  const peerOf = (req, res) => {
+    const u = q.user(req.params.username);
+    if (!u || u.suspended_at || u.id === req.user.id) { res.status(404).json({ error: 'Membre introuvable.' }); return null; }
+    return u;
+  };
+
+  api.get('/messages', requireAuth, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ unread: dm.unread(req.user.id), conversations: dm.conversations(req.user.id) });
+  });
+
+  // Nouveaux messages d'une conversation (après l'identifiant `after`) ; les marque comme lus.
+  api.get('/messages/:username', requireAuth, (req, res) => {
+    const peer = peerOf(req, res);
+    if (!peer) return;
+    res.set('Cache-Control', 'no-store');
+    const messages = dm.thread(req.user.id, peer.id, Number.parseInt(req.query.after, 10) || 0);
+    dm.markRead(req.user.id, peer.id);
+    res.json({ messages, canMessage: dm.canMessage(req.user.id, peer.id) });
+  });
+
+  api.post('/messages/:username', requireVerified, msgLimiter, (req, res) => {
+    const data = validate(schemas.message, req, res);
+    if (!data) return;
+    const peer = peerOf(req, res);
+    if (!peer) return;
+    if (!dm.canMessage(req.user.id, peer.id)) {
+      return res.status(403).json({ error: 'Tu ne peux écrire qu\'à tes amis (vous vous suivez tous les deux).' });
+    }
+    if (looksLikeSpam(data.body)) return res.status(400).json({ error: 'Trop de liens dans ton message.', fields: { body: 'Deux liens maximum.' } });
+    res.status(201).json({ message: dm.send(req.user.id, peer.id, data.body) });
+  });
+
+  api.delete('/message/:id', requireAuth, (req, res) => {
+    if (!dm.remove(req.user.id, Number(req.params.id))) return res.status(404).json({ error: 'Message introuvable.' });
+    res.json({ ok: true });
+  });
+
+  api.post('/message/:id/report', requireAuth, limiter(60, 10, 'Trop de signalements.'), (req, res) => {
+    const data = validate(schemas.report, req, res);
+    if (!data) return;
+    if (!dm.report(req.user.id, Number(req.params.id), data.reason)) return res.status(404).json({ error: 'Message introuvable.' });
+    res.json({ ok: true });
+  });
+
   // ---------- Notifications ----------
   api.get('/notifications', requireAuth, (req, res) => {
     res.set('Cache-Control', 'no-store');
@@ -697,6 +746,8 @@ export function apiRouter(db, q) {
       reviewLikes: all('SELECT review_id, created_at FROM review_likes WHERE user_id = ?'),
       blocked: all('SELECT u.username, b.created_at FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ?'),
       comments: all('SELECT review_id, body, created_at FROM comments WHERE user_id = ?'),
+      messagesSent: all('SELECT u.username AS to_user, m.body, m.created_at FROM messages m JOIN users u ON u.id = m.recipient_id WHERE m.sender_id = ? AND m.sender_deleted = 0'),
+      messagesReceived: all('SELECT u.username AS from_user, m.body, m.created_at, m.read_at FROM messages m JOIN users u ON u.id = m.sender_id WHERE m.recipient_id = ? AND m.recipient_deleted = 0'),
       notifications: all('SELECT type, created_at, read_at FROM notifications WHERE user_id = ?'),
       reportsMade: [
         ...all('SELECT review_id, reason, created_at FROM reports WHERE reporter_id = ?'),
@@ -735,6 +786,11 @@ export function apiRouter(db, q) {
     const reason = reasonOf(req, res);
     if (reason) done(res, mod.hideComment(req.user.id, Number(req.params.id), reason));
   });
+  api.post('/admin/messages/:id/delete', requireAdmin, (req, res) => {
+    const reason = reasonOf(req, res);
+    if (reason) done(res, mod.deleteMessage(req.user.id, Number(req.params.id), reason));
+  });
+  api.post('/admin/messages/:id/dismiss', requireAdmin, (req, res) => done(res, mod.dismissMessageReports(req.user.id, Number(req.params.id))));
   api.post('/admin/comments/:id/dismiss', requireAdmin, (req, res) => done(res, mod.dismissCommentReports(req.user.id, Number(req.params.id))));
   api.post('/admin/reviews/:id/restore', requireAdmin, (req, res) => done(res, mod.restoreReview(req.user.id, Number(req.params.id))));
   api.post('/admin/reviews/:id/dismiss', requireAdmin, (req, res) => done(res, mod.dismissReviewReports(req.user.id, Number(req.params.id))));

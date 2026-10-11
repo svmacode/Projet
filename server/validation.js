@@ -63,6 +63,7 @@ export const schemas = {
     ...antiSpam,
   }),
   report: z.object({ reason: z.string().trim().min(3, 'Précise la raison.').max(500) }),
+  message: z.object({ body: z.string().trim().min(1, 'Écris un message.').max(2000, '2 000 caractères maximum.') }),
   comment: z.object({ body: z.string().trim().min(1, 'Écris un commentaire.').max(1000, '1 000 caractères maximum.') }),
   profile: z.object({
     displayName: z.string().trim().min(1, 'Indique un nom.').max(40, '40 caractères maximum.'),

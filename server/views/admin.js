@@ -7,7 +7,7 @@ const action = (label, url, { ask, confirm, danger = false } = {}) => html`<butt
 
 const reasons = (list) => html`<ul class="mod-reasons">${list.map((r) => html`<li><strong>@${r.by}</strong> · ${formatDate(r.at)} : ${r.reason}</li>`)}</ul>`;
 
-export function adminPage({ stats, reviewReports, userReports, commentReports = [], members, query, journal }) {
+export function adminPage({ stats, reviewReports, userReports, commentReports = [], messageReports = [], members, query, journal }) {
   return html`
   <section class="page-head">
     <h1 class="display">Modération.</h1>
@@ -52,6 +52,22 @@ export function adminPage({ stats, reviewReports, userReports, commentReports = 
             ${c.author_suspended ? '' : action(`Suspendre @${c.author}`, `/admin/users/${c.author}/suspend`, { ask: `Raison de la suspension de @${c.author} :`, danger: true })}
           </div>
         </article>`) : html`<p class="empty-note">Aucun commentaire signalé.</p>`}
+    </section>
+
+    <section aria-labelledby="mr-t">
+      <h2 id="mr-t" class="h-section">Messages privés signalés <span class="count">${messageReports.length}</span></h2>
+      <p class="field-help">Seuls les messages signalés par leur destinataire sont visibles ici.</p>
+      ${messageReports.length ? messageReports.map((m) => html`
+        <article class="mod-card panel">
+          <p class="mod-meta">Envoyé par <a href="/membre/${m.author}">@${m.author}</a> · ${formatDate(m.message_at)}</p>
+          <blockquote class="mod-quote">${m.body}</blockquote>
+          ${reasons(m.reasons)}
+          <div class="mod-actions">
+            ${action('Supprimer le message', `/admin/messages/${m.message_id}/delete`, { ask: 'Raison de la suppression :', danger: true })}
+            ${action('Rejeter', `/admin/messages/${m.message_id}/dismiss`, { confirm: 'Rejeter ce signalement ?' })}
+            ${m.author_suspended ? '' : action(`Suspendre @${m.author}`, `/admin/users/${m.author}/suspend`, { ask: `Raison de la suspension de @${m.author} :`, danger: true })}
+          </div>
+        </article>`) : html`<p class="empty-note">Aucun message signalé.</p>`}
     </section>
 
     <section aria-labelledby="ur-t">

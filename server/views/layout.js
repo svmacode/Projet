@@ -33,6 +33,7 @@ function nav(user, path) {
         <button class="gnav-icon" type="button" data-theme-toggle aria-label="Changer de thème">
           <span class="theme-icon-dark">${icon('moon')}</span><span class="theme-icon-light">${icon('sun')}</span>
         </button>
+        ${user ? html`<a class="gnav-icon gnav-bell" href="/messages" aria-label="${user.unreadMessages ? `Messages : ${user.unreadMessages} non lu${user.unreadMessages > 1 ? 's' : ''}` : 'Messages'}">${icon('mail')}${user.unreadMessages ? html`<span class="badge" aria-hidden="true">${user.unreadMessages > 9 ? '9+' : user.unreadMessages}</span>` : ''}</a>` : ''}
         ${user ? html`<a class="gnav-icon gnav-bell" href="/notifications" aria-label="${user.unread ? `Notifications : ${user.unread} non lue${user.unread > 1 ? 's' : ''}` : 'Notifications'}">${icon('bell')}${user.unread ? html`<span class="badge" aria-hidden="true">${user.unread > 9 ? '9+' : user.unread}</span>` : ''}</a>` : ''}
         ${user
           ? html`<a class="gnav-me" href="/membre/${user.username}" aria-label="Mon profil">${avatarUrl(user.avatar) ? html`<img src="${avatarUrl(user.avatar)}" alt="" width="64" height="64">` : user.displayName.slice(0, 1).toUpperCase()}</a>`
