@@ -536,3 +536,19 @@ test('messages privés : entre amis seulement, lus, effacés, signalés, blocage
   await b.call('POST', '/api/v1/users/alice/block');
   assert.equal((await a.call('POST', '/api/v1/messages/bachir', { body: 'Encore moi' })).status, 403);
 });
+
+test('fiche rappeur enrichie : chronologie, chiffres et fans', async () => {
+  const fan = client();
+  await register(fan, 'fanpnl');
+  await fan.call('PUT', '/api/v1/albums/pnl-dans-la-legende/state', { listened: true, rating: 10 });
+  await fan.call('PUT', '/api/v1/albums/iam-l-ecole-du-micro-d-argent/state', { listened: true });
+  const page = await client().call('GET', '/rappeur/pnl');
+  assert.equal(page.status, 200);
+  assert.match(page.data, /Chronologie/);
+  assert.match(page.data, /Le mieux noté/);
+  assert.match(page.data, /fanpnl|Fanpnl/i);
+  assert.match(page.data, /Ses fans écoutent aussi/);
+  const extra = await client().call('GET', '/api/v1/artists/pnl/extra');
+  assert.equal(extra.status, 200);
+  assert.equal((await client().call('GET', '/api/v1/artists/inconnu/extra')).status, 404);
+});

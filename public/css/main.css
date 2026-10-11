@@ -1847,3 +1847,25 @@ body::after {
 @media (hover: none) { .dm-meta .text-btn { opacity: 1; } }
 .dm-form { position: sticky; bottom: 12px; display: flex; gap: 10px; align-items: end; padding: 10px; border-radius: var(--radius-l); background: var(--panel); box-shadow: 0 8px 30px rgb(0 0 0 / 0.12); }
 .dm-form textarea { flex: 1; resize: none; min-height: 44px; max-height: 160px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--page, transparent); color: var(--ink); font: inherit; }
+
+/* ---------- Fiche rappeur enrichie ---------- */
+.artist-facts, .artist-timeline, .artist-community, .artist-extra { max-width: var(--max); margin: 0 auto; padding: 48px var(--gutter) 0; }
+.timeline { list-style: none; margin: 16px 0 0; padding: 0 0 12px; display: flex; gap: 0; overflow-x: auto; scroll-snap-type: x proximity; }
+.tl-item { position: relative; flex: none; width: 128px; padding-top: 28px; scroll-snap-align: start; }
+.tl-item::before { content: ''; position: absolute; top: 9px; left: 0; right: 0; height: 2px; background: var(--line); }
+.tl-item::after { content: ''; position: absolute; top: 4px; left: 10px; width: 12px; height: 12px; border-radius: 50%; background: var(--blue); }
+.tl-ep::after { background: var(--ink-2); width: 8px; height: 8px; top: 6px; left: 12px; }
+.tl-year { position: absolute; top: -8px; left: 28px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.tl-item a { display: grid; gap: 6px; padding-right: 16px; color: var(--ink); font-size: 13px; line-height: 1.3; }
+.tl-item .cover { width: 64px; height: 64px; border-radius: 8px; }
+.community-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 12px; }
+.community-card { display: flex; align-items: center; gap: 16px; padding: 14px; border-radius: var(--radius-l); background: var(--panel); color: var(--ink); }
+.community-card .cover { width: 80px; height: 80px; border-radius: 10px; flex: none; }
+.community-card > span { display: grid; gap: 2px; }
+.community-card small { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
+.community-card span span { color: var(--ink-2); font-size: 14px; }
+.fans { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 16px; }
+.fans a { display: grid; justify-items: center; gap: 6px; font-size: 13px; color: var(--ink); width: 72px; text-align: center; }
+.fans span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 72px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
+.artist-extra .h-sub small { font-weight: 400; color: var(--ink-2); font-size: 14px; }

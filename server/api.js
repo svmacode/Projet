@@ -14,6 +14,7 @@ import { moderation } from './moderation.js';
 import { notifier } from './notify.js';
 import { badgeEngine } from './badges.js';
 import { messaging } from './messages.js';
+import { artistInsights } from './artist-insights.js';
 import { albumDetails, listenLinks } from './album-details.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
@@ -205,6 +206,15 @@ export function apiRouter(db, q) {
     res.set('Cache-Control', 'private, max-age=3600');
     if (config.isTest) return res.json({ tracks: [], links: listenLinks(album, null) });
     res.json(await details(album));
+  });
+
+  // Artistes similaires et featurings (Deezer, avec cache ; pas d'appel réseau pendant les tests).
+  const insights = artistInsights(db);
+  api.get('/artists/:slug/extra', async (req, res) => {
+    if (!db.prepare('SELECT 1 FROM artists WHERE slug = ?').get(req.params.slug)) return res.status(404).json({ error: 'Rappeur introuvable.' });
+    res.set('Cache-Control', 'private, max-age=3600');
+    if (config.isTest) return res.json({ similar: [], featurings: [] });
+    res.json(await insights.extra(req.params.slug).catch(() => ({ similar: [], featurings: [] })));
   });
 
   // Avancement de la mise à jour automatique du catalogue.

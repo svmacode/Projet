@@ -1,5 +1,5 @@
 import { html, raw } from '../html.js';
-import { cover, portrait, tile, stars, review, icon, antiSpamFields } from './components.js';
+import { cover, portrait, tile, stars, review, icon, antiSpamFields, avatar } from './components.js';
 
 const DECADES = [1990, 2000, 2010, 2020];
 
@@ -202,7 +202,8 @@ export function artistsPage({ artists }) {
   </section>`;
 }
 
-export function artistPage({ artist }) {
+export function artistPage({ artist, community: c = null }) {
+  const years = artist.albums.map((a) => a.year);
   return html`
   <article class="artist">
     <header class="artist-hero">
@@ -219,6 +220,40 @@ export function artistPage({ artist }) {
         ${artist.photo_credit ? html`<p class="credit">Photo : ${artist.photo_credit}</p>` : ''}
       </div>
     </header>
+    ${artist.albums.length ? html`<section class="artist-facts" aria-labelledby="facts-t">
+      <h2 id="facts-t" class="visually-hidden">En chiffres</h2>
+      <dl class="big-numbers">
+        <div><dt>Projets</dt><dd>${artist.albums.length}</dd></div>
+        <div><dt>Carrière</dt><dd>${Math.min(...years)}<small>–${Math.max(...years)}</small></dd></div>
+        <div><dt>Fans sur MyRapFr</dt><dd>${c?.fanCount || 0}</dd></div>
+        <div><dt>Note des membres</dt><dd>${c?.avg ? html`${(c.avg / 2).toFixed(1).replace('.', ',')}<small>/5</small>` : '—'}</dd></div>
+      </dl>
+    </section>
+
+    <section class="artist-timeline" aria-labelledby="tl-t">
+      <h2 id="tl-t" class="h-section">Chronologie</h2>
+      <ol class="timeline">${artist.albums.map((a) => html`<li class="tl-item tl-${a.kind}">
+        <span class="tl-year">${a.year}</span>
+        <a href="/album/${a.slug}">${cover(a, { sizes: '64px' })}<span>${a.title}</span></a>
+      </li>`)}</ol>
+    </section>` : ''}
+
+    ${c && (c.best || c.most || c.fans.length) ? html`<section class="artist-community" aria-labelledby="comm-t">
+      <h2 id="comm-t" class="h-section">Chez les membres</h2>
+      <div class="community-grid">
+        ${c.best ? html`<a class="community-card" href="/album/${c.best.slug}">${cover(c.best, { sizes: '96px' })}<span><small>Le mieux noté</small><strong>${c.best.title}</strong><span>${(c.best.avg / 2).toFixed(1).replace('.', ',')}/5 · ${c.best.ratings} note${c.best.ratings > 1 ? 's' : ''}</span></span></a>` : ''}
+        ${c.most ? html`<a class="community-card" href="/album/${c.most.slug}">${cover(c.most, { sizes: '96px' })}<span><small>Le plus écouté</small><strong>${c.most.title}</strong><span>${c.most.listens} écoute${c.most.listens > 1 ? 's' : ''}</span></span></a>` : ''}
+      </div>
+      ${c.fans.length ? html`<h3 class="h-sub">Ses fans</h3><ul class="fans">${c.fans.map((f) => html`<li><a href="/membre/${f.username}" title="${f.display_name} : ${f.n} album${f.n > 1 ? 's' : ''}">${avatar(f, 'avatar-lg')}<span>${f.display_name}</span></a></li>`)}</ul>` : ''}
+      ${c.also.length ? html`<h3 class="h-sub">Ses fans écoutent aussi</h3><p class="chips">${c.also.map((a) => html`<a class="chip" href="/rappeur/${a.slug}">${a.name}</a>`)}</p>` : ''}
+    </section>` : ''}
+
+    <section class="artist-extra" aria-labelledby="extra-t" data-artist-extra="${artist.slug}" hidden>
+      <h2 id="extra-t" class="h-section">Dans son univers</h2>
+      <div data-extra-similar hidden><h3 class="h-sub">Artistes similaires</h3><p class="chips" data-extra-similar-list></p></div>
+      <div data-extra-feats hidden><h3 class="h-sub">Featurings fréquents <small>sur ses titres les plus écoutés</small></h3><p class="chips" data-extra-feats-list></p></div>
+    </section>
+
     ${[['album', 'Albums et mixtapes'], ['ep', 'EP']].map(([kind, label]) => {
       const list = artist.albums.filter((a) => a.kind === kind);
       return list.length ? html`<section class="artist-albums" aria-labelledby="disco-${kind}">

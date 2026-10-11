@@ -20,6 +20,7 @@ import { badgesPage } from './views/stats.js';
 import { recommender } from './recommend.js';
 import { messaging } from './messages.js';
 import { inboxPage, threadPage } from './views/messages.js';
+import { artistInsights } from './artist-insights.js';
 import { checkUnsubscribe } from './digest.js';
 import { mailEnabled } from './mailer.js';
 import { chartsPage, challengePage, challengeCard } from './views/charts.js';
@@ -53,6 +54,7 @@ export function pagesRouter(db, q) {
   const badges = badgeEngine(db);
   const recommend = recommender(db);
   const dm = messaging(db);
+  const insights = artistInsights(db);
 
   const send = (req, res, opts) => {
     res.set('Cache-Control', 'no-cache');
@@ -140,7 +142,7 @@ export function pagesRouter(db, q) {
     send(req, res, {
       title: `${artist.name} — biographie et albums`, path: `/rappeur/${artist.slug}`, theme: 'light',
       description: truncate(artist.bio), image: artist.albums[0] ? `/img/og/${artist.albums[0].slug}.jpg` : undefined,
-      body: artistPage({ artist }),
+      body: artistPage({ artist, community: insights.community(artist.slug) }), scripts: ['/js/pages/artist.js'],
       jsonLd: { '@context': 'https://schema.org', '@type': 'MusicGroup', name: artist.name, description: artist.bio, url: `${config.publicUrl}/rappeur/${artist.slug}` },
     });
   });

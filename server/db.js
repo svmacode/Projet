@@ -278,6 +278,12 @@ function migrate(db) {
       resolution TEXT,
       UNIQUE (reporter_id, message_id)
     );
+    -- Artistes similaires et featurings (Deezer), gardés 30 jours.
+    CREATE TABLE IF NOT EXISTS artist_extra (
+      artist_id INTEGER PRIMARY KEY REFERENCES artists(id) ON DELETE CASCADE,
+      data TEXT,
+      fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
     -- Badges obtenus (la date sert à l'ordre d'affichage et à la notification).
     CREATE TABLE IF NOT EXISTS user_badges (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
