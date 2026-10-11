@@ -77,7 +77,7 @@ export function confirmPage({ token }) {
     </div>`);
 }
 
-export function settingsPage({ me, albums, picks = [] }) {
+export function settingsPage({ me, albums, picks = [], blocked = [] }) {
   return html`
   <section class="page-head">
     <h1 class="display">Paramètres.</h1>
@@ -142,6 +142,14 @@ export function settingsPage({ me, albums, picks = [] }) {
       ${field({ id: 'password', label: 'Nouveau mot de passe', type: 'password', autocomplete: 'new-password', help: '10 caractères minimum. Tes autres appareils seront déconnectés.', attrs: 'required minlength="10" maxlength="200"' })}
       <button class="btn btn-quiet" type="submit">Changer le mot de passe</button>
     </form>
+
+    <div class="panel" data-blocked-panel>
+      <h2 class="h-section">Membres bloqués</h2>
+      ${blocked.length ? html`<ul class="persons">${blocked.map((b) => html`<li class="person">
+        <a class="person-id" href="/membre/${b.username}">${avatar(b)} <span><strong>${b.display_name}</strong> <small>@${b.username}</small></span></a>
+        <button type="button" class="btn btn-sm btn-quiet" data-unblock="${b.username}">Débloquer</button>
+      </li>`)}</ul>` : html`<p class="empty-note">Tu n'as bloqué personne. Pour bloquer un membre, ouvre son profil.</p>`}
+    </div>
 
     <div class="panel">
       <h2 class="h-section">Sessions</h2>

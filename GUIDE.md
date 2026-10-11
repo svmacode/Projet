@@ -23,6 +23,8 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
   - listes et 4 albums favoris ;
   - suivre des membres : deux abonnements réciproques font des **amis** ; la page **Amis** (menu) permet de chercher un membre, de suivre en retour ceux qui te suivent et propose des suggestions ;
   - **photo de profil** au choix : une photo importée (recadrée, métadonnées effacées) ou une pochette d'album ;
+  - **bloquer** un membre depuis son profil, **signaler** une chronique ou un profil ;
+  - **modération** (page réservée aux administrateurs) : signalements, masquage, suspension, journal conservé un an ;
   - fil d'actu.
 - **Mouvement** :
   - défilement doux avec inertie (Lenis) ;
@@ -86,10 +88,15 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
 
 1. **Remplir les mentions légales.** Copie `.env.example` en `.env` et renseigne `OWNER_NAME`, `OWNER_ADDRESS`, `HOST_INFO` et `CONTACT_EMAIL`. C'est obligatoire en France (loi LCEN, article 6). Une personne physique peut demander à ne pas afficher son adresse, mais seulement si un hébergeur professionnel détient son identité. En auto-hébergement, tu es toi-même l'hébergeur.
 2. **Créer l'adresse e-mail de contact**, par exemple `contact@ton-domaine.fr`.
-3. **Brancher un service d'e-mail.** Aujourd'hui, les liens de confirmation et de mot de passe oublié s'affichent dans la console du serveur. Pour le site en ligne, il faut un service SMTP. Brevo est gratuit jusqu'à 300 e-mails par jour et basé en France. Le branchement se fait dans un seul fichier : `server/mailer.js`.
-4. **Récupérer les vraies pochettes** (§3) et relire les biographies, qui sont courtes et rédigées pour le site.
-5. **Compléter la liste des rappeurs si besoin.** Pour suivre un artiste de plus, ajoute son nom (tel qu'il apparaît sur Deezer) dans la liste `roster` de `catalogue.js`, à la racine du projet : toute sa discographie arrivera au prochain démarrage. Le fichier `data/discover-report.json` liste les artistes introuvables et l'identité Deezer retenue pour chacun, à vérifier en cas d'homonyme.
-6. Lancer `npm run check:links`, `npm run check:perf` et `npm test` une dernière fois.
+3. **Brancher les e-mails (5 minutes).** Sans réglage, les liens de confirmation et de mot de passe oublié s'affichent dans la console du serveur. Pour de vrais e-mails, avec Brevo (gratuit jusqu'à 300 e-mails par jour, basé en France) :
+   1. crée un compte sur brevo.com, puis ajoute et vérifie ton adresse d'expéditeur (Expéditeurs, domaines et IP dédiées) ;
+   2. va dans **Paramètres → SMTP et API → onglet SMTP** et génère une clé SMTP ;
+   3. dans ton fichier `.env`, remplis `SMTP_USER` (l'identifiant affiché par Brevo), `SMTP_PASS` (la clé) et `MAIL_FROM` (ton adresse d'expéditeur) ; `SMTP_HOST` et `SMTP_PORT` sont déjà bons dans `.env.example` ;
+   4. vérifie avec `npm run mail:test -- ton-adresse@exemple.fr`, puis relance le site.
+4. **Te nommer administrateur.** Crée ton compte sur le site, puis lance `npm run admin -- ton-pseudo`. Le lien **Modération** apparaît dans ton menu : signalements de chroniques et de profils, masquage, effacement d'une photo ou d'une bio, suspension d'un compte, journal des décisions. Passe-y régulièrement : la loi demande de retirer vite un contenu manifestement illicite qu'on t'a signalé.
+5. **Récupérer les vraies pochettes** (§3) et relire les biographies, qui sont courtes et rédigées pour le site.
+6. **Compléter la liste des rappeurs si besoin.** Pour suivre un artiste de plus, ajoute son nom (tel qu'il apparaît sur Deezer) dans la liste `roster` de `catalogue.js`, à la racine du projet : toute sa discographie arrivera au prochain démarrage. Le fichier `data/discover-report.json` liste les artistes introuvables et l'identité Deezer retenue pour chacun, à vérifier en cas d'homonyme.
+7. Lancer `npm run check:links`, `npm run check:perf` et `npm test` une dernière fois.
 
 ---
 
@@ -248,7 +255,6 @@ Ton PC ouvre une connexion sortante vers Cloudflare, qui sert le site au public 
 
 ## 8. Prochaines étapes possibles
 
-- Interface d'administration : traiter les signalements, suspendre un compte.
 - Commentaires sous les chroniques, notifications, blocage d'un membre.
 - Pistes et durée des albums, liens d'écoute vers les plateformes.
 - Statistiques annuelles du membre, sur le modèle du « Year in Review » de Letterboxd.

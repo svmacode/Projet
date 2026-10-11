@@ -31,7 +31,9 @@ Pour voir le site avec quelques membres, notes et chroniques : `npm run demo` **
 | `npm run catalogue:fetch` | Relance la récupération des discographies, pochettes et photos (faite automatiquement au démarrage) |
 | `npm run images` | Icônes et image de partage (les pochettes sont fabriquées à la demande ; `-- --all` pour tout préparer d'avance) |
 | `npm run stats:utm` | Visites et inscriptions par campagne (liens UTM), sur 90 jours |
-| `npm run backup` | Sauvegarde la base de données dans `data/backups/` |
+| `npm run backup` | Sauvegarde la base de données et les photos de profil dans `data/backups/` |
+| `npm run admin -- pseudo` | Nomme un membre administrateur (page Modération) ; `-- pseudo --retirer` pour annuler |
+| `npm run mail:test -- adresse` | Vérifie le service d'e-mail configuré dans `.env` et envoie un message d'essai |
 | `npm test` | Tests automatiques de l'API (comptes, sécurité, amis, RGPD) |
 | `npm run check:links` | Cherche les liens cassés sur tout le site (serveur lancé) |
 | `npm run check:contrast` | Vérifie les contrastes de couleurs (WCAG AA) |

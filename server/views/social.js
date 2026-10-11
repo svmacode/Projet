@@ -16,9 +16,16 @@ export function profilePage({ profile: p, user }) {
         ${!p.isMe && p.followsMe ? html`<p class="badge">Te suit</p>` : ''}
       </div>
       <div class="profile-cta">
-        ${p.isMe ? html`<a class="btn btn-quiet" href="/compte">Modifier le profil</a>` : followBtn}
+        ${p.isMe ? html`<a class="btn btn-quiet" href="/compte">Modifier le profil</a>` : p.iBlocked ? '' : followBtn}
+        ${!p.isMe && user ? html`<div class="profile-more">
+          ${p.iBlocked ? '' : html`<button type="button" class="text-btn" data-report-user="${p.username}">Signaler le profil</button>`}
+          <button type="button" class="text-btn ${p.iBlocked ? '' : 'text-danger'}" data-block="${p.username}" aria-pressed="${p.iBlocked ? 'true' : 'false'}">${p.iBlocked ? 'Débloquer' : 'Bloquer'}</button>
+        </div>` : ''}
       </div>
     </header>
+
+    ${p.iBlocked ? html`<p class="notice">Tu as bloqué ce membre : vous ne voyez plus vos chroniques respectives et il ne peut plus te suivre.</p>` : ''}
+    ${p.suspended_at ? html`<p class="notice notice-danger">Compte suspendu (visible seulement par les administrateurs).</p>` : ''}
 
     <dl class="profile-stats">
       <div><dt>Albums</dt><dd>${p.stats.listened}</dd></div>
@@ -45,7 +52,7 @@ export function profilePage({ profile: p, user }) {
         <a class="diary-cover" href="/album/${d.album.slug}">${cover(d.album, { sizes: '64px' })}</a>
         <a class="diary-title" href="/album/${d.album.slug}">${d.album.title} <span>${d.album.artist.name}, ${d.album.year}</span></a>
         ${stars(d.rating)}
-        ${d.body ? html`<span class="diary-has-review">${icon('text', 'Avec chronique')}</span>` : ''}
+        ${d.hidden_at ? html`<span class="tag tag-danger" title="Masquée par la modération : elle n'est visible que par toi.">Masquée</span>` : d.body ? html`<span class="diary-has-review">${icon('text', 'Avec chronique')}</span>` : ''}
       </li>`)}</ol>` : html`<p class="empty-note">Aucune écoute enregistrée pour l'instant.</p>`}
     </section>
 

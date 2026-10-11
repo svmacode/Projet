@@ -68,5 +68,14 @@ export async function seedDemo(db) {
     ['ntm-paris-sous-les-bombes', 'iam-l-ecole-du-micro-d-argent', 'mc-solaar-prose-combat', 'lunatic-mauvais-oeil', 'arsenik-quelques-gouttes-suffisent', 'oxmo-puccino-opera-puccino', 'ideal-j-le-combat-continue', '113-les-princes-de-la-ville']
       .forEach((slug, i) => db.prepare('INSERT INTO list_items (list_id, album_id, position) VALUES (?, ?, ?)').run(lastInsertRowid, album(slug), i + 1));
   }
+  // Sofia est administratrice, avec un signalement d'exemple à traiter dans « Modération ».
+  db.prepare("UPDATE users SET role = 'admin' WHERE username = 'sofia_demo'").run();
+  const reported = db.prepare(`SELECT r.id FROM reviews r JOIN albums al ON al.id = r.album_id
+    WHERE r.user_id = ? AND al.slug = 'oxmo-puccino-opera-puccino'`).get(ids.karim_demo);
+  if (reported) {
+    db.prepare('INSERT OR IGNORE INTO reports (reporter_id, review_id, reason) VALUES (?, ?, ?)')
+      .run(ids.ines_demo, reported.id, "Exemple de signalement : propos à vérifier (démo).");
+  }
+
   return members.map((m) => m.username);
 }

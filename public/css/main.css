@@ -1591,3 +1591,39 @@ body::after {
   .person { gap: 10px; }
   .person .btn { padding: 6px 12px; }
 }
+
+/* ======================================================================
+   Modération
+   ====================================================================== */
+.admin { display: grid; gap: 48px; }
+.admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 0; }
+.admin-stats div { padding: 18px 20px; border-radius: var(--radius-l); background: var(--panel); }
+.admin-stats dt { font-size: 13px; color: var(--ink-2); }
+.admin-stats dd { margin: 4px 0 0; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.admin .h-section { display: flex; align-items: center; gap: 10px; }
+.admin .count { font-size: 13px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--panel); color: var(--ink-2); }
+.mod-card { margin-top: 16px; }
+.mod-meta { margin: 0; font-size: 14px; color: var(--ink-2); }
+.mod-meta a { color: var(--ink); font-weight: 600; }
+.mod-quote { margin: 0; padding: 12px 16px; border-left: 3px solid var(--line); white-space: pre-wrap; justify-self: stretch; }
+.mod-reasons { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
+.mod-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.mod-profile { display: flex; gap: 14px; align-items: center; }
+.mod-bio { margin: 4px 0 0; font-size: 14px; color: var(--ink-2); }
+.admin-search { display: flex; gap: 10px; margin: 12px 0 16px; }
+.admin-search input { flex: 1; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg, transparent); color: var(--ink); font: inherit; }
+.table-wrap { overflow-x: auto; }
+.admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.admin-table th { text-align: left; font-weight: 600; color: var(--ink-2); padding: 10px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.admin-table td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.admin-member { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); }
+.admin-member small { color: var(--ink-2); }
+.tag { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--panel); }
+.tag-danger { background: var(--red-light); color: #fff; }
+.mod-journal { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.mod-journal time { color: var(--ink-2); margin-right: 6px; }
+.mod-journal small { color: var(--ink-2); }
+.profile-cta { display: grid; gap: 10px; justify-items: start; }
+@media (min-width: 734px) { .profile-cta { justify-items: end; } }
+.profile-more { display: flex; gap: 16px; font-size: 14px; }
+.notice-danger { background: var(--red-light); color: #fff; }

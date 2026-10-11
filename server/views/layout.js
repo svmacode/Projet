@@ -20,6 +20,7 @@ function nav(user, path) {
         ${link('/#apropos', 'À propos')}
         ${user ? link('/fil', 'Fil d’actu') : ''}
         ${user ? link('/amis', 'Amis') : ''}
+        ${user?.admin ? link('/admin', user.pendingReports ? `Modération (${user.pendingReports})` : 'Modération') : ''}
         <div class="gnav-mobile-extra">
           ${user
             ? html`<a href="/membre/${user.username}">Mon profil</a><a href="/compte">Paramètres</a>`

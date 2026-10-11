@@ -40,7 +40,8 @@ export function privacyPage() {
         <tr><td>Notes, écoutes, chroniques, listes, j'aime, abonnements</td><td>Le service MyRapFr lui-même</td><td>Exécution du contrat</td><td>Tant que le compte existe, ou jusqu'à suppression par toi</td></tr>
         <tr><td>Cookie de session (identifiant aléatoire)</td><td>Te garder connecté</td><td>Intérêt légitime, cookie strictement nécessaire</td><td>30 jours maximum</td></tr>
         <tr><td>Adresse IP (en mémoire vive uniquement)</td><td>Limiter les abus (anti-spam, tentatives de connexion)</td><td>Intérêt légitime</td><td>15 minutes à 1 heure, jamais écrite sur disque</td></tr>
-        <tr><td>Signalements</td><td>Modérer les contenus</td><td>Intérêt légitime et obligation légale (LCEN)</td><td>Jusqu'au traitement, puis 1 an</td></tr>
+        <tr><td>Signalements (chroniques et profils) et journal des décisions de modération</td><td>Modérer les contenus et pouvoir justifier les décisions</td><td>Intérêt légitime et obligation légale (LCEN, DSA)</td><td>Jusqu'au traitement, puis 1 an</td></tr>
+        <tr><td>Membres que tu as bloqués</td><td>Te protéger des interactions non souhaitées</td><td>Exécution du contrat</td><td>Jusqu'au déblocage ou à la suppression du compte</td></tr>
         <tr><td>Compteurs de campagnes (UTM), sans aucun identifiant</td><td>Savoir quels liens partagés amènent des visiteurs</td><td>Intérêt légitime (statistique anonyme)</td><td>90 jours</td></tr>
         <tr><td>Campagne d'arrivée associée à ton compte</td><td>Savoir quels partages amènent des inscriptions</td><td>Consentement (bandeau cookies)</td><td>Tant que le compte existe</td></tr>
       </tbody>
@@ -104,7 +105,8 @@ export function termsPage() {
     <p>Tu restes propriétaire de tes chroniques. Tu accordes à MyRapFr le droit de les afficher sur le site tant qu'elles sont en ligne. Tu peux les supprimer à tout moment.</p>
     <p>Sont interdits : les propos haineux, discriminatoires, harcelants ou diffamatoires, les contenus illicites, la publicité et le spam, l'usurpation d'identité, et la publication de données personnelles d'autrui.</p>
     <h2>4. Modération</h2>
-    <p>Chaque chronique peut être signalée. MyRapFr peut retirer un contenu manifestement illicite et suspendre un compte en cas d'abus, conformément à la loi pour la confiance dans l'économie numérique (LCEN) et au règlement européen sur les services numériques (DSA).</p>
+    <p>Chaque chronique et chaque profil peuvent être signalés. MyRapFr examine les signalements et peut masquer une chronique, effacer une photo de profil, un nom affiché ou une bio, ou suspendre un compte en cas d'abus, conformément à la loi pour la confiance dans l'économie numérique (LCEN) et au règlement européen sur les services numériques (DSA). Chaque décision est notée dans un journal conservé un an. Pour contester une décision, écris à l'adresse de contact.</p>
+    <p>Tu peux aussi bloquer un membre depuis son profil : il ne peut plus te suivre ni voir ton profil, et vous ne voyez plus vos chroniques respectives.</p>
     <h2>5. Contenus du catalogue</h2>
     <p>Les pochettes, photos et noms d'albums appartiennent à leurs auteurs et ayants droit. Ils sont présentés à des fins d'information et de critique. Toute demande de retrait est traitée sous 72 heures : <a href="mailto:${config.contactEmail}">${config.contactEmail}</a>.</p>
     <h2>6. Disponibilité</h2>

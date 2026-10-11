@@ -8,6 +8,8 @@ import { homePage } from './views/home.js';
 import { albumsPage, albumPage, artistsPage, artistPage, searchPage, catalogueUrl } from './views/catalog.js';
 import { profilePage, followPage, listPage, feedPage, friendsPage } from './views/social.js';
 import { registerPage, loginPage, forgotPage, resetPage, confirmPage, settingsPage } from './views/account.js';
+import { adminPage } from './views/admin.js';
+import { moderation } from './moderation.js';
 import { privacyPage, cookiesPage, termsPage, legalNoticePage, sitemapPage, notFoundPage } from './views/legal.js';
 
 // Filtres du catalogue lus dans l'adresse, avec des valeurs sûres.
@@ -29,10 +31,12 @@ const safeBack = (value) => (typeof value === 'string' && /^\/(?!\/)[\w\-/.?=&%#
 
 export function pagesRouter(db, q) {
   const r = express.Router();
+  const mod = moderation(db);
 
   const send = (req, res, opts) => {
     res.set('Cache-Control', 'no-cache');
-    res.status(opts.status || 200).send(layout({ ...opts, user: req.user ? { ...req.user } : null, csrf: req.csrfToken }));
+    const user = req.user ? { ...req.user, pendingReports: req.user.admin ? mod.counts() : 0 } : null;
+    res.status(opts.status || 200).send(layout({ ...opts, user, csrf: req.csrfToken }));
   };
 
   const notFound = (req, res) => {
@@ -126,7 +130,7 @@ export function pagesRouter(db, q) {
   });
 
   r.get('/membre/:username', (req, res) => {
-    const profile = q.profile(req.params.username, req.user?.id || 0);
+    const profile = q.profile(req.params.username, req.user?.id || 0, { admin: Boolean(req.user?.admin) });
     if (!profile) return notFound(req, res);
     send(req, res, {
       title: `${profile.display_name} (@${profile.username})`, path: `/membre/${profile.username}`, theme: 'dark',
@@ -157,6 +161,19 @@ export function pagesRouter(db, q) {
     });
   });
 
+  r.get('/admin', (req, res) => {
+    if (!req.user?.admin) return notFound(req, res);
+    const query = String(req.query.q || '').trim().slice(0, 40);
+    send(req, res, {
+      title: 'Modération', path: '/admin', theme: 'light', noindex: true,
+      body: adminPage({
+        stats: mod.stats(), reviewReports: mod.reviewReports(), userReports: mod.userReports(),
+        members: mod.findMembers(query), query, journal: mod.journal(),
+      }),
+      scripts: ['/js/pages/admin.js'],
+    });
+  });
+
   r.get('/amis', (req, res) => {
     if (!needUser(req, res)) return;
     send(req, res, {
@@ -173,7 +190,7 @@ export function pagesRouter(db, q) {
     if (!needUser(req, res)) return;
     send(req, res, {
       title: "Fil d'actu", path: '/fil', theme: 'dark', noindex: true,
-      body: feedPage({ feed: q.feed(req.user.id), recent: q.recentReviews(), user: req.user }),
+      body: feedPage({ feed: q.feed(req.user.id), recent: q.recentReviews(12, req.user.id), user: req.user }),
       scripts: ['/js/pages/album.js'],
     });
   });
@@ -200,7 +217,7 @@ export function pagesRouter(db, q) {
       .all(req.user.id).map((x) => x.slug);
     send(req, res, {
       title: 'Paramètres', path: '/compte', theme: 'light', noindex: true,
-      body: settingsPage({ me, albums: q.albums({ sort: 'title' }), picks: q.avatarPicks(req.user.id) }), scripts: ['/js/pages/account.js'],
+      body: settingsPage({ me, albums: q.albums({ sort: 'title' }), picks: q.avatarPicks(req.user.id), blocked: q.blockedBy(req.user.id) }), scripts: ['/js/pages/account.js'],
     });
   });
 

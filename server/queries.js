@@ -45,6 +45,11 @@ const ORDERS = {
 };
 
 export function makeQueries(db) {
+  // Chronique visible : ni masquée par la modération, ni écrite par un compte suspendu.
+  const VISIBLE = 'r.hidden_at IS NULL AND u.suspended_at IS NULL';
+  // Aucun blocage entre le membre u et le visiteur (deux paramètres : l'id du visiteur, deux fois).
+  const UNBLOCKED = 'NOT EXISTS (SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = u.id) OR (blocker_id = u.id AND blocked_id = ?))';
+
   const q = {
     albums({ sort = 'year' } = {}) {
       return db.prepare(`${ALBUM_SELECT} ORDER BY ${ORDERS[sort] || ORDERS.year}`).all().map(albumView);
@@ -80,7 +85,7 @@ export function makeQueries(db) {
       album.id = id;
       album.stats = db.prepare(`
         SELECT SUM(listened) AS listened, SUM(liked) AS likes,
-          (SELECT COUNT(*) FROM reviews WHERE album_id = ? AND body <> '') AS reviews
+          (SELECT COUNT(*) FROM reviews WHERE album_id = ? AND body <> '' AND hidden_at IS NULL) AS reviews
         FROM user_albums WHERE album_id = ?`).get(id, id);
       const hist = Array(10).fill(0);
       for (const r of db.prepare('SELECT rating, COUNT(*) n FROM user_albums WHERE album_id = ? AND rating IS NOT NULL GROUP BY rating').all(id)) {
@@ -127,33 +132,36 @@ export function makeQueries(db) {
           EXISTS(SELECT 1 FROM review_likes WHERE review_id = r.id AND user_id = ?) AS liked_by_me,
           (SELECT liked FROM user_albums WHERE user_id = r.user_id AND album_id = r.album_id) AS loved
         FROM reviews r JOIN users u ON u.id = r.user_id
-        WHERE r.album_id = ? AND r.body <> ''
+        WHERE r.album_id = ? AND r.body <> '' AND ${VISIBLE} AND ${UNBLOCKED}
           ${friendsOnly ? 'AND r.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?)' : ''}
         ORDER BY likes DESC, r.created_at DESC LIMIT ?`)
-        .all(...(friendsOnly ? [viewerId, albumId, viewerId, limit] : [viewerId, albumId, limit]));
+        .all(...(friendsOnly ? [viewerId, albumId, viewerId, viewerId, viewerId, limit] : [viewerId, albumId, viewerId, viewerId, limit]));
     },
 
-    recentReviews(limit = 12) {
+    recentReviews(limit = 12, viewerId = 0) {
       return db.prepare(`
         SELECT r.id, r.rating, r.body, r.created_at, u.username, u.display_name, u.avatar, al.slug AS album_slug
         FROM reviews r JOIN users u ON u.id = r.user_id JOIN albums al ON al.id = r.album_id
-        WHERE r.body <> '' ORDER BY r.created_at DESC LIMIT ?`).all(limit)
+        WHERE r.body <> '' AND ${VISIBLE} AND ${UNBLOCKED} ORDER BY r.created_at DESC LIMIT ?`).all(viewerId, viewerId, limit)
         .map((r) => ({ ...r, album: q.album(r.album_slug) }));
     },
 
     user(username) {
-      return db.prepare('SELECT id, username, display_name, avatar, bio, created_at FROM users WHERE username = ?').get(username) || null;
+      return db.prepare('SELECT id, username, display_name, avatar, bio, role, suspended_at, created_at FROM users WHERE username = ?').get(username) || null;
     },
 
-    profile(username, viewerId = 0) {
+    profile(username, viewerId = 0, { admin = false } = {}) {
       const u = q.user(username);
       if (!u) return null;
+      if (u.suspended_at && !admin) return null;
       const one = (sql, ...args) => Object.values(db.prepare(sql).get(...args))[0];
+      if (viewerId && one('SELECT COUNT(*) FROM blocks WHERE blocker_id = ? AND blocked_id = ?', u.id, viewerId)) return null;
+      u.iBlocked = Boolean(viewerId && one('SELECT COUNT(*) FROM blocks WHERE blocker_id = ? AND blocked_id = ?', viewerId, u.id));
       const year = new Date().getFullYear().toString();
       u.stats = {
         listened: one('SELECT COUNT(*) FROM user_albums WHERE user_id = ? AND listened = 1', u.id),
         thisYear: one("SELECT COUNT(DISTINCT album_id) FROM reviews WHERE user_id = ? AND substr(listened_on, 1, 4) = ?", u.id, year),
-        reviews: one("SELECT COUNT(*) FROM reviews WHERE user_id = ? AND body <> ''", u.id),
+        reviews: one("SELECT COUNT(*) FROM reviews WHERE user_id = ? AND body <> '' AND hidden_at IS NULL", u.id),
         lists: one('SELECT COUNT(*) FROM lists WHERE user_id = ?', u.id),
         followers: one('SELECT COUNT(*) FROM follows WHERE followee_id = ?', u.id),
         following: one('SELECT COUNT(*) FROM follows WHERE follower_id = ?', u.id),
@@ -164,8 +172,8 @@ export function makeQueries(db) {
       u.favorites = db.prepare(`${ALBUM_SELECT} JOIN favorites f ON f.album_id = al.id WHERE f.user_id = ? ORDER BY f.position`)
         .all(u.id).map(albumView);
       u.diary = db.prepare(`
-        SELECT r.id, r.rating, r.body, r.listened_on, al.slug FROM reviews r JOIN albums al ON al.id = r.album_id
-        WHERE r.user_id = ? ORDER BY r.listened_on DESC, r.created_at DESC LIMIT 40`).all(u.id)
+        SELECT r.id, r.rating, r.body, r.listened_on, r.hidden_at, al.slug FROM reviews r JOIN albums al ON al.id = r.album_id
+        WHERE r.user_id = ? ${u.isMe ? '' : 'AND r.hidden_at IS NULL'} ORDER BY r.listened_on DESC, r.created_at DESC LIMIT 40`).all(u.id)
         .map((r) => ({ ...r, album: q.album(r.slug) }));
       u.liked = db.prepare(`${ALBUM_SELECT} JOIN user_albums s ON s.album_id = al.id WHERE s.user_id = ? AND s.liked = 1 ORDER BY s.updated_at DESC LIMIT 24`)
         .all(u.id).map(albumView);
@@ -178,6 +186,11 @@ export function makeQueries(db) {
       return u;
     },
 
+    blockedBy(userId) {
+      return db.prepare(`SELECT u.username, u.display_name, u.avatar FROM blocks b JOIN users u ON u.id = b.blocked_id
+        WHERE b.blocker_id = ? ORDER BY b.created_at DESC`).all(userId);
+    },
+
     // Page Amis : les membres autour de toi, avec l'état de la relation pour chaque bouton « Suivre ».
     friendsHub(userId) {
       const person = `u.username, u.display_name, u.avatar, u.bio,
@@ -186,21 +199,22 @@ export function makeQueries(db) {
       const iFollow = 'EXISTS(SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = u.id)';
       // Ils te suivent, tu ne les suis pas encore : un clic et vous êtes amis.
       const requests = db.prepare(`SELECT ${person}, 0 AS isFollowing, 1 AS followsMe FROM follows f JOIN users u ON u.id = f.follower_id
-        WHERE f.followee_id = ? AND NOT ${iFollow} ORDER BY f.created_at DESC`).all(userId, userId);
+        WHERE f.followee_id = ? AND NOT ${iFollow} AND u.suspended_at IS NULL ORDER BY f.created_at DESC`).all(userId, userId);
       const friends = db.prepare(`SELECT ${person}, 1 AS isFollowing, 1 AS followsMe FROM follows a
         JOIN follows b ON b.follower_id = a.followee_id AND b.followee_id = a.follower_id
-        JOIN users u ON u.id = a.followee_id WHERE a.follower_id = ? ORDER BY u.display_name COLLATE NOCASE`).all(userId);
+        JOIN users u ON u.id = a.followee_id WHERE a.follower_id = ? AND u.suspended_at IS NULL ORDER BY u.display_name COLLATE NOCASE`).all(userId);
       const following = db.prepare(`SELECT ${person}, 1 AS isFollowing, 0 AS followsMe FROM follows f JOIN users u ON u.id = f.followee_id
-        WHERE f.follower_id = ? AND NOT ${followsMe} ORDER BY f.created_at DESC`).all(userId, userId);
+        WHERE f.follower_id = ? AND NOT ${followsMe} AND u.suspended_at IS NULL ORDER BY f.created_at DESC`).all(userId, userId);
       // Suggestions : les membres suivis par ceux que tu suis, puis les plus actifs.
       const known = new Set([...requests, ...friends, ...following].map((p) => p.username));
       const suggestions = db.prepare(`SELECT ${person}, 0 AS isFollowing, ${followsMe} AS followsMe, COUNT(*) AS common
         FROM follows a JOIN follows b ON b.follower_id = a.followee_id JOIN users u ON u.id = b.followee_id
-        WHERE a.follower_id = ? AND u.id <> ? AND NOT ${iFollow}
-        GROUP BY u.id ORDER BY common DESC, listened DESC LIMIT 8`).all(userId, userId, userId, userId);
+        WHERE a.follower_id = ? AND u.id <> ? AND NOT ${iFollow} AND u.suspended_at IS NULL AND ${UNBLOCKED}
+        GROUP BY u.id ORDER BY common DESC, listened DESC LIMIT 8`).all(userId, userId, userId, userId, userId, userId);
       if (suggestions.length < 8) {
         const active = db.prepare(`SELECT ${person}, 0 AS isFollowing, ${followsMe} AS followsMe, 0 AS common FROM users u
-          WHERE u.id <> ? AND NOT ${iFollow} ORDER BY listened DESC, u.created_at DESC LIMIT 16`).all(userId, userId, userId);
+          WHERE u.id <> ? AND NOT ${iFollow} AND u.suspended_at IS NULL AND ${UNBLOCKED}
+          ORDER BY listened DESC, u.created_at DESC LIMIT 16`).all(userId, userId, userId, userId, userId);
         for (const p of active) {
           if (suggestions.length >= 8) break;
           if (!suggestions.some((s) => s.username === p.username) && !known.has(p.username)) suggestions.push(p);
@@ -217,7 +231,7 @@ export function makeQueries(db) {
           (SELECT COUNT(*) FROM user_albums WHERE user_id = u.id AND listened = 1) AS listened,
           EXISTS(SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = u.id) AS isFollowing,
           EXISTS(SELECT 1 FROM follows WHERE follower_id = u.id AND followee_id = ?) AS followsMe
-        FROM users u WHERE u.id <> ?`).all(viewerId, viewerId, viewerId)
+        FROM users u WHERE u.id <> ? AND u.suspended_at IS NULL AND ${UNBLOCKED}`).all(viewerId, viewerId, viewerId, viewerId, viewerId)
         .filter((u) => { const h = normalize(`${u.username} ${u.display_name}`); return words.every((w) => h.includes(w)); })
         .sort((a, b) => b.listened - a.listened)
         .slice(0, 20);
@@ -258,8 +272,8 @@ export function makeQueries(db) {
       return db.prepare(`
         SELECT r.id, r.rating, r.body, r.listened_on, r.created_at, u.username, u.display_name, u.avatar, al.slug
         FROM reviews r JOIN users u ON u.id = r.user_id JOIN albums al ON al.id = r.album_id
-        WHERE r.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?)
-        ORDER BY r.created_at DESC LIMIT ?`).all(userId, limit)
+        WHERE r.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?) AND ${VISIBLE} AND ${UNBLOCKED}
+        ORDER BY r.created_at DESC LIMIT ?`).all(userId, userId, userId, limit)
         .map((r) => ({ ...r, album: q.album(r.slug) }));
     },
 
@@ -293,7 +307,7 @@ export function makeQueries(db) {
         .slice(0, 60)
         .map((x) => x.a);
       const artists = db.prepare('SELECT slug, name FROM artists ORDER BY name').all().filter((a) => matches(a.name)).slice(0, 20);
-      const users = db.prepare('SELECT username, display_name, avatar FROM users').all()
+      const users = db.prepare('SELECT username, display_name, avatar FROM users WHERE suspended_at IS NULL').all()
         .filter((u) => matches(`${u.username} ${u.display_name}`)).slice(0, 20);
       return { albums, artists, users };
     },

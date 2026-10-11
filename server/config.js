@@ -42,6 +42,14 @@ export const config = {
   dbFile: env.DB_FILE || path.join(root, 'data', 'myrapfr.db'),
   secret: loadSecret(),
   contactEmail: env.CONTACT_EMAIL || 'contact@myrapfr.fr',
+  // Service d'e-mail (SMTP). Sans SMTP_HOST, les e-mails sont affichés dans la console.
+  smtp: env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS ? {
+    host: env.SMTP_HOST,
+    port: Number(env.SMTP_PORT || 587),
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
+    from: env.MAIL_FROM || `MyRapFr <${env.CONTACT_EMAIL || 'contact@myrapfr.fr'}>`,
+  } : null,
   sessionDays: 30,
 };
 

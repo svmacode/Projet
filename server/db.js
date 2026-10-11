@@ -154,6 +154,55 @@ function migrate(db) {
   db.exec("DELETE FROM utm_stats WHERE day < date('now', '-90 days')"); // conservation : 90 jours
   const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!userCols.includes('avatar')) db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); // photo de profil (voir avatars.js)
+  // Modération : rôle (member / admin) et suspension d'un compte.
+  if (!userCols.includes('role')) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'member'");
+  if (!userCols.includes('suspended_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN suspended_at TEXT');
+    db.exec('ALTER TABLE users ADD COLUMN suspended_reason TEXT');
+  }
+  const reviewCols = db.prepare('PRAGMA table_info(reviews)').all().map((c) => c.name);
+  if (!reviewCols.includes('hidden_at')) {
+    db.exec('ALTER TABLE reviews ADD COLUMN hidden_at TEXT'); // chronique masquée par la modération
+    db.exec('ALTER TABLE reviews ADD COLUMN hidden_reason TEXT');
+  }
+  const reportCols = db.prepare('PRAGMA table_info(reports)').all().map((c) => c.name);
+  if (!reportCols.includes('resolved_at')) {
+    db.exec('ALTER TABLE reports ADD COLUMN resolved_at TEXT');
+    db.exec('ALTER TABLE reports ADD COLUMN resolution TEXT');
+  }
+  db.exec(`
+    -- Signalement d'un profil (photo, nom, bio).
+    CREATE TABLE IF NOT EXISTS user_reports (
+      id INTEGER PRIMARY KEY,
+      reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      resolved_at TEXT,
+      resolution TEXT,
+      UNIQUE (reporter_id, user_id)
+    );
+    -- Membres bloqués.
+    CREATE TABLE IF NOT EXISTS blocks (
+      blocker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (blocker_id, blocked_id),
+      CHECK (blocker_id <> blocked_id)
+    );
+    -- Journal de modération (qui a fait quoi, quand) : conservé 1 an.
+    CREATE TABLE IF NOT EXISTS mod_log (
+      id INTEGER PRIMARY KEY,
+      admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      target TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );`);
+  // Conservation (voir la politique de confidentialité) : signalements traités et journal, 1 an.
+  db.exec("DELETE FROM reports WHERE resolved_at < datetime('now', '-1 year')");
+  db.exec("DELETE FROM user_reports WHERE resolved_at < datetime('now', '-1 year')");
+  db.exec("DELETE FROM mod_log WHERE created_at < datetime('now', '-1 year')");
   if (!userCols.includes('utm_source')) {
     db.exec('ALTER TABLE users ADD COLUMN utm_source TEXT');
     db.exec('ALTER TABLE users ADD COLUMN utm_medium TEXT');

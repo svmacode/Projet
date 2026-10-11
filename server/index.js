@@ -11,7 +11,7 @@ const app = createApp();
 if (process.argv.includes('--demo')) {
   const { seedDemo, DEMO_PASSWORD } = await import('./demo.js');
   const names = await seedDemo(app.locals.db);
-  console.log(`\n  Mode démo : comptes ${names.join(', ')}\n  Mot de passe : ${DEMO_PASSWORD}`);
+  console.log(`\n  Mode démo : comptes ${names.join(', ')}\n  Mot de passe : ${DEMO_PASSWORD}\n  sofia_demo est administratrice (menu « Modération »).`);
 }
 
 // Message bien visible : le site est utilisable dès maintenant, même si le catalogue charge encore.

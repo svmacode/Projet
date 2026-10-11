@@ -9,8 +9,9 @@ const { outbox } = await import('../server/mailer.js');
 
 let server;
 let base;
+let app;
 before(async () => {
-  const app = createApp({ dbFile: ':memory:' });
+  app = createApp({ dbFile: ':memory:' });
   await new Promise((resolve) => { server = app.listen(0, resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -245,4 +246,78 @@ test('page Amis : recherche de membres, suivre en retour, amis', async () => {
   assert.equal(back.data.friends, true);
   assert.match((await a.call('GET', '/amis')).data, /Tes amis[\s\S]*bilal/);
   assert.equal((await client().call('GET', '/amis')).status, 303);
+});
+
+test('modération : signalement, masquage, suspension, journal ; réservé aux admins', async () => {
+  const admin = client();
+  const author = client();
+  const reporter = client();
+  await register(admin, 'modo');
+  await register(author, 'auteurx');
+  await register(reporter, 'temoin');
+  app.locals.db.prepare("UPDATE users SET role = 'admin' WHERE username = 'modo'").run();
+  // Les droits d'admin sont lus à chaque requête : on se reconnecte pour être sûr.
+  await admin.call('POST', '/api/v1/auth/login', { login: 'modo', password: 'une phrase de passe solide' });
+
+  const posted = await author.call('POST', '/api/v1/albums/pnl-dans-la-legende/reviews', { rating: 2, body: 'Chronique problématique à modérer.' });
+  assert.equal(posted.status, 201, JSON.stringify(posted.data));
+  const reviewId = posted.data.review?.id ?? posted.data.id;
+  assert.ok(reviewId);
+  assert.equal((await reporter.call('POST', `/api/v1/reviews/${reviewId}/report`, { reason: 'Propos insultants' })).status, 200);
+  assert.equal((await reporter.call('POST', '/api/v1/users/auteurx/report', { reason: 'Photo choquante' })).status, 200);
+
+  // Un membre ordinaire n'a accès à rien.
+  assert.equal((await reporter.call('GET', '/admin')).status, 404);
+  assert.equal((await reporter.call('POST', `/api/v1/admin/reviews/${reviewId}/hide`, { reason: 'test' })).status, 403);
+
+  const page = await admin.call('GET', '/admin');
+  assert.equal(page.status, 200);
+  assert.match(page.data, /Propos insultants/);
+  assert.match(page.data, /Photo choquante/);
+
+  // Masquer : la chronique disparaît de la page de l'album.
+  assert.equal((await admin.call('POST', `/api/v1/admin/reviews/${reviewId}/hide`, { reason: 'Insultes' })).status, 200);
+  assert.doesNotMatch((await client().call('GET', '/album/pnl-dans-la-legende')).data, /Chronique problématique/);
+  // Suspendre : connexion refusée, profil introuvable, session fermée.
+  assert.equal((await admin.call('POST', '/api/v1/admin/users/auteurx/suspend', { reason: 'Récidive' })).status, 200);
+  assert.equal((await author.call('GET', '/api/v1/me')).status, 401);
+  const login = await client().call('POST', '/api/v1/auth/login', { login: 'auteurx', password: 'une phrase de passe solide' });
+  assert.equal(login.status, 403);
+  assert.match(login.data.error, /suspendu/);
+  assert.equal((await client().call('GET', '/membre/auteurx')).status, 404);
+  assert.equal((await admin.call('GET', '/membre/auteurx')).status, 200);
+  // Un admin ne peut pas se suspendre lui-même.
+  assert.equal((await admin.call('POST', '/api/v1/admin/users/modo/suspend', { reason: 'test' })).status, 400);
+  // Journal et réactivation.
+  const after = await admin.call('GET', '/admin');
+  assert.match(after.data, /chronique masquée/);
+  assert.match(after.data, /compte suspendu/);
+  assert.equal((await admin.call('POST', '/api/v1/admin/users/auteurx/unsuspend')).status, 200);
+  assert.equal((await client().call('GET', '/membre/auteurx')).status, 200);
+});
+
+test('bloquer un membre : abonnements retirés, plus de suivi, profil caché, chroniques masquées', async () => {
+  const a = client();
+  const b = client();
+  await register(a, 'bloqueuse');
+  await register(b, 'importun');
+  await a.call('POST', '/api/v1/users/importun/follow');
+  await b.call('POST', '/api/v1/users/bloqueuse/follow');
+  await b.call('POST', '/api/v1/albums/iam-l-ecole-du-micro-d-argent/reviews', { rating: 5, body: 'Chronique de l importun.' });
+  assert.equal((await a.call('POST', '/api/v1/users/importun/block')).status, 200);
+  // Plus aucun abonnement, et impossible de se suivre à nouveau.
+  assert.equal((await b.call('POST', '/api/v1/users/bloqueuse/follow')).status, 403);
+  assert.equal((await a.call('POST', '/api/v1/users/importun/follow')).status, 403);
+  // Le membre bloqué ne voit plus le profil ; la bloqueuse le voit avec « Débloquer ».
+  assert.equal((await b.call('GET', '/membre/bloqueuse')).status, 404);
+  assert.match((await a.call('GET', '/membre/importun')).data, /Débloquer/);
+  // Les chroniques du membre bloqué n'apparaissent plus pour la bloqueuse, mais restent visibles des autres.
+  assert.doesNotMatch((await a.call('GET', '/album/iam-l-ecole-du-micro-d-argent')).data, /Chronique de l importun/);
+  assert.match((await client().call('GET', '/album/iam-l-ecole-du-micro-d-argent')).data, /Chronique de l importun/);
+  // Introuvable dans la recherche de membres.
+  assert.equal((await a.call('GET', '/api/v1/users?q=importun')).data.users.length, 0);
+  assert.match((await a.call('GET', '/compte')).data, /importun/);
+  // Débloquer.
+  assert.equal((await a.call('DELETE', '/api/v1/users/importun/block')).status, 200);
+  assert.equal((await b.call('GET', '/membre/bloqueuse')).status, 200);
 });

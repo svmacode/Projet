@@ -228,3 +228,15 @@ if (editor) {
     }, 250);
   });
 }
+
+// ---------- Membres bloqués ----------
+document.querySelector('[data-blocked-panel]')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-unblock]');
+  if (!btn) return;
+  busy(btn, true);
+  try {
+    await api(`/users/${btn.dataset.unblock}/block`, { method: 'DELETE' });
+    btn.closest('li').remove();
+    toast('Membre débloqué');
+  } catch (err) { toast(err.message, { error: true }); busy(btn, false); }
+});

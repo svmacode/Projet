@@ -7,6 +7,32 @@ const fail = (err) => (err.status === 401 ? loginRedirect() : toast(err.message,
 
 initFollow();
 
+// ---------- Bloquer et signaler un membre (profil) ----------
+document.querySelector('[data-block]')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const blocked = btn.getAttribute('aria-pressed') === 'true';
+  if (!blocked && !confirm(`Bloquer @${btn.dataset.block} ? Vos abonnements mutuels seront retirés, vous ne verrez plus vos chroniques respectives et ce membre ne pourra plus te suivre ni voir ton profil.`)) return;
+  busy(btn, true);
+  try {
+    await api(`/users/${btn.dataset.block}/block`, { method: blocked ? 'DELETE' : 'POST' });
+    toast(blocked ? 'Membre débloqué' : 'Membre bloqué');
+    setTimeout(() => location.reload(), 400);
+  } catch (err) { fail(err); busy(btn, false); }
+});
+
+document.querySelector('[data-report-user]')?.addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const reason = prompt('Pourquoi signaler ce profil ? (photo, nom ou bio inappropriés, usurpation…)');
+  if (reason === null) return;
+  if (reason.trim().length < 3) return toast('Précise la raison.', { error: true });
+  try {
+    await api(`/users/${btn.dataset.reportUser}/report`, { method: 'POST', body: { reason: reason.trim() } });
+    btn.disabled = true;
+    btn.textContent = 'Profil signalé';
+    toast('Merci, la modération va examiner ce profil.');
+  } catch (err) { fail(err); }
+});
+
 // ---------- Page Amis : recherche de membres ----------
 const search = document.querySelector('[data-member-search]');
 if (search) {

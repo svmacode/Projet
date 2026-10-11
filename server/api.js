@@ -4,12 +4,13 @@ import { config } from './config.js';
 import { schemas, validate } from './validation.js';
 import {
   hashPassword, verifyPassword, burnPasswordCheck, createSession, destroySession,
-  requireAuth, requireVerified, randomToken, sha256, checkAntiSpam, looksLikeSpam,
+  requireAuth, requireVerified, requireAdmin, randomToken, sha256, checkAntiSpam, looksLikeSpam,
 } from './security.js';
 import { verifyEmail, resetEmail } from './mailer.js';
 import { readFilters } from './pages.js';
 import { catalogStatus } from './auto-images.js';
 import { saveUpload, removeAvatarFile, avatarUrl } from './avatars.js';
+import { moderation } from './moderation.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
   windowMs: windowMinutes * 60_000,
@@ -33,6 +34,7 @@ function catchAsync(router) {
 
 export function apiRouter(db, q) {
   const api = catchAsync(express.Router());
+  const blocked = (a, b) => Boolean(db.prepare('SELECT 1 FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)').get(a, b, b, a));
   api.use(express.json({ limit: '20kb' }));
   api.use(limiter(1, 120, 'Trop de requêtes, réessaie dans une minute.'));
 
@@ -103,10 +105,13 @@ export function apiRouter(db, q) {
     if (spamGuard(req, res)) return;
     const data = validate(schemas.login, req, res);
     if (!data) return;
-    const user = db.prepare('SELECT id, username, display_name, password_hash, email_verified_at FROM users WHERE username = ? OR email = ?')
+    const user = db.prepare('SELECT id, username, display_name, password_hash, email_verified_at, suspended_at FROM users WHERE username = ? OR email = ?')
       .get(data.login, data.login.toLowerCase());
     const ok = user ? await verifyPassword(data.password, user.password_hash) : await burnPasswordCheck(data.password);
     if (!ok) return res.status(401).json({ error: 'Identifiants incorrects.' });
+    if (user.suspended_at) {
+      return res.status(403).json({ error: `Ce compte est suspendu pour non-respect des conditions d'utilisation. Pour en parler : ${config.contactEmail}` });
+    }
     const csrf = createSession(db, res, user.id);
     res.json({ user: { username: user.username, displayName: user.display_name, verified: Boolean(user.email_verified_at) }, csrf });
   });
@@ -288,7 +293,9 @@ export function apiRouter(db, q) {
     if (!data) return;
     const id = Number(req.params.id);
     if (!db.prepare('SELECT 1 FROM reviews WHERE id = ?').get(id)) return res.status(404).json({ error: 'Chronique introuvable.' });
-    db.prepare('INSERT OR IGNORE INTO reports (reporter_id, review_id, reason) VALUES (?, ?, ?)').run(req.user.id, id, data.reason);
+    db.prepare(`INSERT INTO reports (reporter_id, review_id, reason) VALUES (?, ?, ?)
+      ON CONFLICT(reporter_id, review_id) DO UPDATE SET reason = excluded.reason, created_at = datetime('now'), resolved_at = NULL, resolution = NULL`)
+      .run(req.user.id, id, data.reason);
     res.json({ ok: true });
   });
 
@@ -308,7 +315,7 @@ export function apiRouter(db, q) {
   api.get('/users/:username', (req, res) => {
     const profile = q.profile(req.params.username, req.user?.id || 0);
     if (!profile) return res.status(404).json({ error: 'Membre introuvable.' });
-    delete profile.id;
+    for (const key of ['id', 'role', 'suspended_at']) delete profile[key];
     res.json({ profile });
   });
 
@@ -322,6 +329,7 @@ export function apiRouter(db, q) {
     const u = q.user(req.params.username);
     if (!u) return res.status(404).json({ error: 'Membre introuvable.' });
     if (u.id === req.user.id) return res.status(400).json({ error: 'Tu ne peux pas te suivre toi-même.' });
+    if (u.suspended_at || blocked(req.user.id, u.id)) return res.status(403).json({ error: 'Impossible de suivre ce membre.' });
     db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)').run(req.user.id, u.id);
     res.json({ following: true, friends: Boolean(db.prepare('SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = ?').get(u.id, req.user.id)) });
   });
@@ -331,6 +339,45 @@ export function apiRouter(db, q) {
     if (!u) return res.status(404).json({ error: 'Membre introuvable.' });
     db.prepare('DELETE FROM follows WHERE follower_id = ? AND followee_id = ?').run(req.user.id, u.id);
     res.json({ following: false, friends: false });
+  });
+
+  // ---------- Bloquer un membre ----------
+  // Bloquer retire les abonnements dans les deux sens ; ensuite, aucun des deux ne voit les chroniques
+  // de l'autre ni ne peut le suivre, et le membre bloqué ne peut plus ouvrir le profil.
+  api.post('/users/:username/block', requireAuth, writeLimiter, (req, res) => {
+    const u = q.user(req.params.username);
+    if (!u) return res.status(404).json({ error: 'Membre introuvable.' });
+    if (u.id === req.user.id) return res.status(400).json({ error: 'Tu ne peux pas te bloquer toi-même.' });
+    db.exec('BEGIN');
+    try {
+      db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(req.user.id, u.id);
+      db.prepare('DELETE FROM follows WHERE (follower_id = ? AND followee_id = ?) OR (follower_id = ? AND followee_id = ?)')
+        .run(req.user.id, u.id, u.id, req.user.id);
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+    res.json({ blocked: true });
+  });
+
+  api.delete('/users/:username/block', requireAuth, (req, res) => {
+    const u = q.user(req.params.username);
+    if (!u) return res.status(404).json({ error: 'Membre introuvable.' });
+    db.prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?').run(req.user.id, u.id);
+    res.json({ blocked: false });
+  });
+
+  // Signaler un profil (photo, nom ou bio inappropriés).
+  api.post('/users/:username/report', requireAuth, limiter(60, 10, 'Trop de signalements.'), (req, res) => {
+    const data = validate(schemas.report, req, res);
+    if (!data) return;
+    const u = q.user(req.params.username);
+    if (!u || u.id === req.user.id) return res.status(404).json({ error: 'Membre introuvable.' });
+    db.prepare(`INSERT INTO user_reports (reporter_id, user_id, reason) VALUES (?, ?, ?)
+      ON CONFLICT(reporter_id, user_id) DO UPDATE SET reason = excluded.reason, created_at = datetime('now'), resolved_at = NULL, resolution = NULL`)
+      .run(req.user.id, u.id, data.reason);
+    res.json({ ok: true });
   });
 
   api.get('/feed', requireAuth, (req, res) => res.json({ feed: q.feed(req.user.id) }));
@@ -478,6 +525,11 @@ export function apiRouter(db, q) {
       followers: all('SELECT u.username FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.followee_id = ?'),
       lists: all('SELECT id, title, description, created_at FROM lists WHERE user_id = ?'),
       reviewLikes: all('SELECT review_id, created_at FROM review_likes WHERE user_id = ?'),
+      blocked: all('SELECT u.username, b.created_at FROM blocks b JOIN users u ON u.id = b.blocked_id WHERE b.blocker_id = ?'),
+      reportsMade: [
+        ...all('SELECT review_id, reason, created_at FROM reports WHERE reporter_id = ?'),
+        ...all('SELECT u.username AS profile, r.reason, r.created_at FROM user_reports r JOIN users u ON u.id = r.user_id WHERE r.reporter_id = ?'),
+      ],
     };
     res.set('Content-Disposition', `attachment; filename="myrapfr-${req.user.username}.json"`);
     res.json(data);
@@ -497,6 +549,28 @@ export function apiRouter(db, q) {
     destroySession(db, req, res);
     res.json({ ok: true });
   });
+
+  // ---------- Administration (modération) ----------
+  const mod = moderation(db);
+  const reasonOf = (req, res) => validate(schemas.report, req, res)?.reason;
+  const done = (res, ok) => (ok ? res.json({ ok: true }) : res.status(404).json({ error: 'Élément introuvable.' }));
+
+  api.post('/admin/reviews/:id/hide', requireAdmin, (req, res) => {
+    const reason = reasonOf(req, res);
+    if (reason) done(res, mod.hideReview(req.user.id, Number(req.params.id), reason));
+  });
+  api.post('/admin/reviews/:id/restore', requireAdmin, (req, res) => done(res, mod.restoreReview(req.user.id, Number(req.params.id))));
+  api.post('/admin/reviews/:id/dismiss', requireAdmin, (req, res) => done(res, mod.dismissReviewReports(req.user.id, Number(req.params.id))));
+  api.post('/admin/users/:username/dismiss', requireAdmin, (req, res) => done(res, mod.dismissUserReports(req.user.id, req.params.username)));
+  api.post('/admin/users/:username/clear', requireAdmin, (req, res) => done(res, mod.clearProfile(req.user.id, req.params.username)));
+  api.post('/admin/users/:username/suspend', requireAdmin, (req, res) => {
+    const reason = reasonOf(req, res);
+    if (!reason) return;
+    const result = mod.suspend(req.user.id, req.params.username, reason);
+    if (result.error) return res.status(result.status).json({ error: result.error });
+    res.json({ ok: true });
+  });
+  api.post('/admin/users/:username/unsuspend', requireAdmin, (req, res) => done(res, mod.unsuspend(req.user.id, req.params.username)));
 
   api.use((req, res) => res.status(404).json({ error: 'Route inconnue.' }));
   return api;

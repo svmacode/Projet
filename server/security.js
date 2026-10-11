@@ -89,9 +89,9 @@ export function destroySession(db, req, res) {
 
 export function sessionMiddleware(db) {
   const find = db.prepare(`
-    SELECT s.token_hash, s.csrf, u.id, u.username, u.display_name, u.avatar, u.email, u.email_verified_at
+    SELECT s.token_hash, s.csrf, u.id, u.username, u.display_name, u.avatar, u.role, u.email, u.email_verified_at
     FROM sessions s JOIN users u ON u.id = s.user_id
-    WHERE s.token_hash = ? AND s.expires_at > datetime('now')`);
+    WHERE s.token_hash = ? AND s.expires_at > datetime('now') AND u.suspended_at IS NULL`);
   let lastCleanup = 0;
   return (req, res, next) => {
     if (Date.now() - lastCleanup > 3600_000) {
@@ -107,6 +107,7 @@ export function sessionMiddleware(db) {
         username: row.username,
         displayName: row.display_name,
         avatar: row.avatar,
+        admin: row.role === 'admin',
         email: row.email,
         verified: Boolean(row.email_verified_at),
       };
@@ -119,6 +120,12 @@ export function sessionMiddleware(db) {
 
 export function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Connecte-toi pour continuer.' });
+  next();
+}
+
+export function requireAdmin(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Connecte-toi pour continuer.' });
+  if (!req.user.admin) return res.status(403).json({ error: 'Réservé aux administrateurs.' });
   next();
 }
 
