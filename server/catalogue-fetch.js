@@ -150,6 +150,32 @@ async function pool(items, n, fn) {
   }));
 }
 
+// Télécharge les images dont l'adresse exacte est connue (discographie Deezer d'un artiste).
+export async function downloadKnown({ albums = [], artist = null, force = false }) {
+  fs.mkdirSync(dir('sources', 'covers'), { recursive: true });
+  fs.mkdirSync(dir('sources', 'artists'), { recursive: true });
+  const added = { albums: {}, artists: {} };
+  await pool(albums.filter((a) => a.cover && (force || !sourceFor('covers', a.slug))), 4, async (a) => {
+    if (await saveImage(a.cover, dir('sources', 'covers', `${a.slug}.jpg`)).catch(() => false)) {
+      added.albums[a.slug] = { coverCredit: `Pochette © ${artist?.name || ''} et ayants droit. Image : Deezer.` };
+      sourceAdded('covers', a.slug);
+    }
+  });
+  if (artist?.picture && (force || !sourceFor('artists', artist.slug))
+    && await saveImage(artist.picture, dir('sources', 'artists', `${artist.slug}.jpg`), 300).catch(() => false)) {
+    added.artists[artist.slug] = { photoCredit: `${artist.name}. Image : Deezer.` };
+    sourceAdded('artists', artist.slug);
+  }
+  // Fusion avec les crédits existants (relus juste avant l'écriture).
+  if (Object.keys(added.albums).length || Object.keys(added.artists).length) {
+    const credits = readCredits();
+    Object.assign(credits.albums, added.albums);
+    for (const [slug, c] of Object.entries(added.artists)) credits.artists[slug] = { ...credits.artists[slug], ...c };
+    fs.writeFileSync(dir('credits.json'), JSON.stringify(credits, null, 1));
+  }
+  return Object.keys(added.albums).length;
+}
+
 export async function fetchCatalogue({ force = false, bios = false, log = console.log } = {}) {
   fs.mkdirSync(dir('sources', 'covers'), { recursive: true });
   fs.mkdirSync(dir('sources', 'artists'), { recursive: true });

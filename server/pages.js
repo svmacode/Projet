@@ -1,5 +1,6 @@
 import express from 'express';
 import { config } from './config.js';
+import { catalogStatus } from './auto-images.js';
 import { issueFormToken } from './security.js';
 import { layout } from './views/layout.js';
 import { homePage } from './views/home.js';
@@ -67,7 +68,7 @@ export function pagesRouter(db, q) {
       title: result.page > 1 ? `Albums — page ${result.page}` : 'Albums', path: catalogueUrl({ ...filters, page: result.page }), theme: 'dark',
       noindex: Boolean(filters.q),
       description: `${totalAll.toLocaleString('fr-FR')} albums, mixtapes et EP du rap français, de 1991 à aujourd'hui. Note-les, chronique-les, partage-les.`,
-      body: albumsPage({ result, filters, totalAll, filtered }), scripts: ['/js/pages/catalogue.js'],
+      body: albumsPage({ result, filters, totalAll, filtered, status: catalogStatus() }), scripts: ['/js/pages/catalogue.js'],
     });
   });
 

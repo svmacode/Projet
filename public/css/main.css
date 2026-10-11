@@ -1241,3 +1241,8 @@ html.lenis, html.lenis body { height: auto; }
 .chip:hover { text-decoration: none; }
 .h-count { margin-left: 6px; font-weight: 500; color: var(--ink-2); }
 .artist-albums + .artist-albums { padding-top: 24px; }
+
+/* ---------- Mise à jour du catalogue en cours ---------- */
+.sync-note { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; font-size: 14px; color: var(--ink-2); }
+.sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: sync-pulse 1.6s ease-in-out infinite; }
+@keyframes sync-pulse { 50% { opacity: 0.3; } }

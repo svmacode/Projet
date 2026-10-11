@@ -32,7 +32,7 @@ export function allArtistNames() {
 }
 
 export function readDiscovered() {
-  try { return JSON.parse(fs.readFileSync(discoveredFile, 'utf8')); } catch { return { artists: {}, albums: [] }; }
+  try { return JSON.parse(fs.readFileSync(discoveredFile, 'utf8')); } catch { return { artists: {}, projects: {} }; }
 }
 
 let cache = null;
@@ -65,7 +65,8 @@ export function loadCatalog() {
     taken.add(`${artist}|${baseTitle(title)}`);
     taken.add(slug);
   }
-  for (const a of found.albums || []) {
+  const discovered = found.projects ? Object.values(found.projects).flat() : (found.albums || []);
+  for (const a of discovered) {
     if (!bySlug.has(a.artist)) continue;
     const key = `${a.artist}|${baseTitle(a.title)}`;
     const slug = albumSlug(a.artist, a.title);

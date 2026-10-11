@@ -15,7 +15,7 @@ export function catalogueUrl({ q = '', decade = 0, kind = '', sort = 'year', pag
   return `/albums${qs ? `?${qs}` : ''}`;
 }
 
-export function albumsPage({ result, filters, totalAll }) {
+export function albumsPage({ result, filters, totalAll, status = {} }) {
   const { albums, total, page, pages } = result;
   const f = filters;
   const chip = (label, patch, pressed) => html`<a class="chip" href="${catalogueUrl({ ...f, ...patch, page: 1 })}" aria-current="${pressed ? 'true' : 'false'}" data-chip>${label}</a>`;
@@ -25,6 +25,12 @@ export function albumsPage({ result, filters, totalAll }) {
     <p class="lede">${totalAll.toLocaleString('fr-FR')} albums, mixtapes et EP du rap français, de 1991 à aujourd'hui.</p>
   </section>
   <section class="catalogue" data-catalogue>
+    <p class="sync-note" data-sync ${raw(status.running ? '' : 'hidden')}>
+      <span class="sync-dot" aria-hidden="true"></span>
+      <span data-sync-text>${status.phase === 'images'
+        ? 'Récupération des dernières pochettes…'
+        : `Récupération des discographies : ${status.done || 0} / ${status.total || '…'} artistes. Les albums apparaissent au fur et à mesure.`}</span>
+    </p>
     <form class="filters" role="search" action="/albums" method="get" data-filters>
       <label class="field-inline">
         <span class="visually-hidden">Filtrer par titre ou artiste</span>

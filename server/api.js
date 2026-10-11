@@ -8,6 +8,7 @@ import {
 } from './security.js';
 import { verifyEmail, resetEmail } from './mailer.js';
 import { readFilters } from './pages.js';
+import { catalogStatus } from './auto-images.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
   windowMs: windowMinutes * 60_000,
@@ -150,6 +151,12 @@ export function apiRouter(db, q) {
     const filters = readFilters(req.query);
     const perPage = Math.min(200, Math.max(1, Number.parseInt(req.query.par, 10) || 60));
     res.json(q.albumPage({ ...filters, perPage }));
+  });
+
+  // Avancement de la mise à jour automatique du catalogue.
+  api.get('/catalogue/etat', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ ...catalogStatus(), albums: q.count().n });
   });
 
   api.get('/albums/:slug', (req, res) => {

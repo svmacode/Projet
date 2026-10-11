@@ -81,7 +81,9 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
 ### Tout arrive tout seul
 Au **premier `npm start`** sur un ordinateur relié à internet, le serveur travaille en arrière-plan. Le site reste utilisable pendant ce temps, et la console affiche la progression (lignes `[catalogue]`).
 
-1. **Discographies** (5 à 10 minutes) : pour chacun des 220 rappeurs et groupes de la liste, Deezer fournit tous ses albums, mixtapes et EP.
+1. **Discographies** (10 à 15 minutes la première fois) : pour chacun des 220 rappeurs et groupes de la liste, Deezer fournit tous ses albums, mixtapes et EP.
+   - Chaque artiste apparaît sur le site **dès que sa discographie est récupérée**, avec ses pochettes. La page Albums affiche l'avancement (« 85 / 218 artistes »).
+   - Si tu arrêtes le serveur en cours de route, rien n'est perdu : au prochain démarrage, la récupération reprend là où elle s'était arrêtée.
    - Les singles, lives, compilations et versions instrumentales sont écartés.
    - Les rééditions (deluxe, collector…) sont fusionnées avec l'original.
    - En cas d'homonyme, l'artiste retenu est celui dont la discographie est surtout du rap.

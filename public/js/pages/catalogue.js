@@ -116,3 +116,28 @@ root.querySelectorAll('[data-chip]').forEach((chip) => chip.addEventListener('cl
   else state.type = u.searchParams.get('type') || '';
   refresh();
 }));
+
+// Pendant la mise à jour du catalogue : avancement en direct et nouveaux albums ajoutés à l'affichage.
+const sync = root.querySelector('[data-sync]');
+if (sync && !sync.hidden) {
+  const text = sync.querySelector('[data-sync-text]');
+  let lastCount = 0;
+  const poll = async () => {
+    try {
+      const s = await (await fetch('/api/v1/catalogue/etat', { headers: { Accept: 'application/json' } })).json();
+      if (!s.running) {
+        sync.hidden = true;
+        refresh();
+        return;
+      }
+      text.textContent = s.phase === 'images'
+        ? 'Récupération des dernières pochettes…'
+        : `Récupération des discographies : ${s.done} / ${s.total || '…'} artistes, ${s.albums.toLocaleString('fr-FR')} projets. Les albums apparaissent au fur et à mesure.`;
+      // Recharge la première page quand de nouveaux albums sont arrivés, si on n'a pas encore fait défiler.
+      if (s.albums !== lastCount && state.page === 1 && scrollY < 400) refresh();
+      lastCount = s.albums;
+    } catch { /* nouvel essai au prochain tour */ }
+    setTimeout(poll, 6000);
+  };
+  setTimeout(poll, 4000);
+}

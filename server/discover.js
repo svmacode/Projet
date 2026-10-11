@@ -45,9 +45,13 @@ async function artistAlbums(id) {
 
 // Parmi les homonymes, garde l'artiste dont la discographie est surtout du rap, et le plus suivi.
 async function findArtist(name) {
-  const q = encodeURIComponent(`artist:"${name}"`);
-  let list = (await getJson(`https://api.deezer.com/search/artist?q=${q}&limit=10`))?.data || [];
-  if (!list.length) list = (await getJson(`https://api.deezer.com/search/artist?q=${encodeURIComponent(name)}&limit=10`))?.data || [];
+  // Deux recherches (avancée et simple), fusionnées : l'une rattrape les ratés de l'autre.
+  const byId = new Map();
+  for (const q of [`artist:"${name}"`, name]) {
+    for (const a of (await getJson(`https://api.deezer.com/search/artist?q=${encodeURIComponent(q)}&limit=10`))?.data || []) byId.set(a.id, a);
+    await sleep(120);
+  }
+  const list = [...byId.values()].sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0));
   const exact = list.filter((a) => normName(a.name) === normName(name));
   const candidates = (exact.length ? exact : list.slice(0, 1)).sort((a, b) => (b.nb_fan || 0) - (a.nb_fan || 0)).slice(0, 3);
   let best = null;
@@ -92,52 +96,84 @@ async function wikiBio(name) {
   return null;
 }
 
-export async function discover({ log = console.log } = {}) {
+const RECHECK = 7 * 24 * 3600_000; // une discographie est relue chaque semaine (nouvelles sorties)
+
+function save(found) {
+  const tmp = `${discoveredFile}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(found));
+  fs.renameSync(tmp, discoveredFile);
+}
+
+// Parcourt les artistes un par un et enregistre chaque discographie dès qu'elle est connue :
+// le site se remplit au fur et à mesure, et un arrêt du serveur ne fait rien perdre.
+// `onArtist` est appelé après chaque artiste (mise à jour de la base, téléchargement des pochettes).
+export async function discover({ log = console.log, force = false, onArtist = async () => {} } = {}) {
   const found = readDiscovered();
   found.artists ||= {};
-  const albums = [];
-  const report = { notFound: [], chosen: [] };
+  found.projects ||= {};
+  // Ancien format : une seule liste pour tous les artistes.
+  if (Array.isArray(found.albums)) {
+    for (const a of found.albums) (found.projects[a.artist] ||= []).push(a);
+    delete found.albums;
+  }
   const names = allArtistNames();
   const curatedBio = new Set(curatedArtists.filter((a) => a.bio).map((a) => a.slug));
-  log(`Discographies : ${names.length} artistes à parcourir sur Deezer…`);
+  const todo = names.filter(({ slug }) => force || !found.artists[slug]?.checkedAt || Date.now() - found.artists[slug].checkedAt > RECHECK);
+  if (!todo.length) return { done: 0, total: names.length, projects: Object.values(found.projects).flat().length };
+  log(`Discographies : ${todo.length} artiste(s) à parcourir sur Deezer (les albums apparaissent au fur et à mesure)…`);
 
+  const report = { notFound: [], chosen: [] };
   let i = 0;
-  for (const { slug, name } of names) {
+  for (const { slug, name } of todo) {
     i++;
-    if (i % 25 === 0) log(`… ${i}/${names.length} artistes`);
     const known = found.artists[slug];
-    let projects;
-    let artist;
-    if (known?.deezerId) {
-      // Artiste déjà identifié : on relit simplement sa discographie (nouveaux projets).
-      const list = await artistAlbums(known.deezerId);
-      if (list.length) {
-        projects = pickProjects(slug, list);
-        artist = { id: known.deezerId, name: known.name, picture_xl: known.picture };
+    let projects = null;
+    let artist = null;
+    try {
+      if (known?.deezerId) {
+        // Artiste déjà identifié : on relit simplement sa discographie.
+        const list = await artistAlbums(known.deezerId);
+        if (list.length) {
+          projects = pickProjects(slug, list);
+          artist = { id: known.deezerId, name: known.name, picture_xl: known.picture };
+        }
       }
+      if (!projects) {
+        const best = await findArtist(name);
+        if (best) {
+          artist = best.artist;
+          projects = pickProjects(slug, best.albums);
+          report.chosen.push({ name, deezer: artist.name, id: artist.id, fans: artist.nb_fan, rap: Math.round(best.rapShare * 100) });
+        }
+      }
+    } catch (err) {
+      log(`${name} : erreur (${err.message}), nouvel essai au prochain démarrage.`);
+      continue;
     }
     if (!projects) {
-      const best = await findArtist(name);
-      if (!best) { report.notFound.push(name); continue; }
-      artist = best.artist;
-      projects = pickProjects(slug, best.albums);
-      report.chosen.push({ name, deezer: artist.name, id: artist.id, fans: artist.nb_fan, rap: Math.round(best.rapShare * 100) });
+      report.notFound.push(name);
+      found.artists[slug] = { ...known, checkedAt: Date.now(), notFound: true };
+      log(`${i}/${todo.length} ${name} : introuvable sur Deezer`);
+      save(found);
+      continue;
     }
     const picture = artist.picture_xl && !artist.picture_xl.includes('/artist//') ? artist.picture_xl : null;
-    found.artists[slug] = { ...found.artists[slug], deezerId: artist.id, name: found.artists[slug]?.name || name, picture };
-    if (!curatedBio.has(slug) && !found.artists[slug].bio) {
-      const bio = await wikiBio(name);
-      if (bio) Object.assign(found.artists[slug], bio);
+    found.artists[slug] = { ...known, deezerId: artist.id, name: known?.name || name, picture, checkedAt: Date.now(), notFound: false };
+    if (!curatedBio.has(slug) && !found.artists[slug].bioChecked) {
+      const bio = await wikiBio(name).catch(() => null);
+      Object.assign(found.artists[slug], bio || {}, { bioChecked: true });
     }
-    albums.push(...projects);
+    found.projects[slug] = projects;
+    found.updatedAt = new Date().toISOString();
+    save(found);
+    invalidateCatalog();
+    log(`${i}/${todo.length} ${name} : ${projects.length} projet(s)`);
+    await onArtist({ slug, name, picture, projects, index: i, total: todo.length });
     await sleep(150);
   }
 
-  if (albums.length) found.albums = albums; // en cas de panne réseau totale, on garde l'ancienne liste
-  found.updatedAt = new Date().toISOString();
-  fs.writeFileSync(discoveredFile, JSON.stringify(found));
   fs.writeFileSync(discoveredFile.replace('discovered.json', 'discover-report.json'), JSON.stringify(report, null, 1));
-  invalidateCatalog();
-  log(`${albums.length} projets trouvés pour ${names.length - report.notFound.length} artistes (${report.notFound.length} introuvable(s) : data/discover-report.json).`);
-  return { albums: albums.length, notFound: report.notFound };
+  const total = Object.values(found.projects).flat().length;
+  log(`Discographies terminées : ${total} projets au total (${report.notFound.length} artiste(s) introuvable(s) : data/discover-report.json).`);
+  return { done: todo.length, total: names.length, projects: total, notFound: report.notFound };
 }
