@@ -18,8 +18,20 @@ const limiter = (windowMinutes, limit, message) => rateLimit({
   message: { error: message },
 });
 
+// Express 4 ne rattrape pas les erreurs des fonctions async : sans ce relais, une erreur imprévue
+// dans une route (base occupée, disque plein…) arrêtait tout le serveur.
+function catchAsync(router) {
+  for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
+    const original = router[method].bind(router);
+    router[method] = (path, ...handlers) => original(path, ...handlers.map((fn) => (typeof fn === 'function' && fn.length < 4
+      ? (req, res, next) => { try { Promise.resolve(fn(req, res, next)).catch(next); } catch (err) { next(err); } }
+      : fn)));
+  }
+  return router;
+}
+
 export function apiRouter(db, q) {
-  const api = express.Router();
+  const api = catchAsync(express.Router());
   api.use(express.json({ limit: '20kb' }));
   api.use(limiter(1, 120, 'Trop de requêtes, réessaie dans une minute.'));
 

@@ -53,6 +53,11 @@ if (config.hasCert) {
 // et photos en arrière-plan. Le site reste utilisable pendant ce temps.
 autoFetchImages(app.locals.db);
 
+// Dernier filet : une erreur oubliée est affichée, mais le site continue de tourner.
+process.on('unhandledRejection', (err) => {
+  console.error('\n[erreur] Une opération a échoué (le site continue de tourner) :', err);
+});
+
 // Arrêt propre : la base SQLite est refermée correctement.
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {

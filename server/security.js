@@ -15,12 +15,16 @@ export async function hashPassword(password) {
 
 export async function verifyPassword(password, stored) {
   const [algo, N, r, p, salt, hash] = String(stored).split('$');
-  if (algo !== 'scrypt') return false;
-  const expected = Buffer.from(hash, 'base64');
-  const actual = await scrypt(password.normalize('NFKC'), Buffer.from(salt, 'base64'), expected.length, {
-    N: Number(N), r: Number(r), p: Number(p), maxmem: SCRYPT.maxmem,
-  });
-  return crypto.timingSafeEqual(actual, expected);
+  if (algo !== 'scrypt' || !salt || !hash) return false;
+  try {
+    const expected = Buffer.from(hash, 'base64');
+    const actual = await scrypt(password.normalize('NFKC'), Buffer.from(salt, 'base64'), expected.length, {
+      N: Number(N), r: Number(r), p: Number(p), maxmem: SCRYPT.maxmem,
+    });
+    return crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false; // empreinte enregistrée illisible : traitée comme un mauvais mot de passe
+  }
 }
 
 // Hash factice : le temps de réponse est le même que le compte existe ou non.

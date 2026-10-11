@@ -30,7 +30,7 @@ export async function seedDemo(db) {
   for (const m of members) {
     db.prepare(`INSERT INTO users (username, email, password_hash, display_name, bio, email_verified_at, terms_accepted_at)
                 VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-                ON CONFLICT(username) DO UPDATE SET bio = excluded.bio`)
+                ON CONFLICT(username) DO UPDATE SET bio = excluded.bio, password_hash = excluded.password_hash`)
       .run(m.username, `${m.username}@exemple.invalid`, hash, m.name, m.bio);
     ids[m.username] = db.prepare('SELECT id FROM users WHERE username = ?').get(m.username).id;
   }

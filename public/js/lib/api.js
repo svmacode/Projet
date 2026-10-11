@@ -23,7 +23,11 @@ export async function api(path, { method = 'GET', body } = {}) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError('Connexion impossible. Vérifie ton réseau et réessaie.', 0);
+    // En local, la cause est presque toujours un serveur arrêté (fenêtre de commande fermée).
+    const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+    throw new ApiError(local
+      ? 'Le serveur ne répond pas. Vérifie que la fenêtre de commande où tourne le site est toujours ouverte (sinon relance npm start), puis recharge la page.'
+      : 'Connexion impossible. Vérifie ton réseau et réessaie.', 0);
   }
   let data = {};
   try { data = await res.json(); } catch { /* réponse vide */ }
