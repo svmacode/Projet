@@ -1238,7 +1238,10 @@ main { display: block; }
 ::view-transition-group(*) { animation-duration: 0.55s; animation-timing-function: var(--ease-out); }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  /* Les cartes du couloir du héros font exception : elles défilent lentement (voir /css/stream.css)
+     et le bouton pause permet de les arrêter. */
+  *:not(.ish-card), *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .ish-card { transition-duration: 0.01ms !important; }
   @view-transition { navigation: none; }
 }
 
@@ -1272,6 +1275,19 @@ html.lenis, html.lenis body { height: auto; }
     linear-gradient(to top, #000, rgb(0 0 0 / 0.75) 22%, transparent 45%);
 }
 .hero-stream .ish-card { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.06); }
+.hero-pause {
+  position: absolute; z-index: 3; right: var(--gutter); bottom: 28px;
+  width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: rgb(255 255 255 / 0.12); color: #f5f5f7; cursor: pointer;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  transition: background 0.2s;
+}
+.hero-pause:hover { background: rgb(255 255 255 / 0.22); }
+.hero-pause:focus-visible { outline: 2px solid #2997ff; outline-offset: 3px; }
+.hero-pause .icon { width: 16px; height: 16px; }
+.hero-pause span { display: grid; }
+.hero-pause .i-play, .hero-pause[aria-pressed="true"] .i-pause { display: none; }
+.hero-pause[aria-pressed="true"] .i-play { display: grid; }
 
 /* ======================================================================
    Thème imposé par le visiteur (bouton lune / soleil)

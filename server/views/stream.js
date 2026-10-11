@@ -30,6 +30,8 @@ export const STREAM = {
   axis: 52, // position verticale de l'axe, en % de la hauteur
 };
 
+const SLOW = 3; // facteur de ralentissement quand le visiteur préfère moins de mouvement
+
 // Position d'une carte à l'instant u (0 = au fond, 1 = sortie du cadre).
 function place(dir, u, p) {
   const scale = (p.birthHeight / p.cardHeight) * Math.pow(p.exitHeight / p.birthHeight, u);
@@ -63,10 +65,12 @@ export function streamCss(p = STREAM) {
     delays,
     keyframes(1, 'ish-r', p),
     keyframes(-1, 'ish-l', p),
-    // Mouvement réduit : le corridor reste plein mais immobile. Chaque carte reçoit la position
-    // qu'elle aurait au départ de l'animation (une animation en pause ne suffit pas : certains
-    // navigateurs ignorent alors le décalage et empilent toutes les cartes au même endroit).
-    `@media (prefers-reduced-motion: reduce){.ish-card{animation:none;will-change:auto}${
-      Array.from({ length: p.cards }, (_, i) => `.ish-r.ish-i${i}{${place(1, i / p.cards, p)}}.ish-l.ish-i${i}{${place(-1, i / p.cards, p)}}`).join('')}}`,
+    // Pause demandée par le visiteur (bouton du héros).
+    '.ish.is-paused .ish-card{animation-play-state:paused}',
+    // Mouvement réduit : le couloir défile trois fois plus lentement (dérive douce, sans à-coup),
+    // et le bouton pause permet de l'arrêter. Les décalages sont recalculés pour la nouvelle durée,
+    // sinon les cartes se regrouperaient.
+    `@media (prefers-reduced-motion: reduce){.ish-card{animation-duration:${p.speed * SLOW}s}${
+      Array.from({ length: p.cards }, (_, i) => `.ish-i${i}{animation-delay:${(-(i * p.speed * SLOW) / p.cards).toFixed(3)}s}`).join('')}}`,
   ].join('\n');
 }

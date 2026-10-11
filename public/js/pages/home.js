@@ -3,6 +3,8 @@ import { motion, lenis } from '../app.js';
 
 const { gsap, ScrollTrigger } = window;
 
+corridor();
+
 if (motion) {
   hero();
   zoom();
@@ -20,15 +22,17 @@ if (motion) {
 }
 
 // ---------- Héros : corridor de pochettes qui arrivent du fond ----------
-function hero() {
+// Le défilement est en CSS (/css/stream.css) : il tourne même quand les autres animations sont
+// coupées (plus lentement si le visiteur préfère moins de mouvement), avec un bouton pause.
+function corridor() {
   const section = document.querySelector('[data-hero]');
-  const stream = section.querySelector('[data-stream]');
-  const stage = section.querySelector('[data-stream-stage]');
+  const stream = section?.querySelector('[data-stream]');
+  if (!stream) return;
+  const cards = stream.querySelectorAll('.ish-card');
 
   // Chaque carte qui reprend sa course reçoit la pochette suivante : toutes les pochettes passent.
   try {
     const queue = JSON.parse(stream.dataset.stream || '[]');
-    const cards = stream.querySelectorAll('.ish-card');
     let next = cards.length;
     if (queue.length > cards.length) {
       cards.forEach((card) => card.addEventListener('animationiteration', () => {
@@ -36,12 +40,26 @@ function hero() {
         if (img) img.src = queue[next++ % queue.length];
       }));
     }
-    // Le corridor ne tourne que lorsqu'il est visible.
-    ScrollTrigger.create({
-      trigger: section, start: 'top bottom', end: 'bottom top',
-      onToggle: (st) => cards.forEach((c) => { c.style.animationPlayState = st.isActive ? '' : 'paused'; }),
-    });
   } catch { /* liste illisible : le corridor reste tel quel */ }
+
+  // Le corridor ne tourne que lorsqu'il est visible (économie de batterie).
+  new IntersectionObserver(([entry]) => {
+    cards.forEach((c) => { c.style.animationPlayState = entry.isIntersecting ? '' : 'paused'; });
+  }).observe(section);
+
+  // Bouton pause / lecture.
+  const toggle = section.querySelector('[data-stream-toggle]');
+  toggle?.addEventListener('click', () => {
+    const paused = !stream.classList.contains('is-paused');
+    stream.classList.toggle('is-paused', paused);
+    toggle.setAttribute('aria-pressed', String(paused));
+    toggle.setAttribute('aria-label', paused ? 'Relancer le défilement des pochettes' : 'Mettre en pause le défilement des pochettes');
+  });
+}
+
+function hero() {
+  const section = document.querySelector('[data-hero]');
+  const stage = section.querySelector('[data-stream-stage]');
 
   // Entrée : le corridor se rapproche, le titre monte ligne par ligne.
   const lines = section.querySelectorAll('.hero-title > span');

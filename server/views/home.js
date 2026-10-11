@@ -83,6 +83,7 @@ export function homePage({ albums, artists, user }) {
       ${cta}
     </div>
     <a class="hero-scroll" href="#albums" aria-label="Descendre vers les albums">${icon('chevron-down')}</a>
+    <button class="hero-pause" type="button" data-stream-toggle aria-pressed="false" aria-label="Mettre en pause le défilement des pochettes"><span class="i-pause">${icon('pause')}</span><span class="i-play">${icon('play')}</span></button>
   </section>
 
   <section class="s-albums" id="albums" aria-labelledby="albums-title">
