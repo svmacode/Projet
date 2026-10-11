@@ -1,8 +1,11 @@
 // Crée quelques membres de démonstration avec des notes, chroniques, listes et amitiés,
 // pour voir le site « vivant » en local. À ne pas lancer sur le site en ligne.
 // Usage : npm run demo   (le mot de passe de chaque compte est affiché à la fin)
+// Ensuite, le site démarre (ou, s'il tourne déjà dans une autre fenêtre, il suffit de recharger la page).
+import net from 'node:net';
 import { openDb } from '../server/db.js';
 import { hashPassword } from '../server/security.js';
+import { config } from '../server/config.js';
 
 const db = openDb();
 const PASSWORD = 'demo-myrapfr-2026';
@@ -68,3 +71,18 @@ if (!db.prepare('SELECT 1 FROM lists WHERE user_id = ?').get(ids.karim_demo)) {
 db.close();
 console.log(`Membres de démonstration prêts : ${members.map((m) => m.username).join(', ')}`);
 console.log(`Mot de passe commun : ${PASSWORD}`);
+
+// Le site tourne-t-il déjà (dans une autre fenêtre) ?
+const port = config.hasCert ? config.httpsPort : config.port;
+const running = await new Promise((resolve) => {
+  const srv = net.createServer();
+  srv.once('error', () => resolve(true));
+  srv.once('listening', () => srv.close(() => resolve(false)));
+  srv.listen(port);
+});
+if (running) {
+  console.log(`\nLe site tourne déjà : recharge ${config.publicUrl} et connecte-toi avec l'un de ces comptes.`);
+} else {
+  console.log('\nDémarrage du site…');
+  await import('../server/index.js');
+}
