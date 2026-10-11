@@ -84,6 +84,7 @@ export function cookiesPage() {
         <tr><td><code>__Host-mrf_sid</code></td><td>Cookie strictement nécessaire</td><td>Garder ta session ouverte une fois connecté</td><td>30 jours</td></tr>
         <tr><td><code>mrf-consent</code></td><td>Stockage local du navigateur</td><td>Retenir ton choix sur ce bandeau</td><td>6 mois</td></tr>
         <tr><td><code>mrf-theme</code></td><td>Stockage local du navigateur</td><td>Retenir le mode clair ou sombre choisi</td><td>Jusqu'à ce que tu le changes</td></tr>
+        <tr><td>Cache de l'application</td><td>Stockage du navigateur (service worker)</td><td>Garder les fichiers du site (styles, scripts, icônes, pochettes) pour aller plus vite et afficher une page « hors ligne ». Aucune page personnelle ni donnée de compte n'y est gardée.</td><td>Jusqu'à la prochaine mise à jour du site</td></tr>
         <tr><td><code>mrf-visited</code></td><td>Stockage de session</td><td>N'afficher l'écran de chargement qu'une fois par visite</td><td>Fermeture de l'onglet</td></tr>
         <tr><td><code>mrf-utm</code></td><td>Stockage local, <strong>seulement si tu acceptes</strong></td><td>Retenir la campagne (lien partagé) par laquelle tu es arrivé, pour l'associer à ton inscription</td><td>6 mois</td></tr>
       </tbody>
@@ -154,5 +155,14 @@ export function notFoundPage({ albums }) {
     <p class="lede">La page a peut-être changé d'adresse, ou le lien est rayé. Voici de quoi te rattraper.</p>
     <div class="lost-covers">${albums.map((a) => tile(a))}</div>
     <p><a class="link-more link-more-lg" href="/albums">Tous les albums ${icon('chevron-right')}</a></p>
+  </section>`;
+}
+
+export function offlinePage() {
+  return html`
+  <section class="page-head page-head-dark offline">
+    <h1 class="display">Hors ligne.</h1>
+    <p class="lede">Pas de connexion pour l'instant. Tes notes et chroniques t'attendent : réessaie dès que le réseau revient.</p>
+    <p><a class="btn btn-primary" href="/">Réessayer</a></p>
   </section>`;
 }

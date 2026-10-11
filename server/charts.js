@@ -37,7 +37,7 @@ export function chartsQueries(db) {
 
     // Les plus écoutés sur une période (journal d'écoute), avec le nombre de membres.
     trending(days = 7, limit = 12) {
-      return db.prepare(`${ALBUM_SELECT} JOIN (
+      return db.prepare(`${ALBUM_SELECT.replace('SELECT al.slug', 'SELECT t.listeners, al.slug')} JOIN (
           SELECT r.album_id, COUNT(DISTINCT r.user_id) AS listeners FROM reviews r JOIN users u ON u.id = r.user_id
           WHERE r.listened_on >= date('now', ?) AND u.suspended_at IS NULL GROUP BY r.album_id) t ON t.album_id = al.id
         ORDER BY t.listeners DESC, ratings DESC LIMIT ?`).all(`-${days} days`, limit)

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import { config } from './config.js';
 import { catalogStatus } from './auto-images.js';
@@ -16,7 +18,7 @@ import { chartsPage, challengePage, challengeCard } from './views/charts.js';
 import { moderation } from './moderation.js';
 import { listenLinks } from './album-details.js';
 import { loadCatalog } from './catalog.js';
-import { privacyPage, cookiesPage, termsPage, legalNoticePage, sitemapPage, notFoundPage } from './views/legal.js';
+import { privacyPage, cookiesPage, termsPage, legalNoticePage, sitemapPage, notFoundPage, offlinePage } from './views/legal.js';
 
 // Filtres du catalogue lus dans l'adresse, avec des valeurs sûres.
 export function readFilters(query) {
@@ -363,10 +365,33 @@ export function pagesRouter(db, q) {
     res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`);
   });
 
+  // Service worker : sa version change à chaque démarrage du serveur, les anciens caches sont alors vidés.
+  const swVersion = `${process.env.npm_package_version || '0'}-${Date.now().toString(36)}`;
+  const swSource = fs.readFileSync(path.join(config.root, 'server', 'sw.template.js'), 'utf8').replace('__VERSION__', swVersion);
+  r.get('/sw.js', (req, res) => {
+    res.set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' }).type('application/javascript').send(swSource);
+  });
+
+  // Page affichée par l'application installée quand il n'y a pas de réseau (aucune donnée personnelle).
+  r.get('/hors-ligne', (req, res) => {
+    res.set('Cache-Control', 'no-cache').send(layout({
+      title: 'Hors ligne', path: '/hors-ligne', theme: 'dark', noindex: true, user: null,
+      body: offlinePage(),
+    }));
+  });
+
   r.get('/site.webmanifest', (req, res) => {
     res.type('application/manifest+json').json({
-      name: 'MyRapFr', short_name: 'MyRapFr', lang: 'fr', start_url: '/', display: 'standalone',
+      id: '/', name: 'MyRapFr', short_name: 'MyRapFr', lang: 'fr', dir: 'ltr', start_url: '/?utm_source=app&utm_medium=pwa', scope: '/', display: 'standalone',
+      description: "Le carnet d'écoute du rap français : note, chronique et partage tes albums avec tes amis.",
+      categories: ['music', 'social', 'entertainment'],
       background_color: '#000000', theme_color: '#000000',
+      shortcuts: [
+        { name: 'Albums', url: '/albums', icons: [{ src: '/img/icon-192.png', sizes: '192x192' }] },
+        { name: "Fil d'actu", url: '/fil', icons: [{ src: '/img/icon-192.png', sizes: '192x192' }] },
+        { name: 'Classements', url: '/classements', icons: [{ src: '/img/icon-192.png', sizes: '192x192' }] },
+        { name: 'Défi du mois', url: '/defi', icons: [{ src: '/img/icon-192.png', sizes: '192x192' }] },
+      ],
       icons: [
         { src: '/img/icon-192.png', sizes: '192x192', type: 'image/png' },
         { src: '/img/icon-512.png', sizes: '512x512', type: 'image/png' },

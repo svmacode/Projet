@@ -1,7 +1,7 @@
 // Socle commun à toutes les pages : défilement doux, révélations, navigation, cookies.
 import { loginRedirect } from './lib/api.js';
 import { toast } from './lib/ui.js';
-import { initTheme, endLoader, initScrollUi, initPasswordToggles, initCopy, initImageLoading, captureUtm } from './lib/extras.js';
+import { initTheme, endLoader, initScrollUi, initPasswordToggles, initCopy, initImageLoading, captureUtm, initPwa } from './lib/extras.js';
 import './lib/search.js';
 
 const html = document.documentElement;
@@ -72,6 +72,7 @@ initScrollUi(lenis);
 initPasswordToggles();
 initCopy();
 initImageLoading();
+initPwa();
 
 // ---------- Couleurs et mesures posées par JS (la CSP interdit les styles en ligne dans le HTML) ----------
 document.querySelectorAll('.tile-media, .artist-card-media').forEach((el) => {

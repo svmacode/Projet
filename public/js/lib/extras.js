@@ -184,3 +184,27 @@ export function captureUtm(consent) {
 export function storedUtm() {
   try { return JSON.parse(localStorage.getItem('mrf-utm') || 'null'); } catch { return null; }
 }
+
+// ---------- Application installable (PWA) ----------
+// Service worker (hors ligne, cache des fichiers) + bouton « Installer l'application » quand le
+// navigateur le permet (Chrome, Edge, Android). Sur iPhone : Partager → « Sur l'écran d'accueil ».
+export function initPwa() {
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+  let deferred = null;
+  const buttons = document.querySelectorAll('[data-install]');
+  addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferred = e;
+    buttons.forEach((b) => { b.hidden = false; });
+  });
+  buttons.forEach((b) => b.addEventListener('click', async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice.catch(() => null);
+    deferred = null;
+    buttons.forEach((x) => { x.hidden = true; });
+  }));
+  addEventListener('appinstalled', () => toast('MyRapFr est installé sur ton appareil'));
+}

@@ -51,7 +51,7 @@ function footer() {
     <div class="gfoot-inner">
       <p class="gfoot-note">Les pochettes et photos restent la propriété de leurs auteurs et ayants droit. Elles sont reproduites à des fins d'information et de critique. Pour toute demande de retrait, écris à <a href="mailto:${config.contactEmail}">${config.contactEmail}</a>.</p>
       <nav class="gfoot-cols" aria-label="Pied de page">
-        <div><h2>Explorer</h2><a href="/albums">Albums</a><a href="/rappeurs">Rappeurs</a><a href="/classements">Classements</a><a href="/defi">Défi du mois</a><a href="/recherche">Recherche</a></div>
+        <div><h2>Explorer</h2><a href="/albums">Albums</a><a href="/rappeurs">Rappeurs</a><a href="/classements">Classements</a><a href="/defi">Défi du mois</a><a href="/recherche">Recherche</a><button type="button" class="footer-install" data-install hidden>Installer l’application</button></div>
         <div><h2>Compte</h2><a href="/inscription">Créer un compte</a><a href="/connexion">Connexion</a><a href="/compte">Paramètres</a></div>
         <div><h2>MyRapFr</h2><a href="/#apropos">À propos</a><a href="/plan-du-site">Plan du site</a></div>
         <div><h2>Légal</h2><a href="/confidentialite">Confidentialité</a><a href="/cgu">Conditions d'utilisation</a><a href="/mentions-legales">Mentions légales</a><a href="/cookies">Cookies</a></div>

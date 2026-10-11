@@ -24,7 +24,12 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
   - suivre des membres : deux abonnements réciproques font des **amis** ; la page **Amis** (menu) permet de chercher un membre, de suivre en retour ceux qui te suivent et propose des suggestions ;
   - **photo de profil** au choix : une photo importée (recadrée, métadonnées effacées) ou une pochette d'album ;
   - **bloquer** un membre depuis son profil, **signaler** une chronique ou un profil ;
-  - **modération** (page réservée aux administrateurs) : signalements, masquage, suspension, journal conservé un an ;
+  - **modération** (page réservée aux administrateurs) : chroniques, commentaires et profils signalés, masquage, suspension, journal conservé un an ;
+  - **commentaires** sous chaque chronique (page de la chronique) et **notifications** (cloche du menu) : nouvel abonné, nouvel ami, j'aime, commentaire ;
+  - sur chaque album : **liste des titres et durée** (Deezer) et **liens d'écoute** Deezer, Spotify, Apple Music et YouTube Music ;
+  - **statistiques** de chaque membre et **bilan de l'année** partageable, façon « Year in Review » ;
+  - **classements** (en ce moment, mieux notés, chroniques les plus aimées, membres actifs) et **défi d'écoute du mois** ;
+  - **application installable** : bouton « Installer l'application » en bas de page (Chrome, Edge, Android) ou, sur iPhone, Partager → « Sur l'écran d'accueil » ;
   - fil d'actu.
 - **Mouvement** :
   - défilement doux avec inertie (Lenis) ;
@@ -255,6 +260,7 @@ Ton PC ouvre une connexion sortante vers Cloudflare, qui sert le site au public 
 
 ## 8. Prochaines étapes possibles
 
-- Commentaires sous les chroniques, notifications, blocage d'un membre.
-- Pistes et durée des albums, liens d'écoute vers les plateformes.
-- Statistiques annuelles du membre, sur le modèle du « Year in Review » de Letterboxd.
+- Notifications par e-mail (résumé hebdomadaire), une fois Brevo branché.
+- Importer son historique d'écoute depuis Last.fm ou Spotify.
+- Listes collaboratives et listes classées avec commentaires.
+- Badges (premier défi réussi, 100 albums écoutés…).

@@ -1636,7 +1636,7 @@ body::after {
 .comment-link:hover { color: var(--ink); }
 .review-date { color: inherit; }
 .review-date:hover { text-decoration: underline; }
-.thread { max-width: 760px; display: grid; gap: 32px; }
+.thread { max-width: 760px; display: grid; gap: 32px; padding-top: calc(var(--nav-h) + 48px); }
 .comments .h-section, .notifications .h-section { display: flex; align-items: center; gap: 10px; }
 .comments .count { font-size: 13px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--panel); color: var(--ink-2); }
 .comment-list { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 4px; }
@@ -1756,3 +1756,6 @@ body::after {
 .challenge-grid > li.is-done .tile-media { outline: 3px solid #30d158; outline-offset: 2px; border-radius: 10px; }
 .challenge-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #30d158; }
 .challenge-check .icon { width: 14px; height: 14px; }
+.footer-install { display: block; padding: 0; margin-top: 8px; border: 0; background: none; font: inherit; color: var(--link-light, #0066cc); cursor: pointer; text-align: left; }
+.footer-install:hover { text-decoration: underline; }
+.offline { min-height: 70vh; display: grid; align-content: center; justify-items: center; }

@@ -410,3 +410,16 @@ test('classements et défi du mois', async () => {
   await c.call('PUT', `/api/v1/albums/${first}/state`, { listened: true });
   assert.match((await c.call('GET', '/defi')).data, /<strong>[1-6]\/6<\/strong> albums écoutés/);
 });
+
+test('application installable : manifeste, service worker, page hors ligne', async () => {
+  const c = client();
+  const manifest = await c.call('GET', '/site.webmanifest');
+  assert.equal(manifest.data.display, 'standalone');
+  assert.ok(manifest.data.shortcuts.length >= 3);
+  const sw = await fetch(`${base}/sw.js`);
+  assert.equal(sw.status, 200);
+  const code = await sw.text();
+  assert.doesNotMatch(code, /__VERSION__/);
+  assert.match(code, /hors-ligne/);
+  assert.match((await c.call('GET', '/hors-ligne')).data, /Hors ligne/);
+});
