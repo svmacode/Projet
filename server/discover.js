@@ -168,7 +168,7 @@ export async function discover({ log = console.log, force = false, onArtist = as
     save(found);
     invalidateCatalog();
     log(`${i}/${todo.length} ${name} : ${projects.length} projet(s)`);
-    await onArtist({ slug, name, picture, projects, index: i, total: todo.length });
+    await onArtist({ slug, name, picture, deezerId: artist.id, projects, index: i, total: todo.length });
     await sleep(150);
   }
 

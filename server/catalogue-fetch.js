@@ -7,7 +7,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import { config } from './config.js';
 import { loadCatalog } from './catalog.js';
-import { sourceAdded, sourceFor } from './imaging.js';
+import { sourceAdded, sourceFor, isManual } from './imaging.js';
 
 const dir = (...p) => path.join(config.root, 'data', ...p);
 const UA = 'MyRapFr/0.1 (catalogue de rap francais ; contact via le site)';
@@ -96,22 +96,16 @@ const coverSources = [
 ];
 
 // ---------- Sources pour les photos ----------
+// La photo Deezer vient de la discographie (artiste identifié en vérifiant qu'il fait du rap) :
+// ici, seulement des sources de secours, chacune obligée de confirmer qu'il s'agit d'un rappeur.
+const RAP_TEXT = /\b(rap|rappeu|hip-hop|hip hop|drill|trap)/i;
 const photoSources = [
-  {
-    name: 'Deezer',
-    async find(name) {
-      const data = (await getJson(`https://api.deezer.com/search/artist?q=${encodeURIComponent(name)}&limit=5`))?.data || [];
-      // Deezer renvoie une silhouette générique quand il n'a pas de photo : l'adresse contient « /artist// ».
-      return data.filter((d) => d.picture_xl && !d.picture_xl.includes('/artist//'))
-        .map((d) => ({ artist: d.name, url: d.picture_xl, credit: 'Deezer' }));
-    },
-    delay: 150,
-  },
   {
     name: 'TheAudioDB',
     async find(name) {
       const data = await getJson(`https://www.theaudiodb.com/api/v1/json/2/search.php?s=${encodeURIComponent(name)}`);
-      return (data?.artists || []).filter((a) => a.strArtistThumb)
+      return (data?.artists || [])
+        .filter((a) => a.strArtistThumb && RAP_TEXT.test(`${a.strGenre || ''} ${a.strStyle || ''}`))
         .map((a) => ({ artist: a.strArtist, url: a.strArtistThumb, credit: 'TheAudioDB' }));
     },
     delay: 600,
@@ -119,10 +113,15 @@ const photoSources = [
   {
     name: 'Wikipédia',
     async find(name, wiki) {
-      const s = await getJson(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent((wiki || name).replace(/ /g, '_'))}`);
-      const src = s?.originalimage?.source || s?.thumbnail?.source;
-      if (!src || s.type !== 'standard' || /\.svg/i.test(src)) return [];
-      return [{ artist: name, url: src, credit: `Wikimedia Commons (voir ${s.content_urls?.desktop?.page || 'Wikipédia'})` }];
+      for (const title of [wiki, `${name} (rappeur)`, `${name} (rappeuse)`, `${name} (groupe)`, name].filter(Boolean)) {
+        const s = await getJson(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`);
+        await sleep(120);
+        const src = s?.originalimage?.source || s?.thumbnail?.source;
+        if (src && s.type === 'standard' && !/\.svg/i.test(src) && RAP_TEXT.test(s.extract || '')) {
+          return [{ artist: name, url: src, credit: `Wikimedia Commons (voir ${s.content_urls?.desktop?.page || 'Wikipédia'})` }];
+        }
+      }
+      return [];
     },
     delay: 200,
   },
@@ -161,9 +160,13 @@ export async function downloadKnown({ albums = [], artist = null, force = false 
       sourceAdded('covers', a.slug);
     }
   });
-  if (artist?.picture && (force || !sourceFor('artists', artist.slug))
+  // La photo est remplacée si elle ne vient pas de l'artiste Deezer vérifié (anciennes versions :
+  // une recherche par nom pouvait prendre un homonyme). Une photo déposée à la main n'est jamais touchée.
+  const verified = readCredits().artists[artist?.slug]?.photoDeezerId;
+  if (artist?.picture && !isManual('artists', artist.slug)
+    && (force || !sourceFor('artists', artist.slug) || (artist.deezerId && verified !== artist.deezerId))
     && await saveImage(artist.picture, dir('sources', 'artists', `${artist.slug}.jpg`), 300).catch(() => false)) {
-    added.artists[artist.slug] = { photoCredit: `${artist.name}. Image : Deezer.` };
+    added.artists[artist.slug] = { photoCredit: `${artist.name}. Image : Deezer.`, photoDeezerId: artist.deezerId || null };
     sourceAdded('artists', artist.slug);
   }
   // Fusion avec les crédits existants (relus juste avant l'écriture).
@@ -188,7 +191,7 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
   const saveCredits = () => fs.writeFileSync(dir('credits.json'), JSON.stringify(credits, null, 1));
 
   // 1. Pochettes dont l'adresse exacte est connue (discographies Deezer) : téléchargement direct.
-  const todo = albums.filter((a) => force || !sourceFor('covers', a.slug));
+  const todo = albums.filter((a) => !isManual('covers', a.slug) && (force || !sourceFor('covers', a.slug)));
   const direct = todo.filter((a) => a.cover);
   const searched = todo.filter((a) => !a.cover);
   if (todo.length) log(`${todo.length} pochette(s) à récupérer…`);
@@ -240,12 +243,12 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
   saveCredits();
 
   // 3. Photos des artistes : la photo Deezer connue, sinon recherche.
-  const todoArtists = artists.filter((a) => force || !sourceFor('artists', a.slug));
+  const todoArtists = artists.filter((a) => !isManual('artists', a.slug) && (force || !sourceFor('artists', a.slug)));
   if (todoArtists.length) log(`${todoArtists.length} photo(s) d'artiste à récupérer…`);
   for (const a of todoArtists) {
     let saved = false;
     if (a.picture && await saveImage(a.picture, target('artists', a.slug), 300).catch(() => false)) {
-      credits.artists[a.slug] = { ...credits.artists[a.slug], photoCredit: `${a.name}. Image : Deezer.` };
+      credits.artists[a.slug] = { ...credits.artists[a.slug], photoCredit: `${a.name}. Image : Deezer.`, photoDeezerId: a.deezerId || null };
       saved = true;
     }
     for (const source of saved ? [] : photoSources) {

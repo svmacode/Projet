@@ -40,16 +40,22 @@ export async function autoFetchImages(db) {
     const { discover } = await import('./discover.js');
     await discover({
       log,
-      onArtist: async ({ slug, name, picture, projects, index, total }) => {
+      onArtist: async ({ slug, name, picture, deezerId, index, total }) => {
         Object.assign(status, { done: index, total });
         seedCatalogue(db); // les albums de cet artiste sont visibles tout de suite
         const albums = loadCatalog().albums.filter((a) => a.artist === slug);
-        await downloadKnown({ albums, artist: { slug, name, picture } });
+        await downloadKnown({ albums, artist: { slug, name, picture, deezerId } });
         status.projects = loadCatalog().albums.length;
       },
     });
     invalidateCatalog();
     seedCatalogue(db);
+
+    // Photos téléchargées par une ancienne version sans vérifier l'artiste (homonymes possibles) :
+    // remplacées par la photo de l'artiste Deezer identifié.
+    for (const a of loadCatalog().artists) {
+      if (a.deezerId && a.picture) await downloadKnown({ artist: a });
+    }
 
     if (missingImages() && (!state.lastImages || Date.now() - state.lastImages > IMAGES_RETRY)) {
       Object.assign(status, { phase: 'images', done: 0, total: 0 });

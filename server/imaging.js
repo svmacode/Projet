@@ -11,7 +11,7 @@ import { loadCatalog } from './catalog.js';
 
 const pub = (...p) => path.join(config.root, 'public', 'img', ...p);
 const src = (...p) => path.join(config.root, 'data', 'sources', ...p);
-for (const d of [pub('covers'), pub('artists'), pub('og'), src('covers'), src('artists')]) fs.mkdirSync(d, { recursive: true });
+for (const d of [pub('covers'), pub('artists'), pub('og'), src('covers'), src('artists'), src('manuel', 'covers'), src('manuel', 'artists')]) fs.mkdirSync(d, { recursive: true });
 
 const xml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
 
@@ -109,14 +109,30 @@ export function portraitSvg(name, origin, slug) {
 // ---------- Sources disponibles (vraies images) ----------
 const EXTS = ['jpg', 'jpeg', 'png', 'webp', 'avif'];
 let sources = null;
+// Une image déposée dans data/sources/manuel/ passe avant tout et n'est jamais remplacée.
+let manual = null;
 function scanSources() {
   sources = { covers: new Map(), artists: new Map() };
+  manual = { covers: new Set(), artists: new Set() };
   for (const kind of ['covers', 'artists']) {
-    for (const f of fs.readdirSync(src(kind))) {
-      const m = f.match(/^(.+)\.(jpe?g|png|webp|avif)$/i);
-      if (m) sources[kind].set(m[1], src(kind, f));
+    for (const [folder, isManualDir] of [[src(kind), false], [src('manuel', kind), true]]) {
+      for (const f of fs.readdirSync(folder)) {
+        const m = f.match(/^(.+)\.(jpe?g|png|webp|avif)$/i);
+        if (!m) continue;
+        sources[kind].set(m[1], path.join(folder, f));
+        if (isManualDir) {
+          manual[kind].add(m[1]);
+          // Image déposée à la main depuis la dernière fabrication : on refait les versions du site.
+          const made = pub(kind, `${m[1]}-1200.webp`);
+          if (fs.existsSync(made) && fs.statSync(made).mtimeMs < fs.statSync(path.join(folder, f)).mtimeMs) clearOutputs(kind, m[1]);
+        }
+      }
     }
   }
+}
+export function isManual(kind, slug) {
+  if (!manual) scanSources();
+  return manual[kind].has(slug);
 }
 export function sourceFor(kind, slug) {
   if (!sources) scanSources();
@@ -127,15 +143,19 @@ export const hasRealImage = (kind, slug) => Boolean(sourceFor(kind, slug));
 // Une nouvelle vraie image vient d'arriver : on efface les anciennes versions générées.
 export function sourceAdded(kind, slug) {
   if (!sources) scanSources();
+  if (manual[kind].has(slug)) return;
   for (const ext of EXTS) {
     const f = src(kind, `${slug}.${ext}`);
     if (fs.existsSync(f)) { sources[kind].set(slug, f); break; }
   }
+  clearOutputs(kind, slug);
+}
+
+function clearOutputs(kind, slug) {
   const widths = kind === 'covers' ? [300, 600, 1200] : [400, 800, 1200];
   for (const w of widths) fs.rmSync(pub(kind, `${slug}-${w}.webp`), { force: true });
   if (kind === 'covers') fs.rmSync(pub('og', `${slug}.jpg`), { force: true });
-  delete manifest[kind][slug];
-  scheduleSave();
+  if (manifest) { delete manifest[kind][slug]; scheduleSave(); }
 }
 export function rescanSources() { sources = null; }
 

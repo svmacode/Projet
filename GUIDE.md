@@ -88,7 +88,7 @@ Au **premier `npm start`** sur un ordinateur relié à internet, le serveur trav
    - Les rééditions (deluxe, collector…) sont fusionnées avec l'original.
    - En cas d'homonyme, l'artiste retenu est celui dont la discographie est surtout du rap.
    - Les artistes sans biographie rédigée reçoivent le résumé de leur page Wikipédia, avec la source citée, si elle parle bien de rap.
-2. **Pochettes et photos** : elles viennent de Deezer, puis, si besoin, d'Apple Music, MusicBrainz, TheAudioDB ou Wikipédia. Chaque image est contrôlée : bon titre, bon artiste, au moins 250 px.
+2. **Pochettes et photos** : elles viennent de Deezer, puis, si besoin, d'Apple Music, MusicBrainz, TheAudioDB ou Wikipédia. La photo d'un artiste vient de son profil Deezer vérifié (celui dont la discographie est du rap) ; les sources de secours doivent elles aussi confirmer qu'il s'agit d'un rappeur. Chaque image est contrôlée : bon titre, bon artiste, au moins 250 px.
 3. **Images du site** : chaque pochette est compressée en WebP au moment où quelqu'un la regarde pour la première fois, puis gardée sur le disque. Rien à lancer.
 
 Ensuite, les discographies sont revérifiées **chaque semaine** : les nouvelles sorties apparaissent seules. Les images manquantes sont recherchées à nouveau toutes les 6 heures.
@@ -106,7 +106,7 @@ Pour désactiver la mise à jour automatique, ajoute `AUTO_FETCH=0` dans `.env`.
 Pour vérifier ou corriger le résultat :
 - `data/discover-report.json` liste les artistes introuvables et l'identité Deezer retenue pour chacun (nombre de fans, part de rap) ;
 - `data/fetch-report.json` liste les images introuvables ou incertaines ;
-- pour imposer une image précise, dépose-la dans `data/sources/covers/<identifiant-de-l-album>.jpg` ou `data/sources/artists/<identifiant>.jpg`, puis lance `npm run images -- --reset` (elles seront refaites à la demande). L'identifiant est la fin de l'adresse de la page, par exemple `booba-temps-mort`.
+- **pour imposer une image précise** (une photo qui ne te plaît pas, une pochette incorrecte) : dépose-la dans `data/sources/manuel/artists/<identifiant>.jpg` ou `data/sources/manuel/covers/<identifiant-de-l-album>.jpg`, puis redémarre le serveur. Une image de ce dossier passe avant toutes les autres et n'est jamais remplacée automatiquement. L'identifiant est la fin de l'adresse de la page : `pnl` pour /rappeur/pnl, `booba-temps-mort` pour /album/booba-temps-mort.
 
 ### Le droit d'auteur : à lire
 - Les pochettes et les photos sont **protégées par le droit d'auteur**. En France, il n'existe pas de « fair use » à l'américaine.
