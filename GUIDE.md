@@ -78,16 +78,26 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
 
 ## 3. Les pochettes et photos
 
-### Pourquoi le site affiche des visuels provisoires
-Depuis l'environnement où le site a été construit, l'accès à Deezer, Wikipédia et MusicBrainz était bloqué. J'ai donc créé des **pochettes provisoires typographiques**, élégantes et marquées « Visuel provisoire ». Les vraies images se récupèrent en une commande, sur ton PC :
+### Elles arrivent toutes seules
+Au **premier `npm start`** sur un ordinateur relié à internet, le serveur récupère en arrière-plan les vraies pochettes et photos. Il compte quelques minutes pour les 234 images. Le site reste utilisable pendant ce temps et les visuels provisoires sont remplacés au fur et à mesure : recharge la page à la fin. La console affiche la progression (lignes `[images]`).
+
+Plusieurs sources sont essayées l'une après l'autre :
+- **pochettes** : Deezer, puis Apple Music, puis MusicBrainz et Cover Art Archive ;
+- **photos** : Deezer, puis TheAudioDB, puis Wikipédia.
+
+Chaque image est vérifiée : son titre et son artiste doivent correspondre, et elle doit faire au moins 250 px. Elle est ensuite compressée en WebP et créditée sous la pochette.
+
+S'il manque encore des images, le serveur réessaie toutes les 6 heures. Pour relancer à la main :
 
 ```bash
-npm run catalogue:fetch          # pochettes et photos depuis l'API publique de Deezer
-npm run catalogue:fetch -- --bios   # en plus : résumés Wikipédia (licence CC BY-SA, source citée)
-npm run images                   # compresse tout et régénère les images de partage
+npm run catalogue:fetch            # ce qui manque encore
+npm run catalogue:fetch -- --force # tout re-télécharger
+npm run catalogue:fetch -- --bios  # remplace aussi les biographies par le résumé Wikipédia (CC BY-SA, source citée)
 ```
 
-Le fichier `data/fetch-report.json` liste les correspondances incertaines, par exemple une réédition à la place de l'album original. Vérifie-les. Pour forcer une image précise, dépose-la dans `data/sources/covers/<identifiant>.jpg` et relance `npm run images`.
+Pour désactiver la récupération automatique, ajoute `AUTO_FETCH=0` dans `.env`.
+
+Le fichier `data/fetch-report.json` liste les images introuvables et les correspondances incertaines, par exemple une réédition à la place de l'album original. Pour imposer une image précise, dépose-la dans `data/sources/covers/<identifiant-de-l-album>.jpg` (ou `data/sources/artists/<identifiant>.jpg`), puis lance `npm run images -- --only-missing`. L'identifiant est la fin de l'adresse de la page, par exemple `booba-temps-mort`.
 
 ### Le droit d'auteur : à lire
 - Les pochettes et les photos sont **protégées par le droit d'auteur**. En France, il n'existe pas de « fair use » à l'américaine.

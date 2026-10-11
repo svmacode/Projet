@@ -12,7 +12,6 @@ const pub = (...p) => path.join(root, 'public', ...p);
 const src = (...p) => path.join(root, 'data', 'sources', ...p);
 for (const d of [pub('img', 'covers'), pub('img', 'artists'), pub('img', 'og')]) fs.mkdirSync(d, { recursive: true });
 
-const only = process.argv.includes('--only-missing');
 const xml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
 
 function hash(s) {
@@ -125,7 +124,17 @@ async function pool(items, n, fn) {
   }));
 }
 
-const manifest = { covers: {}, artists: {} };
+let only = false;
+let manifest = { covers: {}, artists: {} };
+let changed = 0;
+const manifestFile = path.join(root, 'data', 'images.json');
+
+// Une image est à refaire si elle n'existe pas, ou si sa source a changé depuis.
+function stale(out, source) {
+  if (!only || !fs.existsSync(out)) return true;
+  if (!source) return false;
+  return fs.statSync(source).mtimeMs > fs.statSync(out).mtimeMs;
+}
 const artistBySlug = Object.fromEntries(artists.map((a) => [a.slug, a]));
 
 async function buildCovers() {
@@ -133,15 +142,16 @@ async function buildCovers() {
     const slug = albumSlug(artistSlug, title);
     const real = findSource('covers', slug);
     const out = (w) => pub('img', 'covers', `${slug}-${w}.webp`);
+    const wasReal = manifest.covers[slug]?.placeholder === false;
+    if (!stale(out(1200), real) && wasReal === Boolean(real) && manifest.covers[slug]) return;
     const input = real ? await sharp(real).rotate().resize(1200, 1200, { fit: 'cover' }).toBuffer()
       : await sharp(Buffer.from(coverSvg(title, artistBySlug[artistSlug].name, year, slug))).png().toBuffer();
-    if (!(only && fs.existsSync(out(1200)))) {
-      for (const w of [300, 600, 1200]) {
-        await sharp(input).resize(w, w).webp({ quality: w === 300 ? 72 : 78, effort: 5 }).toFile(out(w));
-      }
-      await ogImage(input, title, artistBySlug[artistSlug].name, year, slug);
+    for (const w of [300, 600, 1200]) {
+      await sharp(input).resize(w, w).webp({ quality: w === 300 ? 72 : 78, effort: 5 }).toFile(out(w));
     }
+    await ogImage(input, title, artistBySlug[artistSlug].name, year, slug);
     manifest.covers[slug] = { color: await dominant(input), placeholder: !real };
+    changed++;
   });
 }
 
@@ -163,15 +173,16 @@ async function ogImage(coverBuf, title, artist, year, slug) {
 async function buildArtists() {
   await pool(artists, 6, async (a) => {
     const real = findSource('artists', a.slug);
+    const out = (w) => pub('img', 'artists', `${a.slug}-${w}.webp`);
+    const wasReal = manifest.artists[a.slug]?.placeholder === false;
+    if (!stale(out(1200), real) && wasReal === Boolean(real) && manifest.artists[a.slug]) return;
     const input = real ? await sharp(real).rotate().resize(1200, 1500, { fit: 'cover', position: 'attention' }).toBuffer()
       : await sharp(Buffer.from(portraitSvg(a.name, a.origin, a.slug))).png().toBuffer();
-    const out = (w) => pub('img', 'artists', `${a.slug}-${w}.webp`);
-    if (!(only && fs.existsSync(out(1200)))) {
-      for (const w of [400, 800, 1200]) {
-        await sharp(input).resize(w, Math.round(w * 1.25)).webp({ quality: 76, effort: 5 }).toFile(out(w));
-      }
+    for (const w of [400, 800, 1200]) {
+      await sharp(input).resize(w, Math.round(w * 1.25)).webp({ quality: 76, effort: 5 }).toFile(out(w));
     }
     manifest.artists[a.slug] = { color: await dominant(input), placeholder: !real };
+    changed++;
   });
 }
 
@@ -219,11 +230,27 @@ async function buildIcons() {
   await sharp(Buffer.from(LOGO(40))).resize(512, 512).png().toFile(pub('img', 'icon-maskable-512.png'));
 }
 
-const t0 = Date.now();
-await buildCovers();
-await buildArtists();
-await buildDefaultOg();
-await buildIcons();
-fs.writeFileSync(path.join(root, 'data', 'images.json'), JSON.stringify(manifest, null, 1));
-const real = Object.values(manifest.covers).filter((c) => !c.placeholder).length;
-console.log(`${albums.length} pochettes (${real} réelles), ${artists.length} portraits, icônes et images de partage générés en ${((Date.now() - t0) / 1000).toFixed(1)} s.`);
+// Génère les images. `onlyChanged` : ne refait que ce qui manque ou dont la source a changé.
+export async function buildImages({ onlyChanged = false, log = console.log } = {}) {
+  const t0 = Date.now();
+  only = onlyChanged;
+  changed = 0;
+  manifest = { covers: {}, artists: {} };
+  if (only) {
+    try { manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8')); } catch { only = false; }
+  }
+  await buildCovers();
+  await buildArtists();
+  if (changed || !fs.existsSync(pub('img', 'og', 'default.jpg'))) await buildDefaultOg();
+  if (!only || !fs.existsSync(pub('favicon.ico'))) await buildIcons();
+  fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 1));
+  const realCovers = Object.values(manifest.covers).filter((c) => !c.placeholder).length;
+  const realArtists = Object.values(manifest.artists).filter((c) => !c.placeholder).length;
+  log(`Images : ${realCovers}/${albums.length} vraies pochettes, ${realArtists}/${artists.length} vraies photos (${changed} image(s) refaite(s) en ${((Date.now() - t0) / 1000).toFixed(1)} s).`);
+  return { changed, realCovers, realArtists };
+}
+
+// Lancé directement : `npm run images` (tout) ou `npm run images -- --only-missing`.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  await buildImages({ onlyChanged: process.argv.includes('--only-missing') });
+}

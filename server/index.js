@@ -3,6 +3,7 @@ import https from 'node:https';
 import fs from 'node:fs';
 import { config } from './config.js';
 import { createApp } from './app.js';
+import { autoFetchImages } from './auto-images.js';
 
 const app = createApp();
 
@@ -23,6 +24,10 @@ if (config.hasCert) {
     if (!config.behindTlsProxy) console.log('Astuce : lance `npm run cert` pour activer HTTPS en local.');
   });
 }
+
+// Au premier démarrage (puis toutes les 6 h tant qu'il en manque), récupère les vraies pochettes
+// et photos en arrière-plan. Le site reste utilisable pendant ce temps.
+autoFetchImages(app.locals.db);
 
 // Arrêt propre : la base SQLite est refermée correctement.
 for (const signal of ['SIGINT', 'SIGTERM']) {

@@ -28,3 +28,4 @@ data/sources/
 Thumbs.db
 
 __pycache__/
+data/fetch-state.json

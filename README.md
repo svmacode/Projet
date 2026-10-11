@@ -18,6 +18,8 @@ npm run setup        # génère les images (pochettes provisoires, partage, icô
 npm start            # https://localhost:8443
 ```
 
+Au premier lancement, le serveur télécharge en arrière-plan les vraies pochettes et photos des rappeurs (Deezer, Apple Music, MusicBrainz, Wikipédia), puis les compresse. Recharge la page après quelques minutes.
+
 Pour voir le site avec quelques membres, notes et chroniques : `npm run demo` (mot de passe affiché à la fin).
 
 ## Commandes
@@ -26,7 +28,7 @@ Pour voir le site avec quelques membres, notes et chroniques : `npm run demo` (m
 |---|---|
 | `npm start` | Lance le site (HTTPS si un certificat existe, sinon HTTP sur le port 8080) |
 | `npm run dev` | Pareil, avec redémarrage automatique quand tu modifies le code |
-| `npm run catalogue:fetch` | Télécharge les vraies pochettes et photos (Deezer) dans `data/sources/` |
+| `npm run catalogue:fetch` | Relance la récupération des vraies pochettes et photos (faite automatiquement au premier `npm start`) |
 | `npm run images` | Compresse toutes les images en WebP, crée les images de partage et les icônes |
 | `npm run backup` | Sauvegarde la base de données dans `data/backups/` |
 | `npm test` | Tests automatiques de l'API (comptes, sécurité, amis, RGPD) |
