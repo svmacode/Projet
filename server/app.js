@@ -92,6 +92,9 @@ export function createApp({ dbFile } = {}) {
     if (err.type === 'entity.too.large' && req.path === '/api/v1/me/avatar') {
       return res.status(413).json({ error: 'Image trop lourde : 5 Mo maximum.' });
     }
+    if (err.type === 'entity.too.large' && req.path === '/api/v1/import/csv') {
+      return res.status(413).json({ error: 'Fichier trop lourd : 2 Mo maximum.' });
+    }
     if (err.type === 'entity.parse.failed' || err.type === 'entity.too.large') {
       return res.status(400).json({ error: 'Requête invalide.' });
     }

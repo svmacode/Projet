@@ -20,6 +20,7 @@ import { badgesPage } from './views/stats.js';
 import { recommender } from './recommend.js';
 import { messaging } from './messages.js';
 import { inboxPage, threadPage } from './views/messages.js';
+import { importPage } from './views/account.js';
 import { artistInsights } from './artist-insights.js';
 import { checkUnsubscribe } from './digest.js';
 import { mailEnabled } from './mailer.js';
@@ -272,6 +273,14 @@ export function pagesRouter(db, q) {
     send(req, res, {
       title: `Conversation avec ${peer.display_name}`, path: '/messages', theme: 'light', noindex: true,
       body: threadPage({ peer, messages, canMessage, verified: req.user.verified }), scripts: ['/js/pages/messages.js'],
+    });
+  });
+
+  r.get('/importer', (req, res) => {
+    if (!needUser(req, res)) return;
+    send(req, res, {
+      title: 'Importer mon historique', path: '/importer', theme: 'light', noindex: true,
+      body: importPage({ lastfm: Boolean(config.lastfmKey), username: req.user.username }), scripts: ['/js/pages/import.js'],
     });
   });
 

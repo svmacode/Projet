@@ -15,6 +15,7 @@ import { notifier } from './notify.js';
 import { badgeEngine } from './badges.js';
 import { messaging } from './messages.js';
 import { artistInsights } from './artist-insights.js';
+import { importer, parseCsv, lastfmRows } from './importer.js';
 import { albumDetails, listenLinks } from './album-details.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
@@ -435,6 +436,39 @@ export function apiRouter(db, q) {
     if (!data) return;
     if (!dm.report(req.user.id, Number(req.params.id), data.reason)) return res.status(404).json({ error: 'Message introuvable.' });
     res.json({ ok: true });
+  });
+
+  // ---------- Import d'historique ----------
+  // Sans `apply` : aperçu (albums reconnus, non reconnus). Avec `apply=1` : enregistrement.
+  const imports = importer(db);
+  const importLimiter = limiter(60, 20, "Trop d'imports : réessaie dans une heure.");
+  const answerImport = (req, res, rows) => {
+    const { matched, unmatched } = imports.match(rows);
+    if (req.query.apply === '1') {
+      const added = imports.apply(req.user.id, matched);
+      return res.json({ added });
+    }
+    res.json({ matched, unmatched: unmatched.slice(0, 200), unmatchedCount: unmatched.length, total: rows.length });
+  };
+
+  api.post('/import/csv', requireAuth, importLimiter, express.text({ type: ['text/csv', 'text/plain', 'application/vnd.ms-excel'], limit: '2mb' }), (req, res) => {
+    if (typeof req.body !== 'string' || !req.body.trim()) return res.status(400).json({ error: 'Fichier vide ou illisible. Choisis un fichier .csv.' });
+    const { rows } = parseCsv(req.body);
+    if (!rows.length) return res.status(400).json({ error: 'Aucune ligne « artiste, album » trouvée dans ce fichier.' });
+    answerImport(req, res, rows);
+  });
+
+  api.post('/import/lastfm', requireAuth, importLimiter, async (req, res) => {
+    const username = String(req.body?.username || '').trim();
+    if (!/^[\w.-]{2,15}$/.test(username)) return res.status(400).json({ error: 'Pseudo Last.fm invalide.' });
+    try {
+      const { rows } = await lastfmRows(username);
+      if (!rows.length) return res.status(400).json({ error: "Aucun album suffisamment écouté sur ce compte Last.fm." });
+      answerImport(req, res, rows);
+    } catch (err) {
+      if (err.status === 400) return res.status(400).json({ error: err.message });
+      throw err;
+    }
   });
 
   // ---------- Notifications ----------

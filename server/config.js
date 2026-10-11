@@ -42,6 +42,8 @@ export const config = {
   dbFile: env.DB_FILE || path.join(root, 'data', 'myrapfr.db'),
   secret: loadSecret(),
   contactEmail: env.CONTACT_EMAIL || 'contact@myrapfr.fr',
+  // Import Last.fm (facultatif) : clé d'API gratuite sur https://www.last.fm/api/account/create
+  lastfmKey: /^[a-f0-9]{32}$/i.test(env.LASTFM_API_KEY || '') ? env.LASTFM_API_KEY : null,
   // Service d'e-mail (SMTP). Sans SMTP_HOST, les e-mails sont affichés dans la console.
   smtp: env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS ? {
     host: env.SMTP_HOST,

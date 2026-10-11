@@ -144,6 +144,12 @@ export function settingsPage({ me, albums, picks = [], blocked = [], mailEnabled
     </form>
 
     <div class="panel">
+      <h2 class="h-section">Importer mon historique</h2>
+      <p>Tu notais tes albums ailleurs (tableur, Last.fm) ? Ramène-les ici en quelques clics.</p>
+      <a class="btn btn-quiet" href="/importer">Importer</a>
+    </div>
+
+    <div class="panel">
       <h2 class="h-section">Résumé de la semaine</h2>
       <label class="check"><input type="checkbox" data-digest ${me.digest ? 'checked' : ''}> Recevoir chaque lundi un e-mail avec l'activité de mes amis, ma progression au défi et des suggestions d'albums.</label>
       <p class="field-help">${mailEnabled ? 'Tu peux te désabonner à tout moment, ici ou depuis le lien en bas de chaque e-mail.' : "L'envoi d'e-mails n'est pas encore activé sur ce site : ton choix sera pris en compte dès qu'il le sera."}</p>
@@ -178,5 +184,38 @@ export function settingsPage({ me, albums, picks = [], blocked = [], mailEnabled
       ${field({ id: 'delete-password', label: 'Confirme avec ton mot de passe', type: 'password', autocomplete: 'current-password', attrs: 'required' })}
       <button class="btn btn-danger" type="submit">Supprimer définitivement</button>
     </form>
+  </section>`;
+}
+
+export function importPage({ lastfm, username }) {
+  return html`
+  <section class="page-head">
+    <h1 class="display">Importer.</h1>
+    <p class="lede">Ramène ton historique d'écoute : les albums reconnus sont marqués comme écoutés, avec ta note et la date si ton fichier les contient.</p>
+  </section>
+  <section class="settings import" data-import>
+    <div class="panel">
+      <h2 class="h-section">Depuis un fichier CSV</h2>
+      <p>Un tableur (Excel, LibreOffice, Google Sheets) enregistré en <strong>.csv</strong>, avec au moins les colonnes <code>artiste</code> et <code>album</code>. Colonnes facultatives : <code>note</code> (sur 5 ou sur 10) et <code>date</code> (JJ/MM/AAAA ou AAAA-MM-JJ).</p>
+      <pre class="import-example">artiste;album;note;date
+PNL;Dans la légende;5;14/09/2016
+IAM;L'École du micro d'argent;4,5;</pre>
+      <label class="btn btn-primary" for="import-file">Choisir un fichier</label>
+      <input id="import-file" type="file" accept=".csv,text/csv,text/plain" class="visually-hidden" data-import-file>
+    </div>
+    ${lastfm ? html`<form class="panel form" data-import-lastfm novalidate>
+      <h2 class="h-section">Depuis Last.fm</h2>
+      <p>Les albums que tu as écoutés au moins 3 fois sur ton compte Last.fm public.</p>
+      <div class="field"><label for="lastfm-user">Ton pseudo Last.fm</label><input id="lastfm-user" name="username" required maxlength="15" autocomplete="off"></div>
+      <button class="btn btn-quiet" type="submit">Analyser</button>
+    </form>` : ''}
+    <div class="panel" data-import-preview hidden>
+      <h2 class="h-section">Aperçu</h2>
+      <p data-import-summary></p>
+      <ul class="import-list" data-import-matched></ul>
+      <details data-import-missing-box hidden><summary data-import-missing-title></summary><ul class="import-list import-missing" data-import-missing></ul></details>
+      <div class="form-actions"><button class="btn btn-primary" type="button" data-import-apply>Importer</button> <button class="btn btn-quiet" type="button" data-import-cancel>Annuler</button></div>
+    </div>
+    <p class="field-help">Ton fichier est lu une seule fois pour l'import, puis oublié : il n'est jamais conservé. <a href="/membre/${username}/stats">Voir mes statistiques</a></p>
   </section>`;
 }

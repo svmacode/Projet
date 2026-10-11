@@ -552,3 +552,23 @@ test('fiche rappeur enrichie : chronologie, chiffres et fans', async () => {
   assert.equal(extra.status, 200);
   assert.equal((await client().call('GET', '/api/v1/artists/inconnu/extra')).status, 404);
 });
+
+test('import d\'historique CSV : aperçu puis enregistrement', async () => {
+  const c = client();
+  await register(c, 'importeuse');
+  const csv = 'artiste;album;note;date\nPNL;Dans la Légende (Deluxe);4,5;14/09/2016\nIAM;L\'école du micro d\'argent;;\nGroupe Inconnu;Album Fantôme;5;\n';
+  const send = (path) => fetch(`${base}/api/v1${path}`, { method: 'POST', body: csv, headers: { 'Content-Type': 'text/csv', Cookie: c.cookie, 'X-CSRF-Token': c.csrf } }).then(async (r) => ({ status: r.status, data: await r.json() }));
+  const preview = await send('/import/csv');
+  assert.equal(preview.status, 200, JSON.stringify(preview.data));
+  assert.deepEqual(preview.data.matched.map((m) => m.slug).sort(), ['iam-l-ecole-du-micro-d-argent', 'pnl-dans-la-legende']);
+  assert.equal(preview.data.matched.find((m) => m.slug === 'pnl-dans-la-legende').rating, 9);
+  assert.equal(preview.data.unmatchedCount, 1);
+  // L'aperçu n'enregistre rien.
+  assert.equal(app.locals.db.prepare("SELECT COUNT(*) n FROM user_albums s JOIN users u ON u.id = s.user_id WHERE u.username = 'importeuse'").get().n, 0);
+  const applied = await send('/import/csv?apply=1');
+  assert.equal(applied.data.added, 2);
+  const diary = app.locals.db.prepare("SELECT listened_on FROM reviews r JOIN users u ON u.id = r.user_id WHERE u.username = 'importeuse'").all();
+  assert.deepEqual(diary.map((d) => d.listened_on), ['2016-09-14']);
+  assert.equal((await c.call('GET', '/importer')).status, 200);
+  assert.equal((await c.call('POST', '/api/v1/import/lastfm', { username: 'quelquun' })).status, 400); // pas de clé Last.fm en test
+});

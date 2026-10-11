@@ -33,6 +33,9 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
   - **listes à plusieurs** : invite des amis à compléter une liste, classe les albums et ajoute une note à chacun ;
   - dans le fil d'actu : **album du jour**, suggestions **Pour toi** (ce que tes amis adorent, tes rappeurs préférés) et bouton **album au hasard** ;
   - **résumé hebdomadaire par e-mail**, seulement pour les membres qui le demandent (paramètres), envoyé le lundi une fois Brevo branché ;
+  - **messages privés** entre amis (icône enveloppe), signalables à la modération ;
+  - **fiches rappeurs enrichies** : chronologie, chiffres des membres, fans, artistes similaires et featurings ;
+  - **import d'historique** (Paramètres → Importer) depuis un fichier CSV, ou depuis Last.fm si tu ajoutes une clé gratuite `LASTFM_API_KEY` dans `.env` ;
   - **application installable** : bouton « Installer l'application » en bas de page (Chrome, Edge, Android) ou, sur iPhone, Partager → « Sur l'écran d'accueil » ;
   - fil d'actu.
 - **Mouvement** :
@@ -264,6 +267,6 @@ Ton PC ouvre une connexion sortante vers Cloudflare, qui sert le site au public 
 
 ## 8. Prochaines étapes possibles
 
-- Importer son historique d'écoute depuis Last.fm (clé d'API gratuite à créer) ou un fichier CSV.
-- Fiches des rappeurs enrichies : featurings les plus fréquents, labels, chronologie.
-- Messages privés entre amis (à modérer avec soin).
+- Pages par label et par ville (Marseille, 93, Bruxelles…).
+- Sondages et « albums du mois » votés par la communauté.
+- Mode « soirée d'écoute » : écouter un album à plusieurs et commenter en direct.
