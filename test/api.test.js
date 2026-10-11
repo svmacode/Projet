@@ -356,3 +356,57 @@ test('commentaires et notifications : publier, notifier, supprimer, signaler ; b
   assert.equal((await lecteur.call('POST', `/api/v1/reviews/${reviewId}/comments`, { body: 'Encore moi' })).status, 403);
   assert.equal((await lecteur.call('GET', `/chronique/${reviewId}`)).status, 404);
 });
+
+test('page album : liens d\'écoute et route des titres', async () => {
+  const c = client();
+  const page = await c.call('GET', '/album/pnl-dans-la-legende');
+  assert.match(page.data, /open\.spotify\.com\/search/);
+  assert.match(page.data, /music\.apple\.com\/fr\/search/);
+  assert.match(page.data, /data-tracks/);
+  const d = await c.call('GET', '/api/v1/albums/pnl-dans-la-legende/details');
+  assert.equal(d.status, 200);
+  assert.ok(d.data.links.deezer.startsWith('https://www.deezer.com/'));
+  assert.equal((await c.call('GET', '/api/v1/albums/inconnu/details')).status, 404);
+});
+
+test('statistiques et bilan de l\'année', async () => {
+  const c = client();
+  await register(c, 'statisticienne');
+  for (const [slug, rating] of [['pnl-dans-la-legende', 10], ['iam-l-ecole-du-micro-d-argent', 8], ['laylow-trinity', 7]]) {
+    await c.call('PUT', `/api/v1/albums/${slug}/state`, { listened: true, rating });
+    await c.call('POST', `/api/v1/albums/${slug}/reviews`, { rating, body: slug === 'laylow-trinity' ? 'Un long texte sur cet album.' : '', listenedOn: '2025-03-14' });
+  }
+  const stats = await c.call('GET', '/membre/statisticienne/stats');
+  assert.equal(stats.status, 200);
+  assert.match(stats.data, /Albums écoutés/);
+  assert.match(stats.data, /<svg viewBox="0 0 100 50"/);
+  const redirect = await c.call('GET', '/membre/statisticienne/bilan');
+  assert.equal(redirect.status, 302);
+  assert.match(redirect.headers.get('location'), /\/bilan\/2025$/);
+  const bilan = await c.call('GET', '/membre/statisticienne/bilan/2025');
+  assert.equal(bilan.status, 200);
+  assert.match(bilan.data, /3<\/strong> albums écoutés/);
+  assert.match(bilan.data, /Le podium/);
+  assert.equal((await c.call('GET', '/membre/statisticienne/bilan/1990')).status, 404);
+});
+
+test('classements et défi du mois', async () => {
+  const c = client();
+  await register(c, 'classeur');
+  await c.call('PUT', '/api/v1/albums/pnl-dans-la-legende/state', { listened: true, rating: 10 });
+  const charts = await c.call('GET', '/classements');
+  assert.equal(charts.status, 200);
+  assert.match(charts.data, /Les mieux notés/);
+  assert.match(charts.data, /pnl-dans-la-legende/);
+  const defi = await c.call('GET', '/defi');
+  assert.equal(defi.status, 200);
+  // Six albums, les mêmes pour tout le monde ce mois-ci.
+  const slugs = (html) => [...html.matchAll(/class="grid challenge-grid">([\s\S]*?)<\/ol>/g)][0][1].match(/data-slug="([^"]+)"/g);
+  const mine = slugs(defi.data);
+  assert.equal(mine.length, 6);
+  assert.deepEqual(slugs((await client().call('GET', '/defi')).data), mine);
+  // Écouter un album du défi fait progresser.
+  const first = mine[0].replace(/data-slug="|"/g, '');
+  await c.call('PUT', `/api/v1/albums/${first}/state`, { listened: true });
+  assert.match((await c.call('GET', '/defi')).data, /<strong>[1-6]\/6<\/strong> albums écoutés/);
+});

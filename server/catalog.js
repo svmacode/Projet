@@ -79,6 +79,7 @@ export function loadCatalog() {
       // Album déjà dans la sélection : on garde la date éditoriale mais on récupère la pochette Deezer.
       const curated = albums.find((x) => x.curated && x.artist === a.artist && baseTitle(x.title) === baseTitle(a.title));
       if (curated && !curated.cover) curated.cover = a.cover;
+      if (curated && !curated.deezerId) curated.deezerId = a.deezerId;
       continue;
     }
     taken.add(key);

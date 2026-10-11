@@ -901,7 +901,7 @@ main { display: block; }
 .review-form { max-width: 620px; margin-top: 24px; }
 .notice { padding: 12px 16px; border-radius: var(--radius-m); background: var(--quiet); font-size: 15px; }
 
-.reviews, .more { max-width: 820px; margin: 0 auto; padding: 48px var(--gutter) 0; }
+.reviews, .more, .tracks { max-width: 820px; margin: 0 auto; padding: 48px var(--gutter) 0; }
 .more { max-width: var(--max); }
 .review {
   display: flex;
@@ -1657,3 +1657,102 @@ body::after {
 .notif.is-new a { background: var(--panel); }
 .notif.is-new a::after { content: ''; width: 8px; height: 8px; margin-left: auto; flex: none; border-radius: 50%; background: var(--blue); }
 .notif time { display: block; font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+
+/* ---------- Écouter et titres (page album) ---------- */
+.listen { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 6px; }
+.listen-btn { display: inline-flex; align-items: center; min-height: 34px; padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; color: inherit; background: rgb(255 255 255 / 0.1); border: 1px solid rgb(255 255 255 / 0.18); transition: background 0.2s; }
+.listen-btn:hover { background: rgb(255 255 255 / 0.2); }
+.listen-deezer { background: #a238ff; border-color: #a238ff; color: #fff; }
+.listen-deezer:hover { background: #8f1ff5; }
+.theme-light .listen-btn:not(.listen-deezer) { background: rgb(0 0 0 / 0.05); border-color: rgb(0 0 0 / 0.12); }
+.tracks .h-section { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.tracks-meta { font-size: 15px; font-weight: 400; color: var(--ink-2); }
+.track-list { list-style: none; margin: 16px 0 0; padding: 0; columns: 2 320px; column-gap: 40px; }
+.track { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+.track-n { color: var(--ink-2); font-variant-numeric: tabular-nums; font-size: 14px; }
+.track-title small { color: var(--ink-2); }
+.track-time { color: var(--ink-2); font-variant-numeric: tabular-nums; font-size: 14px; }
+.track-explicit { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 3px; background: var(--ink-2); color: var(--bg, #000); font-size: 10px; font-weight: 700; text-decoration: none; vertical-align: 2px; }
+.tracks { max-width: var(--max); }
+
+/* ======================================================================
+   Statistiques et bilan de l'année
+   ====================================================================== */
+.stats { display: grid; gap: 40px; }
+.year-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 20px; }
+.big-numbers { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; }
+.big-numbers div { padding: 22px; border-radius: var(--radius-l); background: var(--panel); }
+.big-numbers dt { font-size: 14px; color: var(--ink-2); }
+.big-numbers dd { margin: 6px 0 0; font-size: clamp(32px, 5vw, 48px); font-weight: 700; letter-spacing: -0.03em; }
+.big-numbers small { font-size: 0.45em; color: var(--ink-2); margin-left: 2px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.stats-grid .panel { justify-items: stretch; }
+.chart { margin: 8px 0 0; }
+.chart svg { display: block; width: 100%; height: 150px; color: var(--blue); }
+.chart rect { fill: currentColor; }
+.chart rect:hover { opacity: 0.75; }
+.chart-labels { display: flex; margin-top: 6px; }
+.chart-labels span { flex: 1; text-align: center; font-size: 11px; color: var(--ink-2); white-space: nowrap; }
+.hbars { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.hbars li { display: grid; grid-template-columns: minmax(90px, 35%) 1fr auto; gap: 12px; align-items: center; font-size: 14px; }
+.hbars a { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbars svg { width: 100%; height: 8px; color: var(--blue); }
+.hbars rect { fill: currentColor; }
+.hbars span { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+.wrapped { max-width: 1040px; margin: 0 auto; padding: calc(var(--nav-h) + 48px) var(--gutter) 80px; display: grid; gap: 64px; }
+.wrapped-hero { text-align: center; display: grid; gap: 18px; justify-items: center; }
+.wrapped-kicker { display: inline-flex; align-items: center; gap: 10px; margin: 0; font-weight: 600; }
+.wrapped-kicker a { color: var(--ink); }
+.wrapped-title { margin: 0; font-size: clamp(44px, 9vw, 112px); line-height: 0.95; letter-spacing: -0.045em; font-weight: 800; }
+.wrapped-title span { background: linear-gradient(120deg, #ff375f, #ff9f0a 45%, #0a84ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.wrapped-big { max-width: 640px; margin: 0; font-size: clamp(19px, 2.6vw, 26px); line-height: 1.35; color: var(--ink-2); }
+.wrapped-big strong { color: var(--ink); }
+.wrapped-h { margin: 0 0 18px; font-size: 22px; letter-spacing: -0.02em; }
+.podium { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; align-items: end; }
+.podium-item.is-first { grid-column: span 2; grid-row: span 2; }
+.podium-item a { display: grid; gap: 6px; color: var(--ink); position: relative; }
+.podium-item .cover { border-radius: 12px; width: 100%; height: auto; }
+.podium-rank { position: absolute; top: 10px; left: 10px; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgb(0 0 0 / 0.6); color: #fff; font-weight: 800; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.podium-title { font-weight: 700; }
+.podium-artist { font-size: 14px; color: var(--ink-2); }
+.wrapped-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.wrapped-card { padding: 26px; border-radius: var(--radius-l); background: var(--panel); }
+.wrapped-card p { margin: 10px 0 0; }
+.wrapped-stat { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
+.wrapped-foot { text-align: center; }
+@media (max-width: 734px) {
+  .podium { grid-template-columns: repeat(2, 1fr); }
+  .podium-item.is-first { grid-row: auto; }
+}
+
+/* ======================================================================
+   Classements et défi du mois
+   ====================================================================== */
+.charts { display: grid; gap: 56px; }
+.charts .h-section small, .feed .h-section small { font-size: 15px; font-weight: 400; color: var(--ink-2); margin-left: 8px; }
+.chart-note { font-size: 13px; color: var(--ink-2); }
+.charts-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 40px; align-items: start; }
+.ranked-people { counter-reset: who; }
+.ranked-people .person::before { counter-increment: who; content: counter(who); width: 24px; color: var(--ink-2); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ranked-people .person { justify-content: flex-start; }
+.challenge-card { display: flex; align-items: center; gap: 18px; padding: 18px 22px; border-radius: var(--radius-l); color: var(--ink); background: linear-gradient(120deg, rgb(255 55 95 / 0.18), rgb(10 132 255 / 0.18)); border: 1px solid var(--line); transition: transform 0.25s var(--ease-out, ease-out); }
+.challenge-card:hover { transform: translateY(-2px); }
+.challenge-card > .icon { margin-left: auto; flex: none; }
+.challenge-covers { display: flex; flex: none; }
+.challenge-covers .cover { width: 48px; height: 48px; border-radius: 8px; box-shadow: 0 0 0 2px var(--page, #000); }
+.challenge-covers .cover + .cover { margin-left: -16px; }
+.challenge-text { display: grid; gap: 2px; min-width: 0; }
+.challenge-text small { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
+.challenge-text strong { font-size: 19px; letter-spacing: -0.01em; }
+.challenge-text span { font-size: 14px; color: var(--ink-2); }
+.feed .challenge-card { margin-bottom: 32px; }
+.challenge { display: grid; gap: 28px; }
+.challenge-progress svg { width: 100%; max-width: 520px; height: 10px; color: var(--blue); }
+.challenge-progress rect { fill: currentColor; }
+.challenge-progress rect.track { fill: var(--line); }
+.challenge-progress.is-done svg { color: #30d158; }
+.challenge-grid > li { position: relative; }
+.challenge-grid > li.is-done .tile-media { outline: 3px solid #30d158; outline-offset: 2px; border-radius: 10px; }
+.challenge-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #30d158; }
+.challenge-check .icon { width: 14px; height: 14px; }

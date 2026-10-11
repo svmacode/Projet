@@ -174,3 +174,49 @@ document.addEventListener('click', async (e) => {
     } catch (err) { handleError(err); }
   }
 });
+
+// ---------- Titres et durée (Deezer, chargés après l'affichage de la page) ----------
+const tracks = document.querySelector('[data-tracks]');
+if (tracks && slug) {
+  const status = tracks.querySelector('[data-tracks-status]');
+  const listEl = tracks.querySelector('[data-track-list]');
+  const minutes = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  api(`/albums/${slug}/details`).then((d) => {
+    if (d.links?.deezer) document.querySelector('[data-listen-deezer]')?.setAttribute('href', d.links.deezer);
+    if (!d.tracks?.length) {
+      status.textContent = 'Liste des titres indisponible pour le moment.';
+      return;
+    }
+    const meta = tracks.querySelector('[data-tracks-meta]');
+    meta.textContent = `${d.tracks.length} titres · ${Math.round(d.duration / 60)} min${d.label ? ` · ${d.label}` : ''}`;
+    listEl.replaceChildren(...d.tracks.map((t) => {
+      const li = document.createElement('li');
+      li.className = 'track';
+      const n = document.createElement('span');
+      n.className = 'track-n';
+      n.textContent = t.n;
+      const title = document.createElement('span');
+      title.className = 'track-title';
+      title.textContent = t.title + (t.version ? ` ${t.version}` : '');
+      if (t.featuring?.length) {
+        const ft = document.createElement('small');
+        ft.textContent = ` feat. ${t.featuring.join(', ')}`;
+        title.append(ft);
+      }
+      if (t.explicit) {
+        const e = document.createElement('abbr');
+        e.className = 'track-explicit';
+        e.title = 'Paroles explicites';
+        e.textContent = 'E';
+        title.append(' ', e);
+      }
+      const dur = document.createElement('span');
+      dur.className = 'track-time';
+      dur.textContent = minutes(t.duration);
+      li.append(n, title, dur);
+      return li;
+    }));
+    listEl.hidden = false;
+    status.remove();
+  }).catch(() => { status.textContent = 'Liste des titres indisponible pour le moment.'; });
+}

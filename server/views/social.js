@@ -37,6 +37,7 @@ export function profilePage({ profile: p, user }) {
 
     <nav class="tabs" aria-label="Sections du profil">
       <a href="#favoris">Favoris</a><a href="#journal">Journal</a><a href="#coeurs">Coups de cœur</a><a href="#a-ecouter">À écouter</a><a href="#listes">Listes</a><a href="#amis">Amis</a>
+      <a href="/membre/${p.username}/stats">Statistiques</a>${p.diary.length ? html`<a href="/membre/${p.username}/bilan">Bilan de l'année</a>` : ''}
     </nav>
 
     <section id="favoris" class="profile-section" aria-labelledby="fav-t">
@@ -116,13 +117,14 @@ export function listPage({ list, user }) {
   </section>`;
 }
 
-export function feedPage({ feed, recent, user }) {
+export function feedPage({ feed, recent, user, challenge = '' }) {
   return html`
   <section class="page-head page-head-dark">
     <h1 class="display" data-split>Fil d'actu.</h1>
     <p class="lede">Les dernières écoutes des membres que tu suis.</p>
   </section>
   <section class="feed">
+    ${challenge}
     ${feed.length ? feed.map((r) => review(r, { showAlbum: true, viewer: user }))
       : html`<div class="empty-block">
           <p class="empty-note">Ton fil est vide. Suis des membres pour voir leurs écoutes ici.</p>

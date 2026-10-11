@@ -29,7 +29,7 @@ const artistView = (a) => ({
   v: hasRealImage('artists', a.slug) ? '?r=1' : '',
 });
 
-const ALBUM_SELECT = `
+export const ALBUM_SELECT = `
   SELECT al.slug, al.title, al.year, al.kind, al.curated, al.cover_credit, ar.slug AS artist_slug, ar.name AS artist_name,
     st.avg_rating, COALESCE(st.ratings, 0) AS ratings
   FROM albums al JOIN artists ar ON ar.id = al.artist_id

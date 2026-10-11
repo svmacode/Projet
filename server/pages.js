@@ -9,7 +9,13 @@ import { albumsPage, albumPage, artistsPage, artistPage, searchPage, catalogueUr
 import { profilePage, followPage, listPage, feedPage, friendsPage, reviewPage, notificationsPage } from './views/social.js';
 import { registerPage, loginPage, forgotPage, resetPage, confirmPage, settingsPage } from './views/account.js';
 import { adminPage } from './views/admin.js';
+import { statsPage, yearPage } from './views/stats.js';
+import { statsQueries } from './stats.js';
+import { chartsQueries } from './charts.js';
+import { chartsPage, challengePage, challengeCard } from './views/charts.js';
 import { moderation } from './moderation.js';
+import { listenLinks } from './album-details.js';
+import { loadCatalog } from './catalog.js';
 import { privacyPage, cookiesPage, termsPage, legalNoticePage, sitemapPage, notFoundPage } from './views/legal.js';
 
 // Filtres du catalogue lus dans l'adresse, avec des valeurs sûres.
@@ -32,6 +38,8 @@ const safeBack = (value) => (typeof value === 'string' && /^\/(?!\/)[\w\-/.?=&%#
 export function pagesRouter(db, q) {
   const r = express.Router();
   const mod = moderation(db);
+  const stats = statsQueries(db);
+  const charts = chartsQueries(db);
 
   const send = (req, res, opts) => {
     res.set('Cache-Control', 'no-cache');
@@ -95,6 +103,7 @@ export function pagesRouter(db, q) {
         lists: viewer ? q.myLists(viewer) : [],
         more: q.albumsByArtist(album.artist.slug).filter((a) => a.slug !== album.slug),
         formToken: issueFormToken(),
+        links: listenLinks(album, loadCatalog().albums.find((a) => a.slug === album.slug)?.deezerId),
       }),
       scripts: ['/js/pages/album.js'],
       jsonLd: {
@@ -138,6 +147,35 @@ export function pagesRouter(db, q) {
       title: `${profile.display_name} (@${profile.username})`, path: `/membre/${profile.username}`, theme: 'dark',
       description: truncate(profile.bio || `Le carnet d'écoute de ${profile.display_name} sur MyRapFr : ${profile.stats.listened} albums écoutés.`),
       body: profilePage({ profile, user: req.user }), scripts: ['/js/pages/social.js'],
+    });
+  });
+
+  // Statistiques et bilan de l'année : mêmes règles de visibilité que le profil.
+  const visibleProfile = (req) => q.profile(req.params.username, req.user?.id || 0, { admin: Boolean(req.user?.admin) });
+
+  r.get('/membre/:username/stats', (req, res) => {
+    const profile = visibleProfile(req);
+    if (!profile) return notFound(req, res);
+    send(req, res, {
+      title: `Statistiques de ${profile.display_name}`, path: req.path, theme: 'dark',
+      description: `Le rap français de ${profile.display_name} en chiffres : décennies, rappeurs, notes.`,
+      body: statsPage({ profile, s: stats.overview(profile.id), years: stats.years(profile.id) }),
+    });
+  });
+
+  r.get('/membre/:username/bilan/:year?', (req, res) => {
+    const profile = visibleProfile(req);
+    if (!profile) return notFound(req, res);
+    const years = stats.years(profile.id);
+    const year = /^\d{4}$/.test(req.params.year || '') ? req.params.year : years[0];
+    if (!req.params.year && year) return res.redirect(302, `/membre/${profile.username}/bilan/${year}`);
+    const b = year ? stats.year(profile.id, year) : null;
+    if (!b) return notFound(req, res);
+    send(req, res, {
+      title: `L'année ${year} en rap de ${profile.display_name}`, path: req.path, theme: 'dark', bodyClass: 'page-wrapped',
+      description: `${b.albums} albums écoutés en ${year}${b.best[0] ? `, avec ${b.best[0].album.title} en tête` : ''}. Le bilan de ${profile.display_name} sur MyRapFr.`,
+      image: b.best[0] ? `/img/og/${b.best[0].album.slug}.jpg` : undefined,
+      body: yearPage({ profile, b, years, isMe: profile.isMe }),
     });
   });
 
@@ -199,6 +237,32 @@ export function pagesRouter(db, q) {
     });
   });
 
+  r.get('/classements', (req, res) => {
+    const viewer = req.user?.id || 0;
+    let trendingDays = 7;
+    let trending = charts.trending(7);
+    if (trending.length < 4) { trendingDays = 30; trending = charts.trending(30); }
+    send(req, res, {
+      title: 'Classements', path: '/classements', theme: 'dark',
+      description: 'Les albums de rap français les mieux notés et les plus écoutés par les membres de MyRapFr, et les chroniques les plus aimées du mois.',
+      body: chartsPage({
+        topRated: charts.topRated(), trending, trendingDays, topReviews: charts.topReviews(viewer),
+        members: charts.activeMembers(), challenge: charts.challenge(viewer), user: req.user,
+      }),
+      scripts: ['/js/pages/album.js'],
+    });
+  });
+
+  r.get('/defi', (req, res) => {
+    const c = charts.challenge(req.user?.id || 0);
+    send(req, res, {
+      title: `Défi du mois : ${c.title}`, path: '/defi', theme: 'dark',
+      description: `${c.text} Le défi d'écoute de ${c.month} sur MyRapFr.`,
+      image: c.albums[0] ? `/img/og/${c.albums[0].slug}.jpg` : undefined,
+      body: challengePage({ c, user: req.user }),
+    });
+  });
+
   r.get('/amis', (req, res) => {
     if (!needUser(req, res)) return;
     send(req, res, {
@@ -215,7 +279,7 @@ export function pagesRouter(db, q) {
     if (!needUser(req, res)) return;
     send(req, res, {
       title: "Fil d'actu", path: '/fil', theme: 'dark', noindex: true,
-      body: feedPage({ feed: q.feed(req.user.id), recent: q.recentReviews(12, req.user.id), user: req.user }),
+      body: feedPage({ feed: q.feed(req.user.id), recent: q.recentReviews(12, req.user.id), user: req.user, challenge: challengeCard(charts.challenge(req.user.id)) }),
       scripts: ['/js/pages/album.js'],
     });
   });
@@ -290,7 +354,7 @@ export function pagesRouter(db, q) {
     const url = (path, priority, freq = 'weekly') =>
       `  <url><loc>${config.publicUrl}${path}</loc><lastmod>${today}</lastmod><changefreq>${freq}</changefreq><priority>${priority}</priority></url>`;
     const urls = [
-      url('/', '1.0', 'daily'), url('/albums', '0.9', 'daily'), url('/rappeurs', '0.8'),
+      url('/', '1.0', 'daily'), url('/albums', '0.9', 'daily'), url('/rappeurs', '0.8'), url('/classements', '0.7', 'daily'), url('/defi', '0.6', 'weekly'),
       ...albums.map((s) => url(`/album/${s}`, '0.7', 'daily')),
       ...artists.map((s) => url(`/rappeur/${s}`, '0.6')),
       url('/plan-du-site', '0.3', 'monthly'),

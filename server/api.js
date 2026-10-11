@@ -12,6 +12,7 @@ import { catalogStatus } from './auto-images.js';
 import { saveUpload, removeAvatarFile, avatarUrl } from './avatars.js';
 import { moderation } from './moderation.js';
 import { notifier } from './notify.js';
+import { albumDetails, listenLinks } from './album-details.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
   windowMs: windowMinutes * 60_000,
@@ -174,6 +175,16 @@ export function apiRouter(db, q) {
     const filters = readFilters(req.query);
     const perPage = Math.min(200, Math.max(1, Number.parseInt(req.query.par, 10) || 60));
     res.json(q.albumPage({ ...filters, perPage }));
+  });
+
+  // Titres, durée et liens d'écoute (Deezer, avec cache ; pas d'appel réseau pendant les tests).
+  const details = albumDetails(db);
+  api.get('/albums/:slug/details', async (req, res) => {
+    const album = q.album(req.params.slug);
+    if (!album) return res.status(404).json({ error: 'Album introuvable.' });
+    res.set('Cache-Control', 'private, max-age=3600');
+    if (config.isTest) return res.json({ tracks: [], links: listenLinks(album, null) });
+    res.json(await details(album));
   });
 
   // Avancement de la mise à jour automatique du catalogue.

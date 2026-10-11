@@ -77,7 +77,7 @@ function histogram(album) {
   </div>`;
 }
 
-export function albumPage({ album, reviews, friendsReviews, state, user, lists, more, formToken }) {
+export function albumPage({ album, reviews, friendsReviews, state, user, lists, more, formToken, links }) {
   const rating = state?.rating || 0;
   return html`
   <article class="album" data-album="${album.slug}" data-color="${album.color}">
@@ -94,6 +94,12 @@ export function albumPage({ album, reviews, friendsReviews, state, user, lists, 
         <div class="album-share">
           <button class="copy-btn" type="button" data-share data-share-campaign="album">${icon('share')}<span>Partager</span></button>
           <button class="copy-btn" type="button" data-copy-text="${album.title} — ${album.artist.name} (${album.year})">${icon('copy')}<span>Copier le titre</span></button>
+        </div>
+        <div class="listen" aria-label="Écouter l'album">
+          <a class="listen-btn listen-deezer" href="${links.deezer}" target="_blank" rel="noopener noreferrer" data-listen-deezer>Deezer</a>
+          <a class="listen-btn" href="${links.spotify}" target="_blank" rel="noopener noreferrer">Spotify</a>
+          <a class="listen-btn" href="${links.apple}" target="_blank" rel="noopener noreferrer">Apple Music</a>
+          <a class="listen-btn" href="${links.youtube}" target="_blank" rel="noopener noreferrer">YouTube Music</a>
         </div>
         <dl class="album-stats">
           <div><dt>Note moyenne</dt><dd>${album.avg ? html`${(album.avg / 2).toFixed(1).replace('.', ',')} ${stars(Math.round(album.avg), { label: false })}` : '—'}</dd></div>
@@ -156,6 +162,12 @@ export function albumPage({ album, reviews, friendsReviews, state, user, lists, 
         : html`<p class="actions-guest"><a href="/connexion?retour=/album/${album.slug}">Connecte-toi</a> pour noter cet album, le marquer comme écouté et écrire ta chronique.</p>`}
       </div>
     </div>
+
+    <section class="tracks" aria-labelledby="tracks-title" data-tracks>
+      <h2 id="tracks-title" class="h-section">Titres <span class="tracks-meta" data-tracks-meta></span></h2>
+      <p class="empty-note" data-tracks-status>Chargement des titres…</p>
+      <ol class="track-list" data-track-list hidden></ol>
+    </section>
 
     ${friendsReviews.length ? html`<section class="reviews" aria-labelledby="friends-reviews">
       <h2 id="friends-reviews" class="h-section">Chez tes amis</h2>

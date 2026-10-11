@@ -222,6 +222,13 @@ function migrate(db) {
       read_at TEXT
     );
     CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_id, created_at);
+    -- Titres, durée et lien Deezer de chaque album (récupérés à la première visite, gardés 30 jours).
+    CREATE TABLE IF NOT EXISTS album_details (
+      album_id INTEGER PRIMARY KEY REFERENCES albums(id) ON DELETE CASCADE,
+      deezer_id INTEGER,
+      data TEXT,
+      fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
     -- Journal de modération (qui a fait quoi, quand) : conservé 1 an.
     CREATE TABLE IF NOT EXISTS mod_log (
       id INTEGER PRIMARY KEY,
