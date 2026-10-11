@@ -4,10 +4,11 @@
 //  - Images de partage (Open Graph), favicons, icônes d'application.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import sharp from 'sharp';
 import { artists, albums, albumSlug } from '../data/catalogue.js';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const pub = (...p) => path.join(root, 'public', ...p);
 const src = (...p) => path.join(root, 'data', 'sources', ...p);
 for (const d of [pub('img', 'covers'), pub('img', 'artists'), pub('img', 'og')]) fs.mkdirSync(d, { recursive: true });
@@ -251,6 +252,6 @@ export async function buildImages({ onlyChanged = false, log = console.log } = {
 }
 
 // Lancé directement : `npm run images` (tout) ou `npm run images -- --only-missing`.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await buildImages({ onlyChanged: process.argv.includes('--only-missing') });
 }

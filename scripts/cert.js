@@ -2,10 +2,11 @@
 // Si mkcert est installé, le certificat sera reconnu par le navigateur sans alerte.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import selfsigned from 'selfsigned';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'certs');
 const cert = path.join(dir, 'localhost.crt');
 const key = path.join(dir, 'localhost.key');
