@@ -8,6 +8,7 @@ import { makeQueries } from './queries.js';
 import { sessionMiddleware, csrfProtection } from './security.js';
 import { apiRouter } from './api.js';
 import { pagesRouter } from './pages.js';
+import { imagesOnDemand } from './imaging.js';
 
 export function createApp({ dbFile } = {}) {
   const db = openDb(dbFile);
@@ -58,6 +59,8 @@ export function createApp({ dbFile } = {}) {
   app.use('/fonts', express.static(path.join(pub, 'fonts'), { ...longCache, maxAge: '365d', immutable: true }));
   app.use('/vendor', express.static(path.join(pub, 'vendor'), longCache));
   app.use(express.static(pub, { maxAge: config.isProd ? '1h' : 0, index: false }));
+  // Pochettes, portraits et images de partage absents du disque : fabriqués à la première demande.
+  app.use(imagesOnDemand());
 
   app.use(sessionMiddleware(db));
   app.use(csrfProtection);

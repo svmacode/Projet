@@ -7,6 +7,7 @@ import {
   requireAuth, requireVerified, randomToken, sha256, checkAntiSpam, looksLikeSpam,
 } from './security.js';
 import { verifyEmail, resetEmail } from './mailer.js';
+import { readFilters } from './pages.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
   windowMs: windowMinutes * 60_000,
@@ -144,9 +145,11 @@ export function apiRouter(db, q) {
   });
 
   // ---------- Catalogue ----------
+  // Catalogue filtré et paginé (mêmes paramètres que la page /albums).
   api.get('/albums', (req, res) => {
-    const sort = String(req.query.sort || 'year');
-    res.json({ albums: q.albums({ sort }) });
+    const filters = readFilters(req.query);
+    const perPage = Math.min(200, Math.max(1, Number.parseInt(req.query.par, 10) || 60));
+    res.json(q.albumPage({ ...filters, perPage }));
   });
 
   api.get('/albums/:slug', (req, res) => {

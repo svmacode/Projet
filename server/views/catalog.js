@@ -3,39 +3,64 @@ import { cover, portrait, tile, stars, review, icon, antiSpamFields } from './co
 
 const DECADES = [1990, 2000, 2010, 2020];
 
-export function albumsPage({ albums, decade }) {
+// Adresse d'une page du catalogue avec ses filtres.
+export function catalogueUrl({ q = '', decade = 0, kind = '', sort = 'year', page = 1 }) {
+  const p = new URLSearchParams();
+  if (q) p.set('q', q);
+  if (decade) p.set('decennie', decade);
+  if (kind) p.set('type', kind);
+  if (sort && sort !== 'year') p.set('tri', sort);
+  if (page > 1) p.set('page', page);
+  const qs = p.toString();
+  return `/albums${qs ? `?${qs}` : ''}`;
+}
+
+export function albumsPage({ result, filters, totalAll }) {
+  const { albums, total, page, pages } = result;
+  const f = filters;
+  const chip = (label, patch, pressed) => html`<a class="chip" href="${catalogueUrl({ ...f, ...patch, page: 1 })}" aria-current="${pressed ? 'true' : 'false'}" data-chip>${label}</a>`;
   return html`
   <section class="page-head page-head-dark">
     <h1 class="display" data-split>Albums.</h1>
-    <p class="lede">${albums.length} albums qui ont marqué le rap français, de 1991 à aujourd'hui.</p>
+    <p class="lede">${totalAll.toLocaleString('fr-FR')} albums, mixtapes et EP du rap français, de 1991 à aujourd'hui.</p>
   </section>
   <section class="catalogue" data-catalogue>
     <form class="filters" role="search" action="/albums" method="get" data-filters>
       <label class="field-inline">
         <span class="visually-hidden">Filtrer par titre ou artiste</span>
         ${icon('search')}
-        <input type="search" name="q" placeholder="Titre ou artiste" autocomplete="off" data-filter-q>
+        <input type="search" name="q" value="${f.q}" placeholder="Titre ou artiste" autocomplete="off" data-filter-q>
       </label>
       <div class="chips" role="group" aria-label="Décennie">
-        <button type="button" class="chip" data-decade="" aria-pressed="${decade ? 'false' : 'true'}">Toutes</button>
-        ${DECADES.map((d) => html`<button type="button" class="chip" data-decade="${d}" aria-pressed="${decade === d ? 'true' : 'false'}">${String(d).slice(2)}’s</button>`)}
+        ${chip('Toutes', { decade: 0 }, !f.decade)}
+        ${DECADES.map((d) => chip(`${String(d).slice(2)}’s`, { decade: d }, f.decade === d))}
+      </div>
+      <div class="chips" role="group" aria-label="Type">
+        ${chip('Tout', { kind: '' }, !f.kind)}
+        ${chip('Albums', { kind: 'album' }, f.kind === 'album')}
+        ${chip('EP', { kind: 'ep' }, f.kind === 'ep')}
       </div>
       <label class="field-inline select">
         <span class="visually-hidden">Trier</span>
         <select name="tri" data-sort>
-          <option value="year">Chronologique</option>
-          <option value="recent">Plus récents</option>
-          <option value="title">Titre A → Z</option>
-          <option value="rating">Mieux notés</option>
-          <option value="popular">Plus notés</option>
+          ${[['year', 'Chronologique'], ['recent', 'Plus récents'], ['title', 'Titre A → Z'], ['rating', 'Mieux notés'], ['popular', 'Plus notés']]
+            .map(([v, l]) => html`<option value="${v}" ${raw(f.sort === v ? 'selected' : '')}>${l}</option>`)}
         </select>
       </label>
+      ${f.decade ? html`<input type="hidden" name="decennie" value="${f.decade}">` : ''}
+      ${f.kind ? html`<input type="hidden" name="type" value="${f.kind}">` : ''}
+      <noscript><button class="btn btn-quiet" type="submit">Filtrer</button></noscript>
     </form>
-    <p class="catalogue-count" aria-live="polite" data-count>${albums.length} albums</p>
-    <div class="grid" data-grid>
+    <p class="catalogue-count" aria-live="polite" data-count>${total.toLocaleString('fr-FR')} résultat${total > 1 ? 's' : ''}</p>
+    <div class="grid" data-grid data-page="${page}" data-pages="${pages}">
       ${albums.map((a) => tile(a))}
     </div>
-    <p class="empty" hidden data-empty>Aucun album ne correspond. Essaie un autre mot.</p>
+    ${total ? '' : html`<p class="empty">Aucun album ne correspond. Essaie un autre mot.</p>`}
+    ${pages > 1 ? html`<nav class="pager" aria-label="Pages du catalogue" data-pager>
+      ${page > 1 ? html`<a class="btn btn-quiet" href="${catalogueUrl({ ...f, page: page - 1 })}" rel="prev">Page précédente</a>` : ''}
+      <span class="pager-info">Page ${page} sur ${pages}</span>
+      ${page < pages ? html`<a class="btn btn-quiet" href="${catalogueUrl({ ...f, page: page + 1 })}" rel="next" data-more>Voir la suite</a>` : ''}
+    </nav>` : ''}
   </section>`;
 }
 
@@ -50,7 +75,7 @@ export function albumPage({ album, reviews, friendsReviews, state, user, lists, 
   const rating = state?.rating || 0;
   return html`
   <article class="album" data-album="${album.slug}" data-color="${album.color}">
-    <div class="album-backdrop" aria-hidden="true"><img src="${album.cover}-300.webp" alt="" width="300" height="300"></div>
+    <div class="album-backdrop" aria-hidden="true"><img src="${album.cover}-300.webp${album.v}" alt="" width="300" height="300"></div>
     <div class="album-hero">
       <figure class="album-cover" data-tilt>
         ${cover(album, { sizes: '(min-width: 1068px) 420px, 80vw', eager: true, cls: 'album-cover-img', vt: true })}
@@ -143,13 +168,13 @@ export function artistsPage({ artists }) {
   return html`
   <section class="page-head">
     <h1 class="display" data-split>Rappeurs.</h1>
-    <p class="lede">${artists.length} artistes et groupes, classés par date de leur premier album au catalogue.</p>
+    <p class="lede">${artists.length} artistes et groupes, classés par date de leur premier projet.</p>
   </section>
   <section class="artists-grid" data-stagger>
     ${artists.map((a) => html`<a class="artist-card" href="/rappeur/${a.slug}" data-color="${a.color}">
       <span class="artist-card-media">${portrait(a, { sizes: '(min-width: 1068px) 22vw, 45vw' })}</span>
       <span class="artist-card-name">${a.name}</span>
-      <span class="artist-card-meta">${a.origin} · ${a.albums} album${a.albums > 1 ? 's' : ''}</span>
+      <span class="artist-card-meta">${a.origin ? `${a.origin} · ` : ''}${a.albums} projet${a.albums > 1 ? 's' : ''}</span>
     </a>`)}
   </section>`;
 }
@@ -160,17 +185,20 @@ export function artistPage({ artist }) {
     <header class="artist-hero">
       <div class="artist-portrait" data-clip-hero>${portrait(artist, { sizes: '(min-width: 1068px) 40vw, 90vw', eager: true })}</div>
       <div class="artist-copy">
-        <p class="feature-origin">${artist.origin}</p>
+        ${artist.origin ? html`<p class="feature-origin">${artist.origin}</p>` : ''}
         <h1 class="display">${artist.name}</h1>
-        <p class="artist-bio">${artist.bio}</p>
+        ${artist.bio ? html`<p class="artist-bio">${artist.bio}</p>` : html`<p class="artist-bio">${artist.albums.length} projets au catalogue, de ${artist.albums[0]?.year} à ${artist.albums.at(-1)?.year}.</p>`}
         ${artist.bio_source ? html`<p class="credit">Source : ${artist.bio_source}</p>` : ''}
         ${artist.photo_credit ? html`<p class="credit">Photo : ${artist.photo_credit}</p>` : ''}
       </div>
     </header>
-    <section class="artist-albums" aria-labelledby="disco">
-      <h2 id="disco" class="h-section">Discographie au catalogue</h2>
-      <div class="grid grid-light">${artist.albums.map((a) => tile(a, { showArtist: false }))}</div>
-    </section>
+    ${[['album', 'Albums et mixtapes'], ['ep', 'EP']].map(([kind, label]) => {
+      const list = artist.albums.filter((a) => a.kind === kind);
+      return list.length ? html`<section class="artist-albums" aria-labelledby="disco-${kind}">
+        <h2 id="disco-${kind}" class="h-section">${label} <span class="h-count">${list.length}</span></h2>
+        <div class="grid grid-light">${list.map((a) => tile(a, { showArtist: false }))}</div>
+      </section>` : '';
+    })}
   </article>`;
 }
 

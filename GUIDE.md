@@ -13,8 +13,8 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
   - une section Rappeurs avec des portraits dévoilés par masque et une liste où le portrait suit le curseur en WebGL ;
   - un À propos dont le texte s'allume mot à mot ;
   - un seul appel à l'action : « Créer mon compte ».
-- **Catalogue** : 148 albums à filtrer par décennie ou par texte, et à trier. Chaque album a sa page : note moyenne, répartition des notes, chroniques, albums du même artiste.
-- **Rappeurs** : 86 fiches avec biographie et discographie.
+- **Catalogue** : les discographies complètes (albums, mixtapes, EP) d'environ 220 rappeurs et groupes, plus une sélection éditoriale de 148 classiques. Filtres par décennie, par type et par texte, tri, chargement continu. Chaque album a sa page : note moyenne, répartition des notes, chroniques, albums du même artiste.
+- **Rappeurs** : une fiche par artiste avec biographie (rédigée, ou résumé Wikipédia avec sa source) et discographie séparée en albums et EP.
 - **Fonctions sociales, comme Letterboxd** :
   - compte et profil public ;
   - « Écouté », « Coup de cœur », « À écouter » ;
@@ -71,33 +71,40 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
 2. **Créer l'adresse e-mail de contact**, par exemple `contact@ton-domaine.fr`.
 3. **Brancher un service d'e-mail.** Aujourd'hui, les liens de confirmation et de mot de passe oublié s'affichent dans la console du serveur. Pour le site en ligne, il faut un service SMTP. Brevo est gratuit jusqu'à 300 e-mails par jour et basé en France. Le branchement se fait dans un seul fichier : `server/mailer.js`.
 4. **Récupérer les vraies pochettes** (§3) et relire les biographies, qui sont courtes et rédigées pour le site.
-5. **Compléter le catalogue.** Il contient 148 albums majeurs, pas encore « quasiment tous ». Pour en ajouter, édite `data/catalogue.js` : une ligne `['artiste', 'Titre', année]`. Le site les prend au redémarrage.
+5. **Compléter la liste des rappeurs si besoin.** Pour suivre un artiste de plus, ajoute son nom (tel qu'il apparaît sur Deezer) dans la liste `roster` de `data/catalogue.js` : toute sa discographie arrivera au prochain démarrage. Le fichier `data/discover-report.json` liste les artistes introuvables et l'identité Deezer retenue pour chacun, à vérifier en cas d'homonyme.
 6. Lancer `npm run check:links`, `npm run check:perf` et `npm test` une dernière fois.
 
 ---
 
 ## 3. Les pochettes et photos
 
-### Elles arrivent toutes seules
-Au **premier `npm start`** sur un ordinateur relié à internet, le serveur récupère en arrière-plan les vraies pochettes et photos. Il compte quelques minutes pour les 234 images. Le site reste utilisable pendant ce temps et les visuels provisoires sont remplacés au fur et à mesure : recharge la page à la fin. La console affiche la progression (lignes `[images]`).
+### Tout arrive tout seul
+Au **premier `npm start`** sur un ordinateur relié à internet, le serveur travaille en arrière-plan. Le site reste utilisable pendant ce temps, et la console affiche la progression (lignes `[catalogue]`).
 
-Plusieurs sources sont essayées l'une après l'autre :
-- **pochettes** : Deezer, puis Apple Music, puis MusicBrainz et Cover Art Archive ;
-- **photos** : Deezer, puis TheAudioDB, puis Wikipédia.
+1. **Discographies** (5 à 10 minutes) : pour chacun des 220 rappeurs et groupes de la liste, Deezer fournit tous ses albums, mixtapes et EP.
+   - Les singles, lives, compilations et versions instrumentales sont écartés.
+   - Les rééditions (deluxe, collector…) sont fusionnées avec l'original.
+   - En cas d'homonyme, l'artiste retenu est celui dont la discographie est surtout du rap.
+   - Les artistes sans biographie rédigée reçoivent le résumé de leur page Wikipédia, avec la source citée, si elle parle bien de rap.
+2. **Pochettes et photos** : elles viennent de Deezer, puis, si besoin, d'Apple Music, MusicBrainz, TheAudioDB ou Wikipédia. Chaque image est contrôlée : bon titre, bon artiste, au moins 250 px.
+3. **Images du site** : chaque pochette est compressée en WebP au moment où quelqu'un la regarde pour la première fois, puis gardée sur le disque. Rien à lancer.
 
-Chaque image est vérifiée : son titre et son artiste doivent correspondre, et elle doit faire au moins 250 px. Elle est ensuite compressée en WebP et créditée sous la pochette.
+Ensuite, les discographies sont revérifiées **chaque semaine** : les nouvelles sorties apparaissent seules. Les images manquantes sont recherchées à nouveau toutes les 6 heures.
 
-S'il manque encore des images, le serveur réessaie toutes les 6 heures. Pour relancer à la main :
+Pour relancer à la main :
 
 ```bash
-npm run catalogue:fetch            # ce qui manque encore
-npm run catalogue:fetch -- --force # tout re-télécharger
-npm run catalogue:fetch -- --bios  # remplace aussi les biographies par le résumé Wikipédia (CC BY-SA, source citée)
+npm run catalogue:fetch             # discographies + images manquantes
+npm run catalogue:fetch -- --images # images seulement
+npm run catalogue:fetch -- --force  # re-télécharge toutes les images
 ```
 
-Pour désactiver la récupération automatique, ajoute `AUTO_FETCH=0` dans `.env`.
+Pour désactiver la mise à jour automatique, ajoute `AUTO_FETCH=0` dans `.env`.
 
-Le fichier `data/fetch-report.json` liste les images introuvables et les correspondances incertaines, par exemple une réédition à la place de l'album original. Pour imposer une image précise, dépose-la dans `data/sources/covers/<identifiant-de-l-album>.jpg` (ou `data/sources/artists/<identifiant>.jpg`), puis lance `npm run images -- --only-missing`. L'identifiant est la fin de l'adresse de la page, par exemple `booba-temps-mort`.
+Pour vérifier ou corriger le résultat :
+- `data/discover-report.json` liste les artistes introuvables et l'identité Deezer retenue pour chacun (nombre de fans, part de rap) ;
+- `data/fetch-report.json` liste les images introuvables ou incertaines ;
+- pour imposer une image précise, dépose-la dans `data/sources/covers/<identifiant-de-l-album>.jpg` ou `data/sources/artists/<identifiant>.jpg`, puis lance `npm run images -- --reset` (elles seront refaites à la demande). L'identifiant est la fin de l'adresse de la page, par exemple `booba-temps-mort`.
 
 ### Le droit d'auteur : à lire
 - Les pochettes et les photos sont **protégées par le droit d'auteur**. En France, il n'existe pas de « fair use » à l'américaine.

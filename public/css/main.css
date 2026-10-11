@@ -765,7 +765,7 @@ main { display: block; }
   transition: background-color 0.2s, color 0.2s;
 }
 .chip:hover { color: var(--ink); }
-.chip[aria-pressed="true"] { background: var(--gray-50); color: var(--gray-900); }
+.chip[aria-pressed="true"], .chip[aria-current="true"] { background: var(--gray-50); color: var(--gray-900); }
 .catalogue-count { margin-bottom: 24px; font-size: 14px; color: var(--ink-2); }
 .tile[hidden] { display: none; }
 .empty, .empty-note { color: var(--ink-2); }
@@ -1232,3 +1232,12 @@ main { display: block; }
 html.lenis, html.lenis body { height: auto; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 .lenis.lenis-stopped { overflow: hidden; }
+
+/* ---------- Pagination du catalogue ---------- */
+.pager { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 56px; }
+.pager-info { font-size: 14px; color: var(--ink-2); }
+.pager-sentinel { height: 1px; }
+.chip { display: inline-flex; align-items: center; text-decoration: none; }
+.chip:hover { text-decoration: none; }
+.h-count { margin-left: 6px; font-weight: 500; color: var(--ink-2); }
+.artist-albums + .artist-albums { padding-top: 24px; }

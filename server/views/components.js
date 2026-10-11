@@ -6,16 +6,16 @@ export const icon = (name, label) => label
 
 // Pochette responsive : 300 / 600 / 1200 px en WebP.
 export function cover(album, { sizes = '(min-width: 1068px) 220px, 45vw', eager = false, cls = '', vt = false } = {}) {
-  return html`<img class="cover ${cls}" src="${album.cover}-600.webp"
-    srcset="${album.cover}-300.webp 300w, ${album.cover}-600.webp 600w, ${album.cover}-1200.webp 1200w"
+  return html`<img class="cover ${cls}" src="${album.cover}-600.webp${album.v}"
+    srcset="${album.cover}-300.webp${album.v} 300w, ${album.cover}-600.webp${album.v} 600w, ${album.cover}-1200.webp${album.v} 1200w"
     sizes="${sizes}" width="600" height="600" alt="Pochette de ${album.title}, ${album.artist.name}"
     ${raw(eager ? 'fetchpriority="high"' : 'loading="lazy"')} decoding="async"
     ${raw(vt ? `data-vt="cover-${album.slug}"` : '')}>`;
 }
 
 export function portrait(artist, { sizes = '(min-width: 1068px) 30vw, 80vw', eager = false, cls = '' } = {}) {
-  return html`<img class="portrait ${cls}" src="${artist.photo}-800.webp"
-    srcset="${artist.photo}-400.webp 400w, ${artist.photo}-800.webp 800w, ${artist.photo}-1200.webp 1200w"
+  return html`<img class="portrait ${cls}" src="${artist.photo}-800.webp${artist.v}"
+    srcset="${artist.photo}-400.webp${artist.v} 400w, ${artist.photo}-800.webp${artist.v} 800w, ${artist.photo}-1200.webp${artist.v} 1200w"
     sizes="${sizes}" width="800" height="1000" alt="Portrait de ${artist.name}"
     ${raw(eager ? 'fetchpriority="high"' : 'loading="lazy"')} decoding="async">`;
 }
@@ -26,7 +26,7 @@ export function tile(album, { sizes, showArtist = true, gl = true } = {}) {
       data-title="${album.title}" data-artist="${album.artist.name}" data-year="${album.year}" data-slug="${album.slug}">
     <span class="tile-media">${cover(album, { sizes, vt: true })}</span>
     <span class="tile-title">${album.title}</span>
-    ${showArtist ? html`<span class="tile-meta">${album.artist.name} · ${album.year}</span>` : html`<span class="tile-meta">${album.year}</span>`}
+    ${showArtist ? html`<span class="tile-meta">${album.artist.name} · ${album.year}${album.kind === 'ep' ? ' · EP' : ''}</span>` : html`<span class="tile-meta">${album.year}${album.kind === 'ep' ? ' · EP' : ''}</span>`}
   </a>`;
 }
 

@@ -5,8 +5,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
-import { artists, albums, albumSlug } from '../data/catalogue.js';
 import { config } from './config.js';
+import { loadCatalog } from './catalog.js';
+import { sourceAdded, sourceFor } from './imaging.js';
 
 const dir = (...p) => path.join(config.root, 'data', ...p);
 const UA = 'MyRapFr/0.1 (catalogue de rap francais ; contact via le site)';
@@ -142,21 +143,45 @@ export async function sourcesReachable() {
   return false;
 }
 
+async function pool(items, n, fn) {
+  let i = 0;
+  await Promise.all(Array.from({ length: n }, async () => {
+    while (i < items.length) await fn(items[i++]);
+  }));
+}
+
 export async function fetchCatalogue({ force = false, bios = false, log = console.log } = {}) {
   fs.mkdirSync(dir('sources', 'covers'), { recursive: true });
   fs.mkdirSync(dir('sources', 'artists'), { recursive: true });
+  const { albums, artists, bySlug } = loadCatalog();
   const credits = readCredits();
   const report = { uncertain: [], missing: [] };
-  const artistName = Object.fromEntries(artists.map((a) => [a.slug, a.name]));
   let covers = 0;
   let photos = 0;
+  const target = (kind, slug) => dir('sources', kind, `${slug}.jpg`);
+  const saveCredits = () => fs.writeFileSync(dir('credits.json'), JSON.stringify(credits, null, 1));
 
-  // Pochettes
-  const todo = albums.filter(([a, t]) => force || !fs.existsSync(dir('sources', 'covers', `${albumSlug(a, t)}.jpg`)));
-  if (todo.length) log(`Recherche de ${todo.length} pochette(s)…`);
-  for (const [artistSlug, title, year] of todo) {
-    const slug = albumSlug(artistSlug, title);
-    const artist = artistName[artistSlug];
+  // 1. Pochettes dont l'adresse exacte est connue (discographies Deezer) : téléchargement direct.
+  const todo = albums.filter((a) => force || !sourceFor('covers', a.slug));
+  const direct = todo.filter((a) => a.cover);
+  const searched = todo.filter((a) => !a.cover);
+  if (todo.length) log(`${todo.length} pochette(s) à récupérer…`);
+  let done = 0;
+  await pool(direct, 4, async (a) => {
+    const ok = await saveImage(a.cover, target('covers', a.slug)).catch(() => false);
+    if (ok) {
+      credits.albums[a.slug] = { coverCredit: `Pochette © ${bySlug.get(a.artist)?.name || ''} et ayants droit. Image : Deezer.` };
+      sourceAdded('covers', a.slug);
+      covers++;
+    } else searched.push(a);
+    if (++done % 200 === 0) { log(`… ${done}/${direct.length} pochettes`); saveCredits(); }
+  });
+
+  // 2. Les autres : recherche dans plusieurs sources.
+  for (const a of searched) {
+    const slug = a.slug;
+    const { title, year } = a;
+    const artist = bySlug.get(a.artist)?.name || '';
     let fallback = null;
     let saved = false;
     for (const source of coverSources) {
@@ -170,7 +195,7 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
       const best = ranked[0];
       if (!best) continue;
       if (best.score >= 1.6) {
-        if (await saveImage(best.url, dir('sources', 'covers', `${slug}.jpg`))) {
+        if (await saveImage(best.url, target('covers', slug)).catch(() => false)) {
           credits.albums[slug] = { coverCredit: `Pochette © ${artist} et ayants droit. Image : ${best.credit}.` };
           saved = true;
           break;
@@ -179,51 +204,50 @@ export async function fetchCatalogue({ force = false, bios = false, log = consol
     }
     // Aucune correspondance sûre : on prend la meilleure trouvée si elle est plausible, et on la signale.
     if (!saved && fallback && fallback.score >= 1.3
-      && await saveImage(fallback.url, dir('sources', 'covers', `${slug}.jpg`)).catch(() => false)) {
+      && await saveImage(fallback.url, target('covers', slug)).catch(() => false)) {
       credits.albums[slug] = { coverCredit: `Pochette © ${artist} et ayants droit. Image : ${fallback.credit}.` };
       report.uncertain.push({ slug, wanted: `${artist} — ${title} (${year})`, found: `${fallback.artist} — ${fallback.title}` });
       saved = true;
     }
-    if (saved) covers++;
-    else report.missing.push({ slug, wanted: `${artist} — ${title}` });
+    if (saved) { covers++; sourceAdded('covers', slug); } else report.missing.push({ slug, wanted: `${artist} — ${title}` });
   }
+  saveCredits();
 
-  // Photos des artistes (et, sur demande, les résumés Wikipédia)
-  const todoArtists = artists.filter((a) => force || !fs.existsSync(dir('sources', 'artists', `${a.slug}.jpg`)));
-  if (todoArtists.length) log(`Recherche de ${todoArtists.length} photo(s) d'artiste…`);
+  // 3. Photos des artistes : la photo Deezer connue, sinon recherche.
+  const todoArtists = artists.filter((a) => force || !sourceFor('artists', a.slug));
+  if (todoArtists.length) log(`${todoArtists.length} photo(s) d'artiste à récupérer…`);
   for (const a of todoArtists) {
     let saved = false;
-    for (const source of photoSources) {
+    if (a.picture && await saveImage(a.picture, target('artists', a.slug), 300).catch(() => false)) {
+      credits.artists[a.slug] = { ...credits.artists[a.slug], photoCredit: `${a.name}. Image : Deezer.` };
+      saved = true;
+    }
+    for (const source of saved ? [] : photoSources) {
       let candidates = [];
       try { candidates = await source.find(a.name, a.wiki); } catch { /* source injoignable */ }
       await sleep(source.delay);
       const best = candidates.find((c) => norm(c.artist) === norm(a.name)) || candidates.find((c) => sameArtist(a.name, c.artist));
-      if (best && await saveImage(best.url, dir('sources', 'artists', `${a.slug}.jpg`), 300).catch(() => false)) {
+      if (best && await saveImage(best.url, target('artists', a.slug), 300).catch(() => false)) {
         credits.artists[a.slug] = { ...credits.artists[a.slug], photoCredit: `${a.name}. Image : ${best.credit}.` };
         saved = true;
         break;
       }
     }
-    if (saved) photos++;
-    else report.missing.push({ slug: a.slug, wanted: `photo de ${a.name}` });
+    if (saved) { photos++; sourceAdded('artists', a.slug); } else report.missing.push({ slug: a.slug, wanted: `photo de ${a.name}` });
   }
 
   if (bios) {
     log('Récupération des résumés Wikipédia…');
     for (const a of artists) {
       const s = await getJson(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent((a.wiki || a.name).replace(/ /g, '_'))}`).catch(() => null);
-      if (s?.type === 'standard' && s.extract?.length > 80) {
-        credits.artists[a.slug] = {
-          ...credits.artists[a.slug],
-          bio: s.extract,
-          bioSource: `Wikipédia, « ${s.title} », licence CC BY-SA 4.0`,
-        };
+      if (s?.type === 'standard' && s.extract?.length > 80 && /\b(rap|rappeu|hip-hop|hip hop)/i.test(s.extract)) {
+        credits.artists[a.slug] = { ...credits.artists[a.slug], bio: s.extract, bioSource: `Wikipédia, « ${s.title} », licence CC BY-SA 4.0` };
       }
       await sleep(150);
     }
   }
 
-  fs.writeFileSync(dir('credits.json'), JSON.stringify(credits, null, 1));
+  saveCredits();
   fs.writeFileSync(dir('fetch-report.json'), JSON.stringify(report, null, 1));
   log(`${covers} pochette(s) et ${photos} photo(s) récupérée(s). ${report.uncertain.length} à vérifier, ${report.missing.length} introuvable(s) (détail : data/fetch-report.json).`);
   return { covers, photos, report };

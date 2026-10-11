@@ -2,7 +2,7 @@
 
 Le carnet d'écoute du rap français, sur le modèle de Letterboxd : noter les albums, tenir son journal d'écoute, écrire des chroniques, faire des listes et suivre ses amis.
 
-- **Catalogue** : 148 albums et 86 artistes, de 1991 à 2023 (`data/catalogue.js`).
+- **Catalogue** : les discographies complètes (albums, mixtapes, EP) d'environ 220 rappeurs et groupes, récupérées automatiquement sur Deezer, plus une sélection éditoriale de 148 classiques (`data/catalogue.js`).
 - **Design** : la charte d'Apple (noir, gris `#f5f5f7`, un seul bleu d'action), centré sur l'image, avec GSAP, Lenis et Three.js.
 - **Serveur** : Node.js, Express et SQLite. Pas de base à installer, pas de service payant.
 
@@ -14,11 +14,11 @@ Prérequis : [Node.js 22.13 ou plus récent](https://nodejs.org/) (version LTS).
 
 ```bash
 npm install          # installe les dépendances et copie GSAP, Lenis, Three.js et la police
-npm run setup        # génère les images (pochettes provisoires, partage, icônes) et le certificat HTTPS
+npm run setup        # génère les icônes, l'image de partage et le certificat HTTPS
 npm start            # https://localhost:8443
 ```
 
-Au premier lancement, le serveur télécharge en arrière-plan les vraies pochettes et photos des rappeurs (Deezer, Apple Music, MusicBrainz, Wikipédia), puis les compresse. Recharge la page après quelques minutes.
+Au premier lancement, le serveur récupère en arrière-plan les discographies complètes sur Deezer (5 à 10 minutes), puis les vraies pochettes et photos. Recharge la page une fois les lignes `[catalogue]` terminées. Ensuite, il revérifie chaque semaine pour ajouter les nouvelles sorties.
 
 Pour voir le site avec quelques membres, notes et chroniques : `npm run demo` (mot de passe affiché à la fin).
 
@@ -28,8 +28,8 @@ Pour voir le site avec quelques membres, notes et chroniques : `npm run demo` (m
 |---|---|
 | `npm start` | Lance le site (HTTPS si un certificat existe, sinon HTTP sur le port 8080) |
 | `npm run dev` | Pareil, avec redémarrage automatique quand tu modifies le code |
-| `npm run catalogue:fetch` | Relance la récupération des vraies pochettes et photos (faite automatiquement au premier `npm start`) |
-| `npm run images` | Compresse toutes les images en WebP, crée les images de partage et les icônes |
+| `npm run catalogue:fetch` | Relance la récupération des discographies, pochettes et photos (faite automatiquement au démarrage) |
+| `npm run images` | Icônes et image de partage (les pochettes sont fabriquées à la demande ; `-- --all` pour tout préparer d'avance) |
 | `npm run backup` | Sauvegarde la base de données dans `data/backups/` |
 | `npm test` | Tests automatiques de l'API (comptes, sécurité, amis, RGPD) |
 | `npm run check:links` | Cherche les liens cassés sur tout le site (serveur lancé) |
@@ -56,7 +56,7 @@ Toutes les routes sont sous `/api/v1`. Elles répondent en JSON. Celles qui modi
 |---|---|---|
 | POST | `/auth/register`, `/auth/login`, `/auth/logout` | Inscription, connexion, déconnexion |
 | POST | `/auth/verify`, `/auth/forgot`, `/auth/reset` | Confirmation d'e-mail, mot de passe oublié |
-| GET | `/albums`, `/albums/:slug` | Catalogue, détail d'un album avec ses chroniques |
+| GET | `/albums?q=&decennie=&type=&tri=&page=`, `/albums/:slug` | Catalogue filtré et paginé, détail d'un album avec ses chroniques |
 | PUT | `/albums/:slug/state` | Écouté, coup de cœur, à écouter, note |
 | POST | `/albums/:slug/reviews` | Publier une chronique |
 | POST | `/reviews/:id/like`, `/reviews/:id/report` | Aimer, signaler |

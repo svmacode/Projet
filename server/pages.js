@@ -3,10 +3,22 @@ import { config } from './config.js';
 import { issueFormToken } from './security.js';
 import { layout } from './views/layout.js';
 import { homePage } from './views/home.js';
-import { albumsPage, albumPage, artistsPage, artistPage, searchPage } from './views/catalog.js';
+import { albumsPage, albumPage, artistsPage, artistPage, searchPage, catalogueUrl } from './views/catalog.js';
 import { profilePage, followPage, listPage, feedPage } from './views/social.js';
 import { registerPage, loginPage, forgotPage, resetPage, confirmPage, settingsPage } from './views/account.js';
 import { privacyPage, cookiesPage, termsPage, legalNoticePage, sitemapPage, notFoundPage } from './views/legal.js';
+
+// Filtres du catalogue lus dans l'adresse, avec des valeurs sûres.
+export function readFilters(query) {
+  const decade = Number(query.decennie);
+  return {
+    q: String(query.q || '').trim().slice(0, 60),
+    decade: [1990, 2000, 2010, 2020].includes(decade) ? decade : 0,
+    kind: ['album', 'ep'].includes(query.type) ? query.type : '',
+    sort: ['year', 'recent', 'title', 'rating', 'popular'].includes(query.tri) ? query.tri : 'year',
+    page: Math.max(1, Math.min(1000, Number.parseInt(query.page, 10) || 1)),
+  };
+}
 
 const truncate = (s, n = 155) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
@@ -47,11 +59,15 @@ export function pagesRouter(db, q) {
   }));
 
   r.get('/albums', (req, res) => {
-    const decade = Number(req.query.decennie) || null;
+    const filters = readFilters(req.query);
+    const result = q.albumPage({ ...filters, perPage: 60 });
+    const totalAll = q.count().n;
+    const filtered = filters.q || filters.decade || filters.kind || filters.sort !== 'year';
     send(req, res, {
-      title: 'Albums', path: '/albums', theme: 'dark',
-      description: `Les ${q.albums().length} albums qui ont fait le rap français, de 1991 à aujourd'hui. Note-les, chronique-les.`,
-      body: albumsPage({ albums: q.albums(), decade }), scripts: ['/js/pages/catalogue.js'],
+      title: result.page > 1 ? `Albums — page ${result.page}` : 'Albums', path: catalogueUrl({ ...filters, page: result.page }), theme: 'dark',
+      noindex: Boolean(filters.q),
+      description: `${totalAll.toLocaleString('fr-FR')} albums, mixtapes et EP du rap français, de 1991 à aujourd'hui. Note-les, chronique-les, partage-les.`,
+      body: albumsPage({ result, filters, totalAll, filtered }), scripts: ['/js/pages/catalogue.js'],
     });
   });
 

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
-import { artists, albums, albumSlug } from '../data/catalogue.js';
+import { loadCatalog } from './catalog.js';
 
 const SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -134,8 +134,17 @@ export function openDb(file = config.dbFile) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec(SCHEMA);
+  migrate(db);
   seedCatalogue(db);
   return db;
+}
+
+// Colonnes ajoutées après la première version.
+function migrate(db) {
+  const cols = db.prepare('PRAGMA table_info(albums)').all().map((c) => c.name);
+  if (!cols.includes('kind')) db.exec("ALTER TABLE albums ADD COLUMN kind TEXT NOT NULL DEFAULT 'album'");
+  if (!cols.includes('curated')) db.exec('ALTER TABLE albums ADD COLUMN curated INTEGER NOT NULL DEFAULT 0');
+  db.exec('CREATE INDEX IF NOT EXISTS albums_year ON albums(year)');
 }
 
 // Insère ou met à jour le catalogue sans toucher aux données des membres.
@@ -147,19 +156,19 @@ export function seedCatalogue(db) {
     ON CONFLICT(slug) DO UPDATE SET name = excluded.name, origin = excluded.origin,
       bio = excluded.bio, bio_source = excluded.bio_source, photo_credit = excluded.photo_credit`);
   const upAlbum = db.prepare(`
-    INSERT INTO albums (slug, title, artist_id, year, cover_credit)
-    VALUES (?, ?, (SELECT id FROM artists WHERE slug = ?), ?, ?)
+    INSERT INTO albums (slug, title, artist_id, year, cover_credit, kind, curated)
+    VALUES (?, ?, (SELECT id FROM artists WHERE slug = ?), ?, ?, ?, ?)
     ON CONFLICT(slug) DO UPDATE SET title = excluded.title, artist_id = excluded.artist_id,
-      year = excluded.year, cover_credit = excluded.cover_credit`);
+      year = excluded.year, cover_credit = excluded.cover_credit, kind = excluded.kind, curated = excluded.curated`);
+  const { artists, albums } = loadCatalog();
   db.exec('BEGIN');
   try {
     for (const a of artists) {
       const c = credits.artists[a.slug] || {};
-      upArtist.run(a.slug, a.name, a.origin, c.bio || a.bio, c.bioSource || null, c.photoCredit || null);
+      upArtist.run(a.slug, a.name, a.origin || '', c.bio || a.bio || '', c.bioSource || a.bioSource || null, c.photoCredit || null);
     }
-    for (const [artist, title, year] of albums) {
-      const slug = albumSlug(artist, title);
-      upAlbum.run(slug, title, artist, year, credits.albums[slug]?.coverCredit || null);
+    for (const a of albums) {
+      upAlbum.run(a.slug, a.title, a.artist, a.year, credits.albums[a.slug]?.coverCredit || null, a.kind, a.curated ? 1 : 0);
     }
     db.exec('COMMIT');
   } catch (err) {

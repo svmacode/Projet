@@ -1,52 +1,75 @@
-import fs from 'node:fs';
 import { config } from './config.js';
-
-// Couleur dominante de chaque image, calculée par `npm run images`.
-let manifest = { covers: {}, artists: {} };
-export function loadImageManifest() {
-  try {
-    manifest = JSON.parse(fs.readFileSync(new URL('../data/images.json', import.meta.url), 'utf8'));
-  } catch { /* images pas encore générées */ }
-}
-loadImageManifest();
-
-export const coverColor = (slug) => manifest.covers[slug]?.color || '#1d1d1f';
-export const artistColor = (slug) => manifest.artists[slug]?.color || '#1d1d1f';
-export const coverIsPlaceholder = (slug) => manifest.covers[slug]?.placeholder !== false;
+import { imageColor, hasRealImage } from './imaging.js';
 
 export function albumView(row) {
   if (!row) return null;
+  const real = hasRealImage('covers', row.slug);
   return {
     slug: row.slug,
     title: row.title,
     year: row.year,
+    kind: row.kind || 'album',
+    curated: Boolean(row.curated),
     artist: { slug: row.artist_slug, name: row.artist_name },
-    color: coverColor(row.slug),
+    color: imageColor('covers', row.slug),
     cover: `/img/covers/${row.slug}`,
-    placeholder: coverIsPlaceholder(row.slug),
+    // Le paramètre change quand la vraie pochette arrive : le navigateur ne garde pas l'ancienne en cache.
+    v: real ? '?r=1' : '',
+    placeholder: !real,
     coverCredit: row.cover_credit || null,
     avg: row.avg_rating != null ? Math.round(row.avg_rating * 10) / 10 : null,
     ratings: row.ratings ?? 0,
   };
 }
 
+const artistView = (a) => ({
+  ...a,
+  color: imageColor('artists', a.slug),
+  photo: `/img/artists/${a.slug}`,
+  v: hasRealImage('artists', a.slug) ? '?r=1' : '',
+});
+
 const ALBUM_SELECT = `
-  SELECT al.slug, al.title, al.year, al.cover_credit, ar.slug AS artist_slug, ar.name AS artist_name,
-    (SELECT AVG(rating) FROM user_albums ua WHERE ua.album_id = al.id AND ua.rating IS NOT NULL) AS avg_rating,
-    (SELECT COUNT(rating) FROM user_albums ua WHERE ua.album_id = al.id) AS ratings
-  FROM albums al JOIN artists ar ON ar.id = al.artist_id`;
+  SELECT al.slug, al.title, al.year, al.kind, al.curated, al.cover_credit, ar.slug AS artist_slug, ar.name AS artist_name,
+    st.avg_rating, COALESCE(st.ratings, 0) AS ratings
+  FROM albums al JOIN artists ar ON ar.id = al.artist_id
+  LEFT JOIN (SELECT album_id, AVG(rating) AS avg_rating, COUNT(rating) AS ratings FROM user_albums GROUP BY album_id) st
+    ON st.album_id = al.id`;
+
+const ORDERS = {
+  year: 'al.year ASC, al.title COLLATE NOCASE ASC',
+  recent: 'al.year DESC, al.title COLLATE NOCASE ASC',
+  title: 'al.title COLLATE NOCASE ASC',
+  rating: 'st.avg_rating IS NULL, st.avg_rating DESC, ratings DESC',
+  popular: 'ratings DESC, al.curated DESC, al.year DESC',
+};
 
 export function makeQueries(db) {
   const q = {
     albums({ sort = 'year' } = {}) {
-      const order = {
-        year: 'al.year ASC, al.title ASC',
-        recent: 'al.year DESC, al.title ASC',
-        title: 'al.title COLLATE NOCASE ASC',
-        rating: 'avg_rating IS NULL, avg_rating DESC, ratings DESC',
-        popular: 'ratings DESC, al.year DESC',
-      }[sort] || 'al.year ASC';
-      return db.prepare(`${ALBUM_SELECT} ORDER BY ${order}`).all().map(albumView);
+      return db.prepare(`${ALBUM_SELECT} ORDER BY ${ORDERS[sort] || ORDERS.year}`).all().map(albumView);
+    },
+
+    // Catalogue filtré et paginé (page /albums et API).
+    albumPage({ q: text = '', decade = 0, kind = '', sort = 'year', page = 1, perPage = 60 } = {}) {
+      let list = q.albums({ sort });
+      const words = normalize(text).split(' ').filter(Boolean);
+      if (words.length) list = list.filter((a) => { const h = normalize(`${a.title} ${a.artist.name}`); return words.every((w) => h.includes(w)); });
+      if (decade) list = list.filter((a) => a.year >= decade && a.year < decade + 10);
+      if (kind === 'album' || kind === 'ep') list = list.filter((a) => a.kind === kind);
+      const total = list.length;
+      const pages = Math.max(1, Math.ceil(total / perPage));
+      const current = Math.min(Math.max(1, page), pages);
+      return { albums: list.slice((current - 1) * perPage, current * perPage), total, page: current, pages };
+    },
+
+    // Mise en avant : la sélection éditoriale d'abord, puis le reste.
+    featured(limit = 60) {
+      return db.prepare(`${ALBUM_SELECT} ORDER BY al.curated DESC, ratings DESC, al.year ASC LIMIT ?`).all(limit).map(albumView);
+    },
+
+    count() {
+      return db.prepare("SELECT COUNT(*) n, SUM(kind = 'ep') eps, COUNT(DISTINCT artist_id) artists FROM albums").get();
     },
 
     album(slug) {
@@ -72,7 +95,7 @@ export function makeQueries(db) {
     },
 
     albumsByArtist(artistSlug) {
-      return db.prepare(`${ALBUM_SELECT} WHERE ar.slug = ? ORDER BY al.year`).all(artistSlug).map(albumView);
+      return db.prepare(`${ALBUM_SELECT} WHERE ar.slug = ? ORDER BY al.year, al.title`).all(artistSlug).map(albumView);
     },
 
     artists() {
@@ -80,14 +103,15 @@ export function makeQueries(db) {
         SELECT ar.slug, ar.name, ar.origin, ar.bio,
           (SELECT COUNT(*) FROM albums WHERE artist_id = ar.id) AS albums,
           (SELECT MIN(year) FROM albums WHERE artist_id = ar.id) AS first_year
-        FROM artists ar ORDER BY first_year, ar.name`).all()
-        .map((a) => ({ ...a, color: artistColor(a.slug), photo: `/img/artists/${a.slug}` }));
+        FROM artists ar ORDER BY first_year, ar.name COLLATE NOCASE`).all()
+        .filter((a) => a.albums > 0)
+        .map(artistView);
     },
 
     artist(slug) {
       const a = db.prepare('SELECT slug, name, origin, bio, bio_source, photo_credit FROM artists WHERE slug = ?').get(slug);
       if (!a) return null;
-      return { ...a, color: artistColor(a.slug), photo: `/img/artists/${a.slug}`, albums: q.albumsByArtist(slug) };
+      return { ...artistView(a), albums: q.albumsByArtist(slug) };
     },
 
     userState(userId, albumId) {

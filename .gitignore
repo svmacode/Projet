@@ -29,3 +29,5 @@ Thumbs.db
 
 __pycache__/
 data/fetch-state.json
+data/discovered.json
+data/discover-report.json

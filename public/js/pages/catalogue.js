@@ -1,79 +1,118 @@
-// Catalogue : filtre instantané par texte et par décennie, tri sans rechargement.
+// Catalogue : filtres instantanés et chargement continu des pages suivantes.
+// Sans JavaScript, la même page fonctionne avec des liens et un formulaire classiques.
 import { motion } from '../app.js';
 
 const root = document.querySelector('[data-catalogue]');
 const grid = root.querySelector('[data-grid]');
+const form = root.querySelector('[data-filters]');
 const input = root.querySelector('[data-filter-q]');
 const sort = root.querySelector('[data-sort]');
 const count = root.querySelector('[data-count]');
-const empty = root.querySelector('[data-empty]');
-const chips = root.querySelectorAll('[data-decade]');
-const tiles = [...grid.querySelectorAll('.tile')];
-const original = new Map(tiles.map((t, i) => [t, i]));
 
-const params = new URLSearchParams(location.search);
-let decade = Number(params.get('decennie')) || 0;
-input.value = params.get('q') || '';
-if (params.get('tri')) sort.value = params.get('tri');
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-
-// Note moyenne et nombre de notes, chargés une fois pour le tri.
-let stats = null;
-async function loadStats() {
-  if (stats) return stats;
-  try {
-    const res = await fetch('/api/v1/albums', { headers: { Accept: 'application/json' } });
-    const { albums } = await res.json();
-    stats = new Map(albums.map((a) => [a.slug, a]));
-  } catch { stats = new Map(); }
-  return stats;
+// Même balisage que la vignette rendue par le serveur (server/views/components.js).
+function tileHtml(a) {
+  const src = (w) => `${a.cover}-${w}.webp${a.v}`;
+  return `<a class="tile" href="/album/${a.slug}" data-color="${esc(a.color)}" data-gl data-title="${esc(a.title)}" data-artist="${esc(a.artist.name)}" data-year="${a.year}" data-slug="${a.slug}">
+    <span class="tile-media"><img class="cover" src="${src(600)}" srcset="${src(300)} 300w, ${src(600)} 600w, ${src(1200)} 1200w"
+      sizes="(min-width: 1068px) 220px, 45vw" width="600" height="600" alt="Pochette de ${esc(a.title)}, ${esc(a.artist.name)}" loading="lazy" decoding="async" data-vt="cover-${a.slug}"></span>
+    <span class="tile-title">${esc(a.title)}</span>
+    <span class="tile-meta">${esc(a.artist.name)} · ${a.year}${a.kind === 'ep' ? ' · EP' : ''}</span>
+  </a>`;
 }
 
-async function apply() {
-  const q = norm(input.value.trim());
-  let shown = 0;
-  for (const t of tiles) {
-    const year = Number(t.dataset.year);
-    const ok = (!q || norm(`${t.dataset.title} ${t.dataset.artist}`).includes(q))
-      && (!decade || (year >= decade && year < decade + 10));
-    t.hidden = !ok;
-    if (ok) shown++;
+const params = new URLSearchParams(location.search);
+const state = {
+  q: params.get('q') || '',
+  decennie: params.get('decennie') || '',
+  type: params.get('type') || '',
+  tri: params.get('tri') || 'year',
+  page: Number(grid.dataset.page) || 1,
+  pages: Number(grid.dataset.pages) || 1,
+};
+
+function query(page) {
+  const p = new URLSearchParams();
+  if (state.q) p.set('q', state.q);
+  if (state.decennie) p.set('decennie', state.decennie);
+  if (state.type) p.set('type', state.type);
+  if (state.tri !== 'year') p.set('tri', state.tri);
+  if (page > 1) p.set('page', page);
+  return p;
+}
+
+let loading = null;
+async function load(page, { append = false } = {}) {
+  const controller = new AbortController();
+  loading?.abort();
+  loading = controller;
+  const res = await fetch(`/api/v1/albums?${query(page)}`, { headers: { Accept: 'application/json' }, signal: controller.signal });
+  const data = await res.json();
+  loading = null;
+  state.page = data.page;
+  state.pages = data.pages;
+  const markup = data.albums.map(tileHtml).join('');
+  if (append) grid.insertAdjacentHTML('beforeend', markup);
+  else grid.innerHTML = markup;
+  grid.querySelectorAll('.tile:not([data-colored])').forEach((t) => {
+    t.dataset.colored = '';
+    t.querySelector('.tile-media').style.backgroundColor = t.dataset.color;
+  });
+  count.textContent = data.total
+    ? `${data.total.toLocaleString('fr-FR')} résultat${data.total > 1 ? 's' : ''}`
+    : 'Aucun album ne correspond. Essaie un autre mot.';
+  updateChips();
+  updatePager();
+  if (motion) window.ScrollTrigger.refresh();
+}
+
+function updateChips() {
+  root.querySelectorAll('[data-chip]').forEach((chip) => {
+    const u = new URL(chip.href);
+    const same = (k, v) => (u.searchParams.get(k) || '') === v;
+    const group = chip.closest('[aria-label]').getAttribute('aria-label');
+    const pressed = group === 'Décennie' ? same('decennie', state.decennie) : same('type', state.type);
+    chip.setAttribute('aria-current', String(pressed));
+  });
+}
+
+// Le bloc de pagination devient un simple déclencheur de chargement continu.
+const pager = root.querySelector('[data-pager]');
+const sentinel = document.createElement('div');
+sentinel.className = 'pager-sentinel';
+grid.after(sentinel);
+pager?.remove();
+
+function updatePager() {
+  sentinel.hidden = state.page >= state.pages;
+}
+
+const io = new IntersectionObserver((entries) => {
+  if (entries[0].isIntersecting && !loading && state.page < state.pages) {
+    load(state.page + 1, { append: true }).catch(() => {});
   }
-  chips.forEach((c) => c.setAttribute('aria-pressed', String(Number(c.dataset.decade || 0) === decade)));
-  count.textContent = `${shown} album${shown > 1 ? 's' : ''}`;
-  empty.hidden = shown > 0;
+}, { rootMargin: '800px 0px' });
+io.observe(sentinel);
+updatePager();
 
-  const mode = sort.value;
-  let ordered = [...tiles];
-  if (mode === 'recent') ordered.sort((a, b) => b.dataset.year - a.dataset.year || original.get(a) - original.get(b));
-  else if (mode === 'title') ordered.sort((a, b) => a.dataset.title.localeCompare(b.dataset.title, 'fr'));
-  else if (mode === 'rating' || mode === 'popular') {
-    const s = await loadStats();
-    const key = (t) => s.get(t.dataset.slug) || {};
-    ordered.sort(mode === 'rating'
-      ? (a, b) => (key(b).avg ?? -1) - (key(a).avg ?? -1) || (key(b).ratings || 0) - (key(a).ratings || 0)
-      : (a, b) => (key(b).ratings || 0) - (key(a).ratings || 0) || b.dataset.year - a.dataset.year);
-  } else ordered.sort((a, b) => original.get(a) - original.get(b));
-  grid.append(...ordered);
-
-  if (motion) {
-    window.gsap.set(tiles, { opacity: 1, y: 0 });
-    window.ScrollTrigger.refresh();
-  }
-
-  // L'adresse reflète les filtres : on peut la partager.
-  const next = new URLSearchParams();
-  if (input.value.trim()) next.set('q', input.value.trim());
-  if (decade) next.set('decennie', decade);
-  if (mode !== 'year') next.set('tri', mode);
-  history.replaceState(null, '', `${location.pathname}${next.size ? `?${next}` : ''}`);
+function refresh() {
+  history.replaceState(null, '', `${location.pathname}${query(1).size ? `?${query(1)}` : ''}`);
+  load(1).catch((err) => { if (err.name !== 'AbortError') count.textContent = 'Chargement impossible, réessaie.'; });
 }
 
 let timer;
-input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(apply, 120); });
-sort.addEventListener('change', apply);
-chips.forEach((c) => c.addEventListener('click', () => { decade = Number(c.dataset.decade || 0); apply(); }));
-root.querySelector('[data-filters]').addEventListener('submit', (e) => { e.preventDefault(); apply(); });
-
-if (input.value || decade || sort.value !== 'year') apply();
+input.addEventListener('input', () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => { state.q = input.value.trim(); refresh(); }, 220);
+});
+sort.addEventListener('change', () => { state.tri = sort.value; refresh(); });
+form.addEventListener('submit', (e) => { e.preventDefault(); state.q = input.value.trim(); refresh(); });
+root.querySelectorAll('[data-chip]').forEach((chip) => chip.addEventListener('click', (e) => {
+  e.preventDefault();
+  const u = new URL(chip.href);
+  const group = chip.closest('[aria-label]').getAttribute('aria-label');
+  if (group === 'Décennie') state.decennie = u.searchParams.get('decennie') || '';
+  else state.type = u.searchParams.get('type') || '';
+  refresh();
+}));

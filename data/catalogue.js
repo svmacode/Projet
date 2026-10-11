@@ -91,6 +91,32 @@ export const artists = [
   { slug: 'joeystarr', name: 'JoeyStarr', origin: 'Saint-Denis', bio: "Moitié de Suprême NTM, JoeyStarr a sorti Egomaniac avant de mener aussi une carrière d'acteur." },
 ];
 
+// Rappeurs et groupes dont la discographie complète (albums, mixtapes, EP) est récupérée
+// automatiquement sur Deezer au démarrage du serveur. Les artistes ci-dessus y sont aussi inclus.
+// Pour en ajouter un, écris simplement son nom tel qu'il apparaît sur Deezer.
+export const roster = [
+  // Pionniers et âge d'or
+  'Les Sages Poètes de la Rue', 'La Cliqua', 'Rocca', 'Expression Direkt', 'Svinkels', 'Stomy Bugsy',
+  "Nèg' Marrons", 'Intouchable', 'Scred Connexion', 'Rockin\' Squat', 'Faf Larage', '3ème Œil',
+  'Chiens de Paille', 'Le Rat Luciano', 'Don Choa', "Sat l'Artificier", 'Tunisiano', 'Calbo', 'Mokobé',
+  'AP du 113', 'Nessbeal', 'Mac Tyer', 'Alibi Montana', 'Salif', 'Seth Gueko', 'Despo Rutti',
+  'Rocé', 'Demi Portion', 'Furax Barbarossa', 'Swift Guad', 'Grems', 'Kacem Wapalek', 'Lucio Bukowski',
+  // Années 2000-2010
+  'Alonzo', 'Vincenzo', 'Kenza Farah', 'Mister You', 'Alkpote', 'Niro', 'Sadek', 'Kalash', 'Lefa',
+  'Gringe', 'S-Crew', '1995', "L'Entourage", 'Deen Burbigo', 'Nemir', 'Georgio', 'Sneazzy', 'Guizmo',
+  'Lorenzo', 'Jok\'Air', 'S.Pri Noir', 'Joke', 'Caballero & JeanJass', 'Isha', 'Krisy', 'Le 77',
+  'Kofs', 'Naps', 'Soso Maness', 'Hooss', "L'Algérino", 'Alrima', 'Bosh', 'Lartiste', 'KeBlack',
+  'Abou Debeing', 'Vegedream', 'Franglish', 'Leto', 'Kekra', 'Siboy', 'Heuss L\'enfoiré', 'Josman',
+  'Larry', 'Timal', 'Djadja & Dinaz', '4Keus', 'Mister V', 'Kikesa', 'Nakk Mendosa', 'Lord Esperanza',
+  'Ichon', 'Prince Waly', 'Hatik', 'Zikxo', 'JRK 19', 'Rémy', 'Landy', 'Ademo', 'N.O.S',
+  'La Mano 1.9', 'Naza', 'Uzi', 'Sasso', 'Kaza', 'Zkr', 'Benjamin Epps',
+  // Nouvelle génération
+  'Ziak', 'SDM', 'Guy2Bezbar', 'Rsko', 'Kerchak', 'Ashe 22', 'Luv Resval', 'Green Montana', 'Zamdane',
+  'Bekar', 'Chilla', 'Le Juiice', 'Doria', 'Vicky R', 'Davinhor', 'Lala &ce', 'Rounhaa', 'Jäde',
+  'Houdi', 'Jolagreen23', 'Favé', 'H JeuneCrack', 'Kanoé', 'La Fève', 'Khali', 'Gambino La MG',
+  'Tif', 'Bouss', 'Fresh La Douille', 'Cinco', 'Sento', 'Elh Kmer',
+];
+
 // [artiste, titre, année]
 export const albums = [
   ['iam', '…De la planète Mars', 1991],
