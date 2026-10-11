@@ -3,7 +3,7 @@
 // Résultat dans data/discovered.json, lu par server/catalog.js.
 import fs from 'node:fs';
 import { allArtistNames, readDiscovered, discoveredFile, normName, baseTitle, invalidateCatalog } from './catalog.js';
-import { artists as curatedArtists } from '../data/catalogue.js';
+import { artists as curatedArtists } from '../catalogue.js';
 
 const UA = 'MyRapFr/0.1 (catalogue de rap francais)';
 const RAP = 116; // genre « Rap/Hip Hop » chez Deezer

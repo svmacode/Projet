@@ -1,9 +1,9 @@
-// Catalogue complet = sélection éditoriale (data/catalogue.js)
+// Catalogue complet = sélection éditoriale (catalogue.js, à la racine)
 //                   + discographies récupérées sur Deezer (data/discovered.json).
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
-import { artists as curatedArtists, albums as curatedAlbums, roster, slugify, albumSlug } from '../data/catalogue.js';
+import { artists as curatedArtists, albums as curatedAlbums, roster, slugify, albumSlug } from '../catalogue.js';
 
 export const discoveredFile = path.join(config.root, 'data', 'discovered.json');
 

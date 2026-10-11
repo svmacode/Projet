@@ -1,6 +1,7 @@
 // Catalogue éditorial de MyRapFr.
 // Les biographies sont des textes courts rédigés pour le site : relis-les avant la mise en ligne.
-// `npm run catalogue:fetch` peut compléter pochettes, photos et résumés depuis des sources ouvertes.
+// Ce fichier est à la racine du projet (et non dans data/) : copier le dossier data d’une ancienne
+// version ne peut pas l’écraser. `npm run catalogue:fetch` peut compléter pochettes, photos et résumés depuis des sources ouvertes.
 
 export const artists = [
   { slug: 'iam', name: 'IAM', origin: 'Marseille', bio: "Formé à Marseille à la fin des années 1980 autour d'Akhenaton et Shurik'n, IAM a imposé une écriture dense, nourrie d'histoire antique et de cinéma. L'École du micro d'argent reste l'un des albums les plus cités du rap français." },

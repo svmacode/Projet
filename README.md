@@ -2,7 +2,7 @@
 
 Le carnet d'écoute du rap français, sur le modèle de Letterboxd : noter les albums, tenir son journal d'écoute, écrire des chroniques, faire des listes et suivre ses amis.
 
-- **Catalogue** : les discographies complètes (albums, mixtapes, EP) d'environ 220 rappeurs et groupes, récupérées automatiquement sur Deezer, plus une sélection éditoriale de 148 classiques (`data/catalogue.js`).
+- **Catalogue** : les discographies complètes (albums, mixtapes, EP) d'environ 220 rappeurs et groupes, récupérées automatiquement sur Deezer, plus une sélection éditoriale de 148 classiques (`catalogue.js`, à la racine du projet).
 - **Design** : la charte d'Apple (noir, gris `#f5f5f7`, un seul bleu d'action), centré sur l'image, avec GSAP, Lenis et Three.js.
 - **Serveur** : Node.js, Express et SQLite. Pas de base à installer, pas de service payant.
 

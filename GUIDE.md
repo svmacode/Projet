@@ -71,7 +71,7 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
 2. **Créer l'adresse e-mail de contact**, par exemple `contact@ton-domaine.fr`.
 3. **Brancher un service d'e-mail.** Aujourd'hui, les liens de confirmation et de mot de passe oublié s'affichent dans la console du serveur. Pour le site en ligne, il faut un service SMTP. Brevo est gratuit jusqu'à 300 e-mails par jour et basé en France. Le branchement se fait dans un seul fichier : `server/mailer.js`.
 4. **Récupérer les vraies pochettes** (§3) et relire les biographies, qui sont courtes et rédigées pour le site.
-5. **Compléter la liste des rappeurs si besoin.** Pour suivre un artiste de plus, ajoute son nom (tel qu'il apparaît sur Deezer) dans la liste `roster` de `data/catalogue.js` : toute sa discographie arrivera au prochain démarrage. Le fichier `data/discover-report.json` liste les artistes introuvables et l'identité Deezer retenue pour chacun, à vérifier en cas d'homonyme.
+5. **Compléter la liste des rappeurs si besoin.** Pour suivre un artiste de plus, ajoute son nom (tel qu'il apparaît sur Deezer) dans la liste `roster` de `catalogue.js`, à la racine du projet : toute sa discographie arrivera au prochain démarrage. Le fichier `data/discover-report.json` liste les artistes introuvables et l'identité Deezer retenue pour chacun, à vérifier en cas d'homonyme.
 6. Lancer `npm run check:links`, `npm run check:perf` et `npm test` une dernière fois.
 
 ---
