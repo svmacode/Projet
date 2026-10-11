@@ -7,6 +7,7 @@ import { loadCatalog } from './catalog.js';
 const SCHEMA = `
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
+PRAGMA busy_timeout = 10000;
 
 CREATE TABLE IF NOT EXISTS artists (
   id INTEGER PRIMARY KEY,

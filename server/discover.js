@@ -173,7 +173,8 @@ export async function discover({ log = console.log, force = false, onArtist = as
       found.updatedAt = new Date().toISOString();
       setDiscovered(found);
       persist();
-      log(`${done}/${todo.length} ${name} : ${projects.length} projet(s)`);
+      // Une ligne tous les 20 artistes (et pour le dernier) : la fenêtre reste lisible.
+      if (done % 20 === 0 || done === todo.length) log(`${done}/${todo.length} artistes récupérés…`);
       await onArtist({ slug, name, picture, deezerId: artist.id, projects, index: done, total: todo.length });
     }
   };

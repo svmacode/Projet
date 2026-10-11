@@ -7,6 +7,10 @@ import { autoFetchImages } from './auto-images.js';
 
 const app = createApp();
 
+// Message bien visible : le site est utilisable dès maintenant, même si le catalogue charge encore.
+const ready = (url) => console.log(`\n  ✔ Site prêt : ${url}\n    Laisse cette fenêtre ouverte (Ctrl+C pour arrêter le site).\n`
+  + '    Les lignes [catalogue] qui suivent sont le chargement en arrière-plan : le site est déjà utilisable.\n');
+
 // Port déjà pris ou interdit : message clair plutôt qu'une erreur technique.
 function onListenError(err) {
   if (err.code === 'EADDRINUSE') {
@@ -23,7 +27,7 @@ function onListenError(err) {
 if (config.hasCert) {
   const tls = { cert: fs.readFileSync(config.certFile), key: fs.readFileSync(config.keyFile), minVersion: 'TLSv1.2' };
   https.createServer(tls, app).on('error', onListenError).listen(config.httpsPort, () => {
-    console.log(`MyRapFr en HTTPS : https://localhost:${config.httpsPort}`);
+    ready(`https://localhost:${config.httpsPort}`);
   });
   // Le port HTTP ne fait que rediriger vers HTTPS.
   http.createServer((req, res) => {
@@ -33,7 +37,7 @@ if (config.hasCert) {
   }).on('error', onListenError).listen(config.port, () => console.log(`Redirection HTTP → HTTPS sur le port ${config.port}`));
 } else {
   http.createServer(app).on('error', onListenError).listen(config.port, () => {
-    console.log(`MyRapFr en HTTP : http://localhost:${config.port}`);
+    ready(`http://localhost:${config.port}`);
     if (!config.behindTlsProxy) console.log('Astuce : lance `npm run cert` pour activer HTTPS en local.');
   });
 }
