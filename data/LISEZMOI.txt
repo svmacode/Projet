@@ -1,0 +1,7 @@
+Ce dossier contient les données de TON site : base de données (comptes, notes, chroniques),
+clé secrète, pochettes et photos téléchargées. Il se remplit tout seul au premier démarrage.
+
+Rien de ce qu'il contient n'est publié sur GitHub (sauf ce fichier).
+
+Pour passer à une nouvelle version du site sans rien perdre :
+copie ce dossier « data » de l'ancienne version dans la nouvelle, et accepte de remplacer.
