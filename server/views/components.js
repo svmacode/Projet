@@ -1,4 +1,5 @@
 import { html, raw } from '../html.js';
+import { avatarUrl } from '../avatars.js';
 
 export const icon = (name, label) => label
   ? html`<svg class="icon" role="img" aria-label="${label}"><use href="/img/icons.svg#${name}"></use></svg>`
@@ -41,8 +42,13 @@ export function stars(rating, { label = true } = {}) {
   return html`<span class="stars" ${raw(label ? `role="img" aria-label="${rating / 2} sur 5"` : 'aria-hidden="true"')}>${items}</span>`;
 }
 
-export const avatar = (user, cls = '') =>
-  html`<span class="avatar ${cls}" aria-hidden="true">${(user.display_name || user.displayName || user.username || '?').slice(0, 1).toUpperCase()}</span>`;
+// Photo de profil (photo importée ou pochette choisie), sinon l'initiale du nom.
+export const avatar = (user, cls = '') => {
+  const url = avatarUrl(user.avatar);
+  return url
+    ? html`<span class="avatar avatar-img ${cls}" aria-hidden="true"><img src="${url}" alt="" width="96" height="96" loading="lazy" decoding="async"></span>`
+    : html`<span class="avatar ${cls}" aria-hidden="true">${(user.display_name || user.displayName || user.username || '?').slice(0, 1).toUpperCase()}</span>`;
+};
 
 export function formatDate(iso) {
   const d = new Date(iso.length <= 10 ? `${iso}T12:00:00Z` : `${iso.replace(' ', 'T')}Z`);

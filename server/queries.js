@@ -122,7 +122,7 @@ export function makeQueries(db) {
     reviewsForAlbum(albumId, viewerId = 0, { limit = 30, friendsOnly = false } = {}) {
       return db.prepare(`
         SELECT r.id, r.rating, r.body, r.listened_on, r.created_at,
-          u.username, u.display_name,
+          u.username, u.display_name, u.avatar,
           (SELECT COUNT(*) FROM review_likes WHERE review_id = r.id) AS likes,
           EXISTS(SELECT 1 FROM review_likes WHERE review_id = r.id AND user_id = ?) AS liked_by_me,
           (SELECT liked FROM user_albums WHERE user_id = r.user_id AND album_id = r.album_id) AS loved
@@ -135,14 +135,14 @@ export function makeQueries(db) {
 
     recentReviews(limit = 12) {
       return db.prepare(`
-        SELECT r.id, r.rating, r.body, r.created_at, u.username, u.display_name, al.slug AS album_slug
+        SELECT r.id, r.rating, r.body, r.created_at, u.username, u.display_name, u.avatar, al.slug AS album_slug
         FROM reviews r JOIN users u ON u.id = r.user_id JOIN albums al ON al.id = r.album_id
         WHERE r.body <> '' ORDER BY r.created_at DESC LIMIT ?`).all(limit)
         .map((r) => ({ ...r, album: q.album(r.album_slug) }));
     },
 
     user(username) {
-      return db.prepare('SELECT id, username, display_name, bio, created_at FROM users WHERE username = ?').get(username) || null;
+      return db.prepare('SELECT id, username, display_name, avatar, bio, created_at FROM users WHERE username = ?').get(username) || null;
     },
 
     profile(username, viewerId = 0) {
@@ -178,10 +178,70 @@ export function makeQueries(db) {
       return u;
     },
 
+    // Page Amis : les membres autour de toi, avec l'état de la relation pour chaque bouton « Suivre ».
+    friendsHub(userId) {
+      const person = `u.username, u.display_name, u.avatar, u.bio,
+        (SELECT COUNT(*) FROM user_albums WHERE user_id = u.id AND listened = 1) AS listened`;
+      const followsMe = 'EXISTS(SELECT 1 FROM follows WHERE follower_id = u.id AND followee_id = ?)';
+      const iFollow = 'EXISTS(SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = u.id)';
+      // Ils te suivent, tu ne les suis pas encore : un clic et vous êtes amis.
+      const requests = db.prepare(`SELECT ${person}, 0 AS isFollowing, 1 AS followsMe FROM follows f JOIN users u ON u.id = f.follower_id
+        WHERE f.followee_id = ? AND NOT ${iFollow} ORDER BY f.created_at DESC`).all(userId, userId);
+      const friends = db.prepare(`SELECT ${person}, 1 AS isFollowing, 1 AS followsMe FROM follows a
+        JOIN follows b ON b.follower_id = a.followee_id AND b.followee_id = a.follower_id
+        JOIN users u ON u.id = a.followee_id WHERE a.follower_id = ? ORDER BY u.display_name COLLATE NOCASE`).all(userId);
+      const following = db.prepare(`SELECT ${person}, 1 AS isFollowing, 0 AS followsMe FROM follows f JOIN users u ON u.id = f.followee_id
+        WHERE f.follower_id = ? AND NOT ${followsMe} ORDER BY f.created_at DESC`).all(userId, userId);
+      // Suggestions : les membres suivis par ceux que tu suis, puis les plus actifs.
+      const known = new Set([...requests, ...friends, ...following].map((p) => p.username));
+      const suggestions = db.prepare(`SELECT ${person}, 0 AS isFollowing, ${followsMe} AS followsMe, COUNT(*) AS common
+        FROM follows a JOIN follows b ON b.follower_id = a.followee_id JOIN users u ON u.id = b.followee_id
+        WHERE a.follower_id = ? AND u.id <> ? AND NOT ${iFollow}
+        GROUP BY u.id ORDER BY common DESC, listened DESC LIMIT 8`).all(userId, userId, userId, userId);
+      if (suggestions.length < 8) {
+        const active = db.prepare(`SELECT ${person}, 0 AS isFollowing, ${followsMe} AS followsMe, 0 AS common FROM users u
+          WHERE u.id <> ? AND NOT ${iFollow} ORDER BY listened DESC, u.created_at DESC LIMIT 16`).all(userId, userId, userId);
+        for (const p of active) {
+          if (suggestions.length >= 8) break;
+          if (!suggestions.some((s) => s.username === p.username) && !known.has(p.username)) suggestions.push(p);
+        }
+      }
+      return { requests, friends, following, suggestions: suggestions.filter((p) => !known.has(p.username)) };
+    },
+
+    // Recherche de membres par pseudo ou nom affiché, avec l'état de la relation.
+    searchMembers(text, viewerId) {
+      const words = normalize(text).split(' ').filter(Boolean);
+      if (!words.length) return [];
+      return db.prepare(`SELECT u.username, u.display_name, u.avatar, u.bio,
+          (SELECT COUNT(*) FROM user_albums WHERE user_id = u.id AND listened = 1) AS listened,
+          EXISTS(SELECT 1 FROM follows WHERE follower_id = ? AND followee_id = u.id) AS isFollowing,
+          EXISTS(SELECT 1 FROM follows WHERE follower_id = u.id AND followee_id = ?) AS followsMe
+        FROM users u WHERE u.id <> ?`).all(viewerId, viewerId, viewerId)
+        .filter((u) => { const h = normalize(`${u.username} ${u.display_name}`); return words.every((w) => h.includes(w)); })
+        .sort((a, b) => b.listened - a.listened)
+        .slice(0, 20);
+    },
+
+    // Pochettes proposées comme photo de profil : favoris et coups de cœur du membre, puis classiques.
+    avatarPicks(userId, limit = 12) {
+      const slugs = db.prepare(`
+        SELECT al.slug FROM favorites f JOIN albums al ON al.id = f.album_id WHERE f.user_id = ?
+        UNION ALL
+        SELECT al.slug FROM user_albums s JOIN albums al ON al.id = s.album_id WHERE s.user_id = ? AND s.liked = 1`)
+        .all(userId, userId).map((r) => r.slug);
+      const picks = [...new Set(slugs)].map((s) => q.album(s)).filter(Boolean);
+      for (const a of q.albums()) {
+        if (picks.length >= limit) break;
+        if (a.curated && !picks.some((p) => p.slug === a.slug)) picks.push(a);
+      }
+      return picks.slice(0, limit);
+    },
+
     // Amis = abonnements réciproques.
     friends(userId) {
       return db.prepare(`
-        SELECT u.username, u.display_name FROM follows a
+        SELECT u.username, u.display_name, u.avatar FROM follows a
         JOIN follows b ON b.follower_id = a.followee_id AND b.followee_id = a.follower_id
         JOIN users u ON u.id = a.followee_id
         WHERE a.follower_id = ? ORDER BY u.display_name COLLATE NOCASE`).all(userId);
@@ -189,14 +249,14 @@ export function makeQueries(db) {
 
     followList(userId, direction) {
       const sql = direction === 'followers'
-        ? 'SELECT u.username, u.display_name FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.followee_id = ? ORDER BY f.created_at DESC'
-        : 'SELECT u.username, u.display_name FROM follows f JOIN users u ON u.id = f.followee_id WHERE f.follower_id = ? ORDER BY f.created_at DESC';
+        ? 'SELECT u.username, u.display_name, u.avatar FROM follows f JOIN users u ON u.id = f.follower_id WHERE f.followee_id = ? ORDER BY f.created_at DESC'
+        : 'SELECT u.username, u.display_name, u.avatar FROM follows f JOIN users u ON u.id = f.followee_id WHERE f.follower_id = ? ORDER BY f.created_at DESC';
       return db.prepare(sql).all(userId);
     },
 
     feed(userId, limit = 50) {
       return db.prepare(`
-        SELECT r.id, r.rating, r.body, r.listened_on, r.created_at, u.username, u.display_name, al.slug
+        SELECT r.id, r.rating, r.body, r.listened_on, r.created_at, u.username, u.display_name, u.avatar, al.slug
         FROM reviews r JOIN users u ON u.id = r.user_id JOIN albums al ON al.id = r.album_id
         WHERE r.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?)
         ORDER BY r.created_at DESC LIMIT ?`).all(userId, limit)
@@ -205,7 +265,7 @@ export function makeQueries(db) {
 
     list(id) {
       const l = db.prepare(`
-        SELECT l.id, l.title, l.description, l.created_at, u.username, u.display_name, u.id AS user_id
+        SELECT l.id, l.title, l.description, l.created_at, u.username, u.display_name, u.avatar, u.id AS user_id
         FROM lists l JOIN users u ON u.id = l.user_id WHERE l.id = ?`).get(id);
       if (!l) return null;
       l.albums = db.prepare(`${ALBUM_SELECT} JOIN list_items li ON li.album_id = al.id WHERE li.list_id = ? ORDER BY li.position`)
@@ -233,7 +293,7 @@ export function makeQueries(db) {
         .slice(0, 60)
         .map((x) => x.a);
       const artists = db.prepare('SELECT slug, name FROM artists ORDER BY name').all().filter((a) => matches(a.name)).slice(0, 20);
-      const users = db.prepare('SELECT username, display_name FROM users').all()
+      const users = db.prepare('SELECT username, display_name, avatar FROM users').all()
         .filter((u) => matches(`${u.username} ${u.display_name}`)).slice(0, 20);
       return { albums, artists, users };
     },

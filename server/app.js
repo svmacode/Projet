@@ -9,6 +9,7 @@ import { sessionMiddleware, csrfProtection } from './security.js';
 import { apiRouter } from './api.js';
 import { pagesRouter } from './pages.js';
 import { imagesOnDemand } from './imaging.js';
+import { avatarDir, AVATAR_FILE } from './avatars.js';
 
 export function createApp({ dbFile } = {}) {
   const db = openDb(dbFile);
@@ -61,6 +62,11 @@ export function createApp({ dbFile } = {}) {
   app.use(express.static(pub, { maxAge: config.isProd ? '1h' : 0, index: false }));
   // Pochettes, portraits et images de partage absents du disque : fabriqués à la première demande.
   app.use(imagesOnDemand());
+  // Photos de profil importées : servies depuis data/avatars/, noms aléatoires vérifiés.
+  app.get('/img/avatars/:file', (req, res, next) => {
+    if (!AVATAR_FILE.test(req.params.file)) return next();
+    res.sendFile(path.join(avatarDir, req.params.file), { maxAge: '30d', immutable: true }, (err) => err && next());
+  });
 
   // Suivi UTM : chaque arrivée par un lien de campagne incrémente un compteur anonyme.
   const utmHit = db.prepare(`INSERT INTO utm_stats (day, source, medium, campaign, path, visits) VALUES (date('now'), ?, ?, ?, ?, 1)
@@ -83,6 +89,9 @@ export function createApp({ dbFile } = {}) {
 
   // Erreur inattendue : message neutre, détail uniquement dans les journaux du serveur.
   app.use((err, req, res, next) => {
+    if (err.type === 'entity.too.large' && req.path === '/api/v1/me/avatar') {
+      return res.status(413).json({ error: 'Image trop lourde : 5 Mo maximum.' });
+    }
     if (err.type === 'entity.parse.failed' || err.type === 'entity.too.large') {
       return res.status(400).json({ error: 'Requête invalide.' });
     }

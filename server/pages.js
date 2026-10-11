@@ -6,7 +6,7 @@ import { issueFormToken } from './security.js';
 import { layout } from './views/layout.js';
 import { homePage } from './views/home.js';
 import { albumsPage, albumPage, artistsPage, artistPage, searchPage, catalogueUrl } from './views/catalog.js';
-import { profilePage, followPage, listPage, feedPage } from './views/social.js';
+import { profilePage, followPage, listPage, feedPage, friendsPage } from './views/social.js';
 import { registerPage, loginPage, forgotPage, resetPage, confirmPage, settingsPage } from './views/account.js';
 import { privacyPage, cookiesPage, termsPage, legalNoticePage, sitemapPage, notFoundPage } from './views/legal.js';
 
@@ -157,6 +157,18 @@ export function pagesRouter(db, q) {
     });
   });
 
+  r.get('/amis', (req, res) => {
+    if (!needUser(req, res)) return;
+    send(req, res, {
+      title: 'Amis', path: '/amis', theme: 'light', noindex: true,
+      body: friendsPage({
+        hub: q.friendsHub(req.user.id),
+        inviteUrl: `${config.publicUrl}/inscription?utm_source=invitation&utm_medium=lien&utm_campaign=amis`,
+      }),
+      scripts: ['/js/pages/social.js'],
+    });
+  });
+
   r.get('/fil', (req, res) => {
     if (!needUser(req, res)) return;
     send(req, res, {
@@ -183,12 +195,12 @@ export function pagesRouter(db, q) {
 
   r.get('/compte', (req, res) => {
     if (!needUser(req, res)) return;
-    const me = db.prepare('SELECT username, email, display_name, bio, email_verified_at FROM users WHERE id = ?').get(req.user.id);
+    const me = db.prepare('SELECT username, email, display_name, avatar, bio, email_verified_at FROM users WHERE id = ?').get(req.user.id);
     me.favorites = db.prepare('SELECT al.slug FROM favorites f JOIN albums al ON al.id = f.album_id WHERE f.user_id = ? ORDER BY position')
       .all(req.user.id).map((x) => x.slug);
     send(req, res, {
       title: 'Paramètres', path: '/compte', theme: 'light', noindex: true,
-      body: settingsPage({ me, albums: q.albums({ sort: 'title' }) }), scripts: ['/js/pages/account.js'],
+      body: settingsPage({ me, albums: q.albums({ sort: 'title' }), picks: q.avatarPicks(req.user.id) }), scripts: ['/js/pages/account.js'],
     });
   });
 

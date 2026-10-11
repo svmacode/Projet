@@ -89,7 +89,7 @@ export function destroySession(db, req, res) {
 
 export function sessionMiddleware(db) {
   const find = db.prepare(`
-    SELECT s.token_hash, s.csrf, u.id, u.username, u.display_name, u.email, u.email_verified_at
+    SELECT s.token_hash, s.csrf, u.id, u.username, u.display_name, u.avatar, u.email, u.email_verified_at
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.expires_at > datetime('now')`);
   let lastCleanup = 0;
@@ -106,6 +106,7 @@ export function sessionMiddleware(db) {
         id: row.id,
         username: row.username,
         displayName: row.display_name,
+        avatar: row.avatar,
         email: row.email,
         verified: Boolean(row.email_verified_at),
       };

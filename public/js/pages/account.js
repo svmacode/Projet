@@ -142,3 +142,89 @@ if (consentStatus) {
   });
 }
 
+
+// ---------- Photo de profil ----------
+const editor = document.querySelector('[data-avatar-editor]');
+if (editor) {
+  const preview = editor.querySelector('[data-avatar-preview]');
+  const removeBtn = editor.querySelector('[data-avatar-remove]');
+  const fileInput = editor.querySelector('[data-avatar-file]');
+  const results = editor.querySelector('[data-avatar-results]');
+  const initial = preview.textContent.trim();
+
+  // Met à jour l'aperçu, le rond du menu et l'état des pochettes.
+  const show = (url, album = null) => {
+    const html = (cls) => (url
+      ? `<span class="avatar avatar-img ${cls}" aria-hidden="true"><img src="${url}" alt="" width="96" height="96"></span>`
+      : `<span class="avatar ${cls}" aria-hidden="true">${initial}</span>`);
+    preview.innerHTML = html('avatar-xxl');
+    const me = document.querySelector('.gnav-me');
+    if (me) me.innerHTML = url ? `<img src="${url}" alt="" width="64" height="64">` : (document.querySelector('[name="displayName"]')?.value || initial).slice(0, 1).toUpperCase();
+    removeBtn.hidden = !url;
+    editor.querySelectorAll('[data-avatar-album]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.avatarAlbum === album)));
+  };
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) return toast('Image trop lourde : 5 Mo maximum.', { error: true });
+    const label = editor.querySelector('label[for="avatar-file"]');
+    busy(label, true);
+    try {
+      const { avatar } = await api('/me/avatar', { method: 'POST', file });
+      show(avatar);
+      toast('Photo de profil mise à jour');
+    } catch (err) { toast(err.message, { error: true }); }
+    busy(label, false);
+  });
+
+  editor.addEventListener('click', async (e) => {
+    const pick = e.target.closest('[data-avatar-album]');
+    if (!pick) return;
+    try {
+      const { avatar } = await api('/me/avatar', { method: 'PUT', body: { album: pick.dataset.avatarAlbum } });
+      show(avatar, pick.dataset.avatarAlbum);
+      toast('Pochette choisie comme photo de profil');
+    } catch (err) { toast(err.message, { error: true }); }
+  });
+
+  removeBtn.addEventListener('click', async () => {
+    try {
+      await api('/me/avatar', { method: 'DELETE' });
+      show(null);
+      toast('Photo de profil retirée');
+    } catch (err) { toast(err.message, { error: true }); }
+  });
+
+  // Recherche d'une autre pochette dans tout le catalogue.
+  let timer;
+  editor.querySelector('[data-avatar-search]').addEventListener('input', (e) => {
+    clearTimeout(timer);
+    const text = e.target.value.trim();
+    if (text.length < 2) { results.replaceChildren(); return; }
+    timer = setTimeout(async () => {
+      try {
+        const { albums } = await api(`/albums?q=${encodeURIComponent(text)}&par=18&tri=popular`);
+        results.replaceChildren(...albums.map((a) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'avatar-pick';
+          b.dataset.avatarAlbum = a.slug;
+          b.setAttribute('aria-pressed', 'false');
+          b.setAttribute('aria-label', `${a.title}, ${a.artist.name}`);
+          b.title = `${a.title} — ${a.artist.name}`;
+          const img = document.createElement('img');
+          img.src = `${a.cover}-300.webp${a.v || ''}`;
+          img.alt = '';
+          img.width = 64;
+          img.height = 64;
+          img.loading = 'lazy';
+          b.append(img);
+          return b;
+        }));
+        if (!albums.length) results.textContent = 'Aucun album trouvé.';
+      } catch { /* recherche indisponible : on n'insiste pas */ }
+    }, 250);
+  });
+}

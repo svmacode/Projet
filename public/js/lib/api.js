@@ -9,7 +9,8 @@ export class ApiError extends Error {
 
 const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content || '';
 
-export async function api(path, { method = 'GET', body } = {}) {
+// `file` : envoie un fichier tel quel (photo de profil) au lieu d'un corps JSON.
+export async function api(path, { method = 'GET', body, file } = {}) {
   let res;
   try {
     res = await fetch(`/api/v1${path}`, {
@@ -17,10 +18,10 @@ export async function api(path, { method = 'GET', body } = {}) {
       credentials: 'same-origin',
       headers: {
         Accept: 'application/json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(file ? { 'Content-Type': file.type || 'application/octet-stream' } : body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(method !== 'GET' ? { 'X-CSRF-Token': csrf() } : {}),
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: file || (body !== undefined ? JSON.stringify(body) : undefined),
     });
   } catch {
     // En local, la cause est presque toujours un serveur arrêté (fenêtre de commande fermée).

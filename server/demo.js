@@ -11,6 +11,8 @@ export async function seedDemo(db) {
     { username: 'sofia_demo', name: 'Sofia', bio: 'Marseille dans le cœur, Paris dans les oreilles.' },
     { username: 'karim_demo', name: 'Karim', bio: 'Collectionneur de vinyles des années 90.' },
     { username: 'lina_demo', name: 'Lina', bio: 'Drill, mélo et albums-concepts.' },
+    { username: 'nadir_demo', name: 'Nadir', bio: 'Rap lyonnais et boom-bap avant tout.' },
+    { username: 'ines_demo', name: 'Inès', bio: 'Je découvre le rap français album par album.' },
   ];
 
   const reviews = [
@@ -24,6 +26,9 @@ export async function seedDemo(db) {
     ['lina_demo', 'laylow-trinity', 9, 'Un film plus qu’un album. La production est folle.'],
     ['lina_demo', 'tiakola-melo', 8, 'Des refrains qui restent des semaines.'],
     ['lina_demo', 'iam-l-ecole-du-micro-d-argent', 8, 'Je comprends enfin pourquoi tout le monde en parle.'],
+    ['nadir_demo', 'ntm-paris-sous-les-bombes', 9, 'Le son de Paris en 1995, sans filtre.'],
+    ['nadir_demo', 'mc-solaar-prose-combat', 8, ''],
+    ['ines_demo', 'pnl-dans-la-legende', 8, 'Mon premier album de PNL, et sûrement pas le dernier.'],
   ];
 
   const ids = {};
@@ -47,7 +52,7 @@ export async function seedDemo(db) {
       .run(ids[user], album(slug), rating, rating === 10 ? 1 : 0);
   });
 
-  for (const [a, b] of [['sofia_demo', 'karim_demo'], ['karim_demo', 'sofia_demo'], ['lina_demo', 'sofia_demo'], ['sofia_demo', 'lina_demo'], ['karim_demo', 'lina_demo']]) {
+  for (const [a, b] of [['sofia_demo', 'karim_demo'], ['karim_demo', 'sofia_demo'], ['lina_demo', 'sofia_demo'], ['sofia_demo', 'lina_demo'], ['karim_demo', 'lina_demo'], ['nadir_demo', 'sofia_demo'], ['nadir_demo', 'karim_demo']]) {
     db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id) VALUES (?, ?)').run(ids[a], ids[b]);
   }
 

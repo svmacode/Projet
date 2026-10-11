@@ -39,7 +39,7 @@ function client() {
     if (data && data.csrf) csrf = data.csrf;
     return { status: res.status, data, headers: res.headers };
   };
-  return { call, get cookie() { return cookie; } };
+  return { call, get cookie() { return cookie; }, get csrf() { return csrf; } };
 }
 
 async function register(c, username) {
@@ -184,4 +184,65 @@ test('mot de passe oublié : même réponse que l\'adresse existe ou non', async
   assert.equal((await client().call('POST', '/api/v1/auth/reset', { token, password: 'nouvelle phrase solide' })).status, 200);
   assert.equal((await client().call('POST', '/api/v1/auth/reset', { token, password: 'nouvelle phrase solide' })).status, 400);
   assert.equal((await client().call('POST', '/api/v1/auth/login', { login: 'awa', password: 'nouvelle phrase solide' })).status, 200);
+});
+
+test('photo de profil : import recodé, pochette au choix, retrait et effacement du fichier', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const sharp = (await import('sharp')).default;
+  const { avatarDir } = await import('../server/avatars.js');
+  const c = client();
+  await register(c, 'photomembre');
+  const upload = (body, type) => fetch(`${base}/api/v1/me/avatar`, {
+    method: 'POST', body, headers: { 'Content-Type': type, Cookie: c.cookie, 'X-CSRF-Token': c.csrf },
+  }).then(async (r) => ({ status: r.status, data: await r.json() }));
+
+  // Un faux fichier image est refusé.
+  const fake = await upload(Buffer.from('<script>alert(1)</script>'), 'image/png');
+  assert.equal(fake.status, 400);
+  // Une vraie image est recodée en WebP 400 × 400, sous un nom aléatoire.
+  const png = await sharp({ create: { width: 900, height: 600, channels: 3, background: '#c33' } }).png().toBuffer();
+  const ok = await upload(png, 'image/png');
+  assert.equal(ok.status, 200, JSON.stringify(ok.data));
+  assert.match(ok.data.avatar, /^\/img\/avatars\/[a-f0-9]{32}\.webp$/);
+  const file = path.join(avatarDir, path.basename(ok.data.avatar));
+  const meta = await sharp(file).metadata();
+  assert.equal(meta.format, 'webp');
+  assert.equal(meta.width, 400);
+  assert.equal(meta.height, 400);
+  const served = await fetch(base + ok.data.avatar);
+  assert.equal(served.status, 200);
+  assert.match((await c.call('GET', '/membre/photomembre')).data, new RegExp(ok.data.avatar));
+
+  // Choisir une pochette efface l'ancienne photo du disque.
+  const pick = await c.call('PUT', '/api/v1/me/avatar', { album: 'pnl-dans-la-legende' });
+  assert.equal(pick.status, 200);
+  assert.equal(pick.data.avatar, '/img/covers/pnl-dans-la-legende-300.webp');
+  assert.equal(fs.existsSync(file), false);
+  assert.equal((await c.call('PUT', '/api/v1/me/avatar', { album: '../../secret' })).status, 400);
+  assert.equal((await c.call('DELETE', '/api/v1/me/avatar')).status, 200);
+  assert.equal((await c.call('GET', '/api/v1/me')).data.me.avatar, null);
+  // Un nom de fichier inventé n'est pas servi.
+  assert.equal((await fetch(`${base}/img/avatars/..%2F..%2Fsecret.key`)).status, 404);
+});
+
+test('page Amis : recherche de membres, suivre en retour, amis', async () => {
+  const a = client();
+  const b = client();
+  await register(a, 'amina');
+  await register(b, 'bilal');
+  assert.equal((await client().call('GET', '/api/v1/users?q=bil')).status, 401);
+  const found = await a.call('GET', '/api/v1/users?q=bil');
+  assert.equal(found.status, 200);
+  assert.deepEqual(found.data.users.map((u) => u.username), ['bilal']);
+  assert.equal(found.data.users[0].isFollowing, false);
+  await b.call('POST', '/api/v1/users/amina/follow');
+  const page = await a.call('GET', '/amis');
+  assert.equal(page.status, 200);
+  assert.match(page.data, /Ils te suivent/);
+  assert.match(page.data, /Suivre en retour/);
+  const back = await a.call('POST', '/api/v1/users/bilal/follow');
+  assert.equal(back.data.friends, true);
+  assert.match((await a.call('GET', '/amis')).data, /Tes amis[\s\S]*bilal/);
+  assert.equal((await client().call('GET', '/amis')).status, 303);
 });

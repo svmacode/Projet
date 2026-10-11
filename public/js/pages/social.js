@@ -1,25 +1,62 @@
-// Profils et listes : suivre un membre, créer une liste, la modifier.
+// Profils, page Amis et listes : suivre un membre, en chercher un, créer une liste, la modifier.
 import { api, loginRedirect } from '../lib/api.js';
 import { toast, validateForm, liveValidation, showServerErrors, busy } from '../lib/ui.js';
+import { initFollow, followLabel } from '../lib/follow.js';
 
 const fail = (err) => (err.status === 401 ? loginRedirect() : toast(err.message, { error: true }));
 
-const follow = document.querySelector('[data-follow]');
-follow?.addEventListener('click', async () => {
-  const following = follow.getAttribute('aria-pressed') === 'true';
-  busy(follow, true);
-  try {
-    const res = await api(`/users/${follow.dataset.follow}/follow`, { method: following ? 'DELETE' : 'POST' });
-    follow.setAttribute('aria-pressed', String(res.following));
-    follow.textContent = res.following ? (res.friends ? 'Amis' : 'Abonné') : 'Suivre';
-    follow.classList.toggle('btn-primary', !res.following);
-    follow.classList.toggle('btn-quiet', res.following);
-    const counter = document.querySelector('[data-followers]');
-    if (counter) counter.textContent = Number(counter.textContent) + (res.following ? 1 : -1);
-    toast(res.following ? (res.friends ? 'Vous êtes maintenant amis' : 'Abonnement ajouté') : 'Abonnement retiré');
-  } catch (err) { fail(err); }
-  busy(follow, false);
-});
+initFollow();
+
+// ---------- Page Amis : recherche de membres ----------
+const search = document.querySelector('[data-member-search]');
+if (search) {
+  const results = document.querySelector('[data-member-results]');
+  const status = document.querySelector('[data-member-status]');
+  let timer;
+  const row = (u) => {
+    const li = document.createElement('li');
+    li.className = 'person';
+    const link = document.createElement('a');
+    link.className = 'person-id';
+    link.href = `/membre/${u.username}`;
+    const av = document.createElement('span');
+    av.className = `avatar avatar-lg${u.avatar ? ' avatar-img' : ''}`;
+    av.setAttribute('aria-hidden', 'true');
+    if (u.avatar) {
+      const img = document.createElement('img');
+      img.src = u.avatar; img.alt = ''; img.width = 96; img.height = 96;
+      av.append(img);
+    } else av.textContent = (u.displayName || u.username).slice(0, 1).toUpperCase();
+    const text = document.createElement('span');
+    const name = document.createElement('strong');
+    name.textContent = u.displayName;
+    const meta = document.createElement('small');
+    meta.textContent = `@${u.username} · ${u.listened} album${u.listened > 1 ? 's' : ''}${u.followsMe ? ' · te suit' : ''}`;
+    text.append(name, ' ', meta);
+    link.append(av, text);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn btn-sm ${u.isFollowing ? 'btn-quiet' : 'btn-primary'}`;
+    btn.dataset.follow = u.username;
+    btn.dataset.followsMe = u.followsMe ? '1' : '0';
+    btn.setAttribute('aria-pressed', String(u.isFollowing));
+    btn.textContent = followLabel(u.isFollowing, u.followsMe);
+    li.append(link, btn);
+    return li;
+  };
+  search.addEventListener('input', () => {
+    clearTimeout(timer);
+    const text = search.value.trim();
+    if (text.length < 2) { results.replaceChildren(); status.textContent = ''; return; }
+    timer = setTimeout(async () => {
+      try {
+        const { users } = await api(`/users?q=${encodeURIComponent(text)}`);
+        results.replaceChildren(...users.map(row));
+        status.textContent = users.length ? `${users.length} membre${users.length > 1 ? 's' : ''} trouvé${users.length > 1 ? 's' : ''}` : 'Aucun membre ne correspond.';
+      } catch (err) { fail(err); }
+    }, 250);
+  });
+}
 
 const newList = document.querySelector('[data-new-list]');
 if (newList) {

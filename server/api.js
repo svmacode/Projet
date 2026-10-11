@@ -9,6 +9,7 @@ import {
 import { verifyEmail, resetEmail } from './mailer.js';
 import { readFilters } from './pages.js';
 import { catalogStatus } from './auto-images.js';
+import { saveUpload, removeAvatarFile, avatarUrl } from './avatars.js';
 
 const limiter = (windowMinutes, limit, message) => rateLimit({
   windowMs: windowMinutes * 60_000,
@@ -292,6 +293,18 @@ export function apiRouter(db, q) {
   });
 
   // ---------- Membres et amis ----------
+  // Recherche de membres (page Amis) : réservée aux membres connectés.
+  api.get('/users', requireAuth, (req, res) => {
+    const text = String(req.query.q || '').trim().slice(0, 40);
+    if (text.length < 2) return res.json({ users: [] });
+    res.json({
+      users: q.searchMembers(text, req.user.id).map((u) => ({
+        username: u.username, displayName: u.display_name, avatar: avatarUrl(u.avatar), listened: u.listened,
+        isFollowing: Boolean(u.isFollowing), followsMe: Boolean(u.followsMe),
+      })),
+    });
+  });
+
   api.get('/users/:username', (req, res) => {
     const profile = q.profile(req.params.username, req.user?.id || 0);
     if (!profile) return res.status(404).json({ error: 'Membre introuvable.' });
@@ -376,7 +389,7 @@ export function apiRouter(db, q) {
 
   // ---------- Mon compte (RGPD : accès, rectification, portabilité, effacement) ----------
   api.get('/me', requireAuth, (req, res) => {
-    const u = db.prepare('SELECT username, email, display_name, bio, email_verified_at, created_at FROM users WHERE id = ?').get(req.user.id);
+    const u = db.prepare('SELECT username, email, display_name, avatar, bio, email_verified_at, created_at FROM users WHERE id = ?').get(req.user.id);
     const favorites = db.prepare('SELECT al.slug FROM favorites f JOIN albums al ON al.id = f.album_id WHERE f.user_id = ? ORDER BY position')
       .all(req.user.id).map((r) => r.slug);
     res.json({ me: { ...u, favorites } });
@@ -403,6 +416,42 @@ export function apiRouter(db, q) {
     res.json({ ok: true });
   });
 
+  // ---------- Photo de profil ----------
+  const avatarLimiter = limiter(60, 20, 'Trop de changements de photo : réessaie dans une heure.');
+  const setAvatar = (userId, value) => {
+    const { avatar: old } = db.prepare('SELECT avatar FROM users WHERE id = ?').get(userId);
+    db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(value, userId);
+    if (old !== value) removeAvatarFile(old);
+  };
+
+  // Photo importée : le corps de la requête est l'image elle-même (5 Mo au plus).
+  api.post('/me/avatar', requireAuth, avatarLimiter,
+    express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif', 'image/avif'], limit: '5mb' }),
+    async (req, res) => {
+      if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Choisis une image JPEG, PNG, WebP ou GIF.' });
+      try {
+        const value = await saveUpload(req.body);
+        setAvatar(req.user.id, value);
+        res.json({ avatar: avatarUrl(value) });
+      } catch (err) {
+        if (err.status === 400) return res.status(400).json({ error: err.message });
+        throw err;
+      }
+    });
+
+  // Pochette d'album choisie comme photo.
+  api.put('/me/avatar', requireAuth, avatarLimiter, (req, res) => {
+    const slug = typeof req.body?.album === 'string' ? req.body.album.slice(0, 200) : '';
+    if (!q.albumId(slug)) return res.status(400).json({ error: 'Album introuvable.' });
+    setAvatar(req.user.id, `c:${slug}`);
+    res.json({ avatar: avatarUrl(`c:${slug}`) });
+  });
+
+  api.delete('/me/avatar', requireAuth, (req, res) => {
+    setAvatar(req.user.id, null);
+    res.json({ avatar: null });
+  });
+
   api.put('/me/password', requireAuth, authLimiter, async (req, res) => {
     const data = validate(schemas.changePassword, req, res);
     if (!data) return;
@@ -421,7 +470,7 @@ export function apiRouter(db, q) {
     const all = (sql) => db.prepare(sql).all(id);
     const data = {
       exportedAt: new Date().toISOString(),
-      account: db.prepare('SELECT username, email, display_name, bio, email_verified_at, terms_accepted_at, created_at, utm_source, utm_medium, utm_campaign FROM users WHERE id = ?').get(id),
+      account: db.prepare('SELECT username, email, display_name, avatar, bio, email_verified_at, terms_accepted_at, created_at, utm_source, utm_medium, utm_campaign FROM users WHERE id = ?').get(id),
       albums: all('SELECT al.slug, al.title, s.rating, s.liked, s.listened, s.wishlist, s.updated_at FROM user_albums s JOIN albums al ON al.id = s.album_id WHERE s.user_id = ?'),
       diary: all('SELECT al.slug, al.title, r.rating, r.body, r.listened_on, r.created_at FROM reviews r JOIN albums al ON al.id = r.album_id WHERE r.user_id = ?'),
       favorites: all('SELECT al.slug, f.position FROM favorites f JOIN albums al ON al.id = f.album_id WHERE f.user_id = ?'),
@@ -441,8 +490,10 @@ export function apiRouter(db, q) {
     if (!(await verifyPassword(data.password, password_hash))) {
       return res.status(400).json({ error: 'Mot de passe incorrect.', fields: { password: 'Mot de passe incorrect.' } });
     }
-    // Les clés étrangères en cascade suppriment toutes les données liées.
+    // Les clés étrangères en cascade suppriment toutes les données liées ; la photo est effacée du disque.
+    const { avatar } = db.prepare('SELECT avatar FROM users WHERE id = ?').get(req.user.id);
     db.prepare('DELETE FROM users WHERE id = ?').run(req.user.id);
+    removeAvatarFile(avatar);
     destroySession(db, req, res);
     res.json({ ok: true });
   });

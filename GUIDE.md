@@ -21,7 +21,8 @@ Ce guide explique ce qui est en place, ce qui reste à faire de ton côté, et c
   - note en demi-étoiles et journal d'écoute daté ;
   - chroniques, j'aime et signalements ;
   - listes et 4 albums favoris ;
-  - suivre des membres : deux abonnements réciproques font des **amis** ;
+  - suivre des membres : deux abonnements réciproques font des **amis** ; la page **Amis** (menu) permet de chercher un membre, de suivre en retour ceux qui te suivent et propose des suggestions ;
+  - **photo de profil** au choix : une photo importée (recadrée, métadonnées effacées) ou une pochette d'album ;
   - fil d'actu.
 - **Mouvement** :
   - défilement doux avec inertie (Lenis) ;
@@ -248,7 +249,6 @@ Ton PC ouvre une connexion sortante vers Cloudflare, qui sert le site au public 
 ## 8. Prochaines étapes possibles
 
 - Interface d'administration : traiter les signalements, suspendre un compte.
-- Photo de profil (envoi d'image, à sécuriser).
 - Commentaires sous les chroniques, notifications, blocage d'un membre.
 - Pistes et durée des albums, liens d'écoute vers les plateformes.
 - Statistiques annuelles du membre, sur le modèle du « Year in Review » de Letterboxd.

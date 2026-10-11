@@ -2,6 +2,7 @@ import { html, raw, jsonForScript } from '../html.js';
 import { config } from '../config.js';
 import { icon } from './components.js';
 import { lastCatalogUpdate } from '../catalog.js';
+import { avatarUrl } from '../avatars.js';
 
 export const SITE = {
   name: 'MyRapFr',
@@ -18,6 +19,7 @@ function nav(user, path) {
         ${link('/rappeurs', 'Rappeurs')}
         ${link('/#apropos', 'À propos')}
         ${user ? link('/fil', 'Fil d’actu') : ''}
+        ${user ? link('/amis', 'Amis') : ''}
         <div class="gnav-mobile-extra">
           ${user
             ? html`<a href="/membre/${user.username}">Mon profil</a><a href="/compte">Paramètres</a>`
@@ -30,7 +32,7 @@ function nav(user, path) {
           <span class="theme-icon-dark">${icon('moon')}</span><span class="theme-icon-light">${icon('sun')}</span>
         </button>
         ${user
-          ? html`<a class="gnav-me" href="/membre/${user.username}" aria-label="Mon profil">${user.displayName.slice(0, 1).toUpperCase()}</a>`
+          ? html`<a class="gnav-me" href="/membre/${user.username}" aria-label="Mon profil">${avatarUrl(user.avatar) ? html`<img src="${avatarUrl(user.avatar)}" alt="" width="64" height="64">` : user.displayName.slice(0, 1).toUpperCase()}</a>`
           : html`<a class="gnav-login" href="/connexion">Connexion</a>`}
         <button class="gnav-burger" type="button" aria-expanded="false" aria-controls="gnav-links" aria-label="Ouvrir le menu" data-burger>
           <span></span><span></span>

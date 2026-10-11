@@ -36,7 +36,7 @@ export function privacyPage() {
       <thead><tr><th scope="col">Données</th><th scope="col">Pourquoi</th><th scope="col">Base légale</th><th scope="col">Durée</th></tr></thead>
       <tbody>
         <tr><td>Pseudo, adresse e-mail, mot de passe (stocké sous forme de hachage scrypt, jamais en clair)</td><td>Créer et sécuriser ton compte</td><td>Exécution du contrat (CGU)</td><td>Tant que le compte existe</td></tr>
-        <tr><td>Nom affiché, bio, albums favoris</td><td>Ton profil public</td><td>Exécution du contrat</td><td>Tant que le compte existe</td></tr>
+        <tr><td>Nom affiché, bio, albums favoris, photo de profil (facultative)</td><td>Ton profil public</td><td>Exécution du contrat</td><td>Tant que le compte existe ; une photo remplacée ou retirée est effacée aussitôt</td></tr>
         <tr><td>Notes, écoutes, chroniques, listes, j'aime, abonnements</td><td>Le service MyRapFr lui-même</td><td>Exécution du contrat</td><td>Tant que le compte existe, ou jusqu'à suppression par toi</td></tr>
         <tr><td>Cookie de session (identifiant aléatoire)</td><td>Te garder connecté</td><td>Intérêt légitime, cookie strictement nécessaire</td><td>30 jours maximum</td></tr>
         <tr><td>Adresse IP (en mémoire vive uniquement)</td><td>Limiter les abus (anti-spam, tentatives de connexion)</td><td>Intérêt légitime</td><td>15 minutes à 1 heure, jamais écrite sur disque</td></tr>
@@ -47,7 +47,7 @@ export function privacyPage() {
     </table>
 
     <h2>Ce qui est public</h2>
-    <p>Ton pseudo, ton nom affiché, ta bio, tes favoris, ton journal d'écoute, tes notes, chroniques, listes, abonnés et abonnements sont visibles par tous. Ton adresse e-mail n'est jamais affichée.</p>
+    <p>Ton pseudo, ton nom affiché, ta photo de profil, ta bio, tes favoris, ton journal d'écoute, tes notes, chroniques, listes, abonnés et abonnements sont visibles par tous. Ton adresse e-mail n'est jamais affichée.</p>
 
     <h2>Destinataires</h2>
     <p>Tes données ne sont ni vendues ni louées. Elles sont uniquement accessibles à l'éditeur du site. Si un prestataire technique est ajouté (hébergement, envoi d'e-mails), il sera listé ici et lié par un contrat conforme à l'article 28 du RGPD.</p>

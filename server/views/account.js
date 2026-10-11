@@ -1,5 +1,5 @@
 import { html, raw } from '../html.js';
-import { antiSpamFields } from './components.js';
+import { antiSpamFields, avatar } from './components.js';
 
 const field = ({ id, label, type = 'text', autocomplete, help, attrs = '', value = '' }) => html`
   <div class="field">
@@ -77,13 +77,37 @@ export function confirmPage({ token }) {
     </div>`);
 }
 
-export function settingsPage({ me, albums }) {
+export function settingsPage({ me, albums, picks = [] }) {
   return html`
   <section class="page-head">
     <h1 class="display">Paramètres.</h1>
     <p class="lede">Ton profil, ta sécurité et tes données.</p>
   </section>
   <section class="settings">
+    <div class="panel" data-avatar-editor>
+      <h2 class="h-section">Photo de profil</h2>
+      <div class="avatar-editor">
+        <span data-avatar-preview>${avatar(me, 'avatar-xxl')}</span>
+        <div>
+          <div class="avatar-actions">
+            <label class="btn btn-primary" for="avatar-file">Importer une photo</label>
+            <input id="avatar-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/heic,image/avif" data-avatar-file>
+            <button class="btn btn-quiet" type="button" data-avatar-remove ${me.avatar ? '' : 'hidden'}>Retirer</button>
+          </div>
+          <p class="field-help">JPEG, PNG, WebP ou GIF, 5 Mo maximum. L'image est recadrée en carré ; ses métadonnées (lieu, appareil) sont effacées.</p>
+        </div>
+      </div>
+      <h3 class="h-sub">Ou choisis une pochette</h3>
+      <div class="avatar-picks" data-avatar-picks>
+        ${picks.map((a) => html`<button type="button" class="avatar-pick" data-avatar-album="${a.slug}" aria-pressed="${me.avatar === `c:${a.slug}` ? 'true' : 'false'}" aria-label="${a.title}, ${a.artist.name}" title="${a.title} — ${a.artist.name}"><img src="${a.cover}-300.webp${a.v}" alt="" width="64" height="64" loading="lazy"></button>`)}
+      </div>
+      <div class="field avatar-search">
+        <label for="avatar-q">Chercher une autre pochette</label>
+        <input id="avatar-q" type="search" placeholder="Titre ou artiste" autocomplete="off" data-avatar-search>
+      </div>
+      <div class="avatar-picks" data-avatar-results></div>
+    </div>
+
     <form class="form panel" data-form="profile" novalidate>
       <h2 class="h-section">Profil public</h2>
       <p class="form-error" role="alert" data-form-error></p>

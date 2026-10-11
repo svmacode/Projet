@@ -2,7 +2,7 @@ import { html } from '../html.js';
 import { tile, cover, stars, review, avatar, icon, formatDate } from './components.js';
 
 export function profilePage({ profile: p, user }) {
-  const followBtn = !p.isMe && user ? html`<button type="button" class="btn ${p.isFollowing ? 'btn-quiet' : 'btn-primary'}" data-follow="${p.username}" aria-pressed="${p.isFollowing ? 'true' : 'false'}">${p.isFollowing ? (p.followsMe ? 'Amis' : 'Abonné') : 'Suivre'}</button>`
+  const followBtn = !p.isMe && user ? html`<button type="button" class="btn ${p.isFollowing ? 'btn-quiet' : 'btn-primary'}" data-follow="${p.username}" data-follows-me="${p.followsMe ? '1' : '0'}" data-follow-count aria-pressed="${p.isFollowing ? 'true' : 'false'}">${followLabel(p)}</button>`
     : !user ? html`<a class="btn btn-quiet" href="/connexion?retour=/membre/${p.username}">Suivre</a>` : '';
   return html`
   <article class="profile">
@@ -72,7 +72,7 @@ export function profilePage({ profile: p, user }) {
 
     <section id="amis" class="profile-section" aria-labelledby="friends-t">
       <h2 id="friends-t" class="h-section">Amis</h2>
-      <p class="field-help">Un ami, c'est quelqu'un que tu suis et qui te suit.</p>
+      <p class="field-help">Un ami, c'est quelqu'un que tu suis et qui te suit.${p.isMe ? html` <a href="/amis">Trouver et ajouter des amis</a>` : ''}</p>
       ${p.friends.length ? html`<ul class="people">${p.friends.map((f) => html`<li><a href="/membre/${f.username}">${avatar(f)} <span>${f.display_name}</span></a></li>`)}</ul>` : html`<p class="empty-note">Pas encore d'amis ici.</p>`}
     </section>
   </article>`;
@@ -121,5 +121,50 @@ export function feedPage({ feed, recent, user }) {
           <p class="empty-note">Ton fil est vide. Suis des membres pour voir leurs écoutes ici.</p>
           ${recent.length ? html`<h2 class="h-section">Chroniques récentes sur MyRapFr</h2>${recent.map((r) => review(r, { showAlbum: true }))}` : ''}
         </div>`}
+  </section>`;
+}
+
+// Bouton « Suivre » : son texte dépend de la relation (voir public/js/lib/follow.js, qui le met à jour).
+export const followLabel = ({ isFollowing, followsMe }) => (isFollowing ? (followsMe ? 'Amis' : 'Abonné') : followsMe ? 'Suivre en retour' : 'Suivre');
+export const followButton = (p) => html`<button type="button" class="btn btn-sm ${p.isFollowing ? 'btn-quiet' : 'btn-primary'}" data-follow="${p.username}" data-follows-me="${p.followsMe ? '1' : '0'}" aria-pressed="${p.isFollowing ? 'true' : 'false'}">${followLabel(p)}</button>`;
+
+const personRow = (p, note = '') => html`<li class="person">
+  <a class="person-id" href="/membre/${p.username}">${avatar(p, 'avatar-lg')}
+    <span><strong>${p.display_name}</strong> <small>@${p.username} · ${p.listened} album${p.listened > 1 ? 's' : ''}${note ? ` · ${note}` : ''}</small></span></a>
+  ${followButton(p)}
+</li>`;
+
+export function friendsPage({ hub, inviteUrl }) {
+  const block = (id, title, people, empty, note) => html`
+    <section class="friends-block" aria-labelledby="${id}">
+      <h2 id="${id}" class="h-section">${title} ${people.length ? html`<span class="count">${people.length}</span>` : ''}</h2>
+      ${people.length ? html`<ul class="persons">${people.map((p) => personRow(p, note?.(p)))}</ul>` : html`<p class="empty-note">${empty}</p>`}
+    </section>`;
+  return html`
+  <section class="page-head">
+    <h1 class="display">Amis.</h1>
+    <p class="lede">Suis des membres pour voir leurs écoutes dans ton fil. Quand vous vous suivez tous les deux, vous êtes amis.</p>
+  </section>
+  <section class="page-body friends">
+    <div class="friends-search panel">
+      <h2 class="h-section">Trouver un membre</h2>
+      <div class="field">
+        <label for="member-q">Pseudo ou nom</label>
+        <input id="member-q" type="search" placeholder="Par exemple : sofia" autocomplete="off" data-member-search>
+        <p class="field-help" data-member-status aria-live="polite"></p>
+      </div>
+      <ul class="persons" data-member-results></ul>
+    </div>
+
+    ${hub.requests.length ? block('req-t', 'Ils te suivent', hub.requests, '', () => 'te suit') : ''}
+    ${block('friends-t', 'Tes amis', hub.friends, "Pas encore d'amis. Suis quelqu'un ; s'il te suit en retour, vous serez amis.")}
+    ${hub.following.length ? block('following-t', 'Tu les suis', hub.following, '') : ''}
+    ${block('sugg-t', 'Suggestions', hub.suggestions, 'Aucune suggestion pour le moment : invite tes amis !', (p) => (p.common ? `suivi par ${p.common} de tes abonnements` : ''))}
+
+    <div class="panel invite">
+      <h2 class="h-section">Invite tes amis</h2>
+      <p>Envoie-leur ce lien : une fois inscrits, cherche leur pseudo ci-dessus.</p>
+      <button class="btn btn-quiet" type="button" data-copy-text="${inviteUrl}">${icon('copy')}<span>Copier le lien d'invitation</span></button>
+    </div>
   </section>`;
 }
