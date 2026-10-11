@@ -138,6 +138,17 @@ Pour vérifier ou corriger le résultat :
 
 ---
 
+## 3 bis. Dépannage
+
+`npm start` vérifie d'abord ton installation et affiche ce qui bloque, en français :
+- **« le port est déjà utilisé »** : le site tourne déjà dans une autre fenêtre de commande. Ouvre simplement https://localhost:8443, ou ferme l'autre fenêtre (Ctrl+C) et relance `npm start`.
+- **« les dépendances ne sont pas installées »** : lance `npm install` dans le dossier du site.
+- **« Node.js est trop ancien »** : installe la version LTS sur https://nodejs.org/, puis rouvre l'invite de commandes.
+- **« Missing script: start » ou « ENOENT package.json »** : l'invite de commandes n'est pas dans le bon dossier. Après avoir décompressé le ZIP, entre dans le dossier qui contient `package.json` (`cd` puis glisse le dossier dans la fenêtre).
+- **Le navigateur affiche une alerte de sécurité** : c'est normal en local avec le certificat auto-signé. Clique sur « Paramètres avancés », puis « Continuer vers localhost ».
+
+---
+
 ## 4. Héberger depuis ton PC, gratuitement
 
 ### La méthode conseillée : Cloudflare Tunnel

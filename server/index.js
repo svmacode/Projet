@@ -7,9 +7,22 @@ import { autoFetchImages } from './auto-images.js';
 
 const app = createApp();
 
+// Port déjà pris ou interdit : message clair plutôt qu'une erreur technique.
+function onListenError(err) {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\nLe port ${err.port} est déjà utilisé : le site tourne sans doute déjà dans une autre fenêtre de commande.`
+      + '\nFerme-la (ou appuie sur Ctrl+C dedans), puis relance npm start. Sinon, choisis un autre port dans le fichier .env.\n');
+  } else if (err.code === 'EACCES') {
+    console.error(`\nWindows refuse l'accès au port ${err.port}. Choisis un autre port dans le fichier .env (par exemple PORT=8081).\n`);
+  } else {
+    console.error(err);
+  }
+  process.exit(1);
+}
+
 if (config.hasCert) {
   const tls = { cert: fs.readFileSync(config.certFile), key: fs.readFileSync(config.keyFile), minVersion: 'TLSv1.2' };
-  https.createServer(tls, app).listen(config.httpsPort, () => {
+  https.createServer(tls, app).on('error', onListenError).listen(config.httpsPort, () => {
     console.log(`MyRapFr en HTTPS : https://localhost:${config.httpsPort}`);
   });
   // Le port HTTP ne fait que rediriger vers HTTPS.
@@ -17,9 +30,9 @@ if (config.hasCert) {
     const host = (req.headers.host || 'localhost').replace(/:\d+$/, '');
     res.writeHead(301, { Location: `https://${host}:${config.httpsPort}${req.url}` });
     res.end();
-  }).listen(config.port, () => console.log(`Redirection HTTP → HTTPS sur le port ${config.port}`));
+  }).on('error', onListenError).listen(config.port, () => console.log(`Redirection HTTP → HTTPS sur le port ${config.port}`));
 } else {
-  http.createServer(app).listen(config.port, () => {
+  http.createServer(app).on('error', onListenError).listen(config.port, () => {
     console.log(`MyRapFr en HTTP : http://localhost:${config.port}`);
     if (!config.behindTlsProxy) console.log('Astuce : lance `npm run cert` pour activer HTTPS en local.');
   });

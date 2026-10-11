@@ -5,7 +5,9 @@
   "scripts": {
     "postinstall": "node scripts/vendor.js",
     "setup": "node scripts/images.js && node scripts/cert.js",
+    "prestart": "node scripts/preflight.js",
     "start": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env server/index.js",
+    "predev": "node scripts/preflight.js",
     "dev": "node --disable-warning=ExperimentalWarning --env-file-if-exists=.env --watch server/index.js",
     "cert": "node scripts/cert.js",
     "images": "node scripts/images.js",
