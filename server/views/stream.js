@@ -30,15 +30,20 @@ export const STREAM = {
   axis: 52, // position verticale de l'axe, en % de la hauteur
 };
 
+// Position d'une carte à l'instant u (0 = au fond, 1 = sortie du cadre).
+function place(dir, u, p) {
+  const scale = (p.birthHeight / p.cardHeight) * Math.pow(p.exitHeight / p.birthHeight, u);
+  const z = p.perspective * (1 - 1 / scale);
+  const rail = p.railExit - (p.railExit - p.railBirth) * Math.pow(1 - u, p.fan);
+  const turn = p.turnBirth + (p.turnExit - p.turnBirth) * u;
+  return `transform:translate3d(${(dir * rail).toFixed(2)}cqw,0,${z.toFixed(2)}cqw) rotateY(${(-dir * turn).toFixed(2)}deg)`;
+}
+
 function keyframes(dir, name, p) {
   const steps = [];
   for (let s = 0; s <= p.stops; s++) {
     const u = s / p.stops;
-    const scale = (p.birthHeight / p.cardHeight) * Math.pow(p.exitHeight / p.birthHeight, u);
-    const z = p.perspective * (1 - 1 / scale);
-    const rail = p.railExit - (p.railExit - p.railBirth) * Math.pow(1 - u, p.fan);
-    const turn = p.turnBirth + (p.turnExit - p.turnBirth) * u;
-    steps.push(`${(u * 100).toFixed(2)}%{transform:translate3d(${(dir * rail).toFixed(2)}cqw,0,${z.toFixed(2)}cqw) rotateY(${(-dir * turn).toFixed(2)}deg)}`);
+    steps.push(`${(u * 100).toFixed(2)}%{${place(dir, u, p)}}`);
   }
   return `@keyframes ${name}{${steps.join('')}}`;
 }
@@ -58,7 +63,10 @@ export function streamCss(p = STREAM) {
     delays,
     keyframes(1, 'ish-r', p),
     keyframes(-1, 'ish-l', p),
-    // Mouvement réduit : le corridor se fige, plein, au lieu de s'effondrer sur l'axe.
-    '@media (prefers-reduced-motion: reduce){.ish-card{animation-play-state:paused}}',
+    // Mouvement réduit : le corridor reste plein mais immobile. Chaque carte reçoit la position
+    // qu'elle aurait au départ de l'animation (une animation en pause ne suffit pas : certains
+    // navigateurs ignorent alors le décalage et empilent toutes les cartes au même endroit).
+    `@media (prefers-reduced-motion: reduce){.ish-card{animation:none;will-change:auto}${
+      Array.from({ length: p.cards }, (_, i) => `.ish-r.ish-i${i}{${place(1, i / p.cards, p)}}.ish-l.ish-i${i}{${place(-1, i / p.cards, p)}}`).join('')}}`,
   ].join('\n');
 }

@@ -108,6 +108,17 @@ export function layout({
   <link rel="stylesheet" href="/css/main.css">
   ${bodyClass.includes('page-home') ? html`<link rel="stylesheet" href="/css/stream.css">` : ''}
   <script src="/js/boot.js"></script>
+  <!-- Scripts annoncés avant les images : sinon, au premier affichage, ils attendent derrière les
+       pochettes en cours de fabrication et les animations démarrent en retard. -->
+  <link rel="preload" href="/vendor/gsap.min.js" as="script">
+  <link rel="preload" href="/vendor/ScrollTrigger.min.js" as="script">
+  <link rel="preload" href="/vendor/lenis.min.js" as="script">
+  <link rel="modulepreload" href="/js/app.js">
+  <link rel="modulepreload" href="/js/lib/api.js">
+  <link rel="modulepreload" href="/js/lib/ui.js">
+  <link rel="modulepreload" href="/js/lib/extras.js">
+  <link rel="modulepreload" href="/js/lib/search.js">
+  ${scripts.map((s) => html`<link rel="modulepreload" href="${s}">`)}
   ${jsonLd ? html`<script type="application/ld+json">${jsonForScript(jsonLd)}</script>` : ''}
 </head>
 <body class="${bodyClass}" ${raw(status ? `data-status="${status}"` : '')}>

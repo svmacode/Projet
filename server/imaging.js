@@ -213,6 +213,20 @@ async function ogImage(coverBuf, slug) {
     .jpeg({ quality: 78, mozjpeg: true }).toBuffer();
 }
 
+// Au plus trois images fabriquées en même temps : sharp et la lecture des fichiers partagent les
+// mêmes fils d'exécution de Node. Sans limite, une page pleine de pochettes neuves retardait
+// l'envoi des scripts de plusieurs secondes (et les animations de l'accueil ne démarraient pas).
+let running = 0;
+const queue = [];
+async function turn() {
+  if (running >= 3) await new Promise((r) => queue.push(r));
+  running++;
+}
+function done() {
+  running--;
+  queue.shift()?.();
+}
+
 const pending = new Map();
 // Fabrique (une seule fois, même si plusieurs visiteurs la demandent en même temps) puis renvoie le chemin.
 export function ensureImage(kind, slug, width) {
@@ -220,24 +234,30 @@ export function ensureImage(kind, slug, width) {
   if (fs.existsSync(file)) return Promise.resolve(file);
   if (pending.has(file)) return pending.get(file);
   const job = (async () => {
-    const base = kind === 'artists' ? await basePortrait(slug) : await baseCover(slug);
-    if (!base) return null;
-    const bucket = kind === 'og' ? 'covers' : kind;
-    if (!manifest[bucket][slug]) {
-      manifest[bucket][slug] = { color: await dominant(base), placeholder: !sourceFor(bucket, slug) };
-      scheduleSave();
-    }
-    let out;
-    if (kind === 'og') out = await ogImage(base, slug);
-    else if (kind === 'covers') out = await sharp(base).resize(width, width).webp({ quality: width === 300 ? 72 : 78, effort: 4 }).toBuffer();
-    else out = await sharp(base).resize(width, Math.round(width * 1.25)).webp({ quality: 76, effort: 4 }).toBuffer();
-    const tmp = `${file}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, out);
-    fs.renameSync(tmp, file);
-    return file;
+    await turn();
+    try { return await build(kind, slug, width, file); } finally { done(); }
   })().finally(() => pending.delete(file));
   pending.set(file, job);
   return job;
+}
+
+async function build(kind, slug, width, file) {
+  const base = kind === 'artists' ? await basePortrait(slug) : await baseCover(slug);
+  if (!base) return null;
+  const bucket = kind === 'og' ? 'covers' : kind;
+  if (!manifest[bucket][slug]) {
+    manifest[bucket][slug] = { color: await dominant(base), placeholder: !sourceFor(bucket, slug) };
+    scheduleSave();
+  }
+  let out;
+  if (kind === 'og') out = await ogImage(base, slug);
+  else if (kind === 'covers') out = await sharp(base).resize(width, width).webp({ quality: width === 300 ? 72 : 78, effort: 4 }).toBuffer();
+  else out = await sharp(base).resize(width, Math.round(width * 1.25)).webp({ quality: 76, effort: 4 }).toBuffer();
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.mkdirSync(path.dirname(file), { recursive: true }); // dossier vidé pendant que le serveur tourne
+  fs.writeFileSync(tmp, out);
+  fs.renameSync(tmp, file);
+  return file;
 }
 
 const WIDTHS = { covers: [300, 600, 1200], artists: [400, 800, 1200] };

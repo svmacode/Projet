@@ -6,11 +6,12 @@ import './lib/search.js';
 
 const html = document.documentElement;
 const { gsap, ScrollTrigger, Lenis } = window;
-export const motion = Boolean(html.classList.contains('has-motion') && gsap && ScrollTrigger);
-if (!motion) {
-  html.classList.remove('has-motion');
-  html.classList.add('reduce-motion');
-}
+// Le mouvement dépend seulement du réglage du visiteur et des bibliothèques chargées. Si les
+// scripts sont arrivés en retard (filet de sécurité de boot.js déjà déclenché), on le rétablit.
+const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+export const motion = Boolean(!reduced && gsap && ScrollTrigger);
+html.classList.toggle('has-motion', motion);
+html.classList.toggle('reduce-motion', !motion);
 window.__mrfReady = true;
 
 export let lenis = null;
