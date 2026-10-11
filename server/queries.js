@@ -193,13 +193,25 @@ export function makeQueries(db) {
       return db.prepare('SELECT id, title FROM lists WHERE user_id = ? ORDER BY created_at DESC').all(userId);
     },
 
+    // Recherche tolérante : sans accents, sans ponctuation, mots dans n'importe quel ordre.
     search(term) {
-      const like = `%${term.replace(/[%_]/g, '')}%`;
-      return {
-        albums: db.prepare(`${ALBUM_SELECT} WHERE al.title LIKE ? OR ar.name LIKE ? ORDER BY al.year LIMIT 20`).all(like, like).map(albumView),
-        artists: db.prepare('SELECT slug, name FROM artists WHERE name LIKE ? ORDER BY name LIMIT 10').all(like),
-        users: db.prepare('SELECT username, display_name FROM users WHERE username LIKE ? OR display_name LIKE ? LIMIT 10').all(like, like),
+      const words = normalize(term).split(' ').filter(Boolean);
+      if (!words.length) return { albums: [], artists: [], users: [] };
+      const matches = (text) => {
+        const hay = normalize(text);
+        return words.every((w) => hay.includes(w));
       };
+      // Les albums dont le titre correspond passent avant ceux trouvés par le nom de l'artiste.
+      const albums = q.albums()
+        .map((a) => ({ a, title: matches(a.title), all: matches(`${a.title} ${a.artist.name}`) }))
+        .filter((x) => x.all)
+        .sort((x, y) => Number(y.title) - Number(x.title) || x.a.year - y.a.year)
+        .slice(0, 60)
+        .map((x) => x.a);
+      const artists = db.prepare('SELECT slug, name FROM artists ORDER BY name').all().filter((a) => matches(a.name)).slice(0, 20);
+      const users = db.prepare('SELECT username, display_name FROM users').all()
+        .filter((u) => matches(`${u.username} ${u.display_name}`)).slice(0, 20);
+      return { albums, artists, users };
     },
 
     sitemapEntries() {
@@ -210,6 +222,12 @@ export function makeQueries(db) {
     },
   };
   return q;
+}
+
+export function normalize(text) {
+  return String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/œ/g, 'oe').replace(/æ/g, 'ae').replace(/\$/g, 's')
+    .replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
 export const absoluteUrl = (p) => `${config.publicUrl}${p}`;
