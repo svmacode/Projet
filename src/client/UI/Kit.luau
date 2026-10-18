@@ -240,6 +240,9 @@ function Kit.title(props: Props): Title
 	local mainProps = table.clone(common)
 	mainProps.Color = props.Color or C.Text
 	mainProps.Stroke = props.Stroke or math.max(2, size / 28)
+	-- Le texte principal est enfant de la doublure : il est toujours dessiné devant.
+	mainProps.Parent = shadow
+	mainProps.Position = UDim2.fromOffset(-offset, -offset)
 	local main = Kit.label(mainProps)
 	return {
 		Instance = holder,
