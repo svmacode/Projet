@@ -11,6 +11,35 @@ export type PatchNote = {
 
 local PatchNotes: { PatchNote } = {
 	{
+		Version = "0.4.0",
+		Date = "18/10/2026",
+		Title = "Nouveau départ",
+		Sections = {
+			{
+				Heading = "Lobby",
+				Lines = {
+					"Nouvelle cour du lycée : marche sur un terrain pour lancer une partie.",
+					"Terrains Normal, Classé (niveau 10) et Entraînement.",
+				},
+			},
+			{
+				Heading = "Jeu",
+				Lines = {
+					"Tir au timing : relâche dans la zone dorée pour un tir parfait.",
+					"Déplacements plus rapides, saut plus haut, dash en l'air.",
+					"Règles simplifiées, matchs de 2 × 2 min 30, nouveaux terrains.",
+					"Nouveau gymnase et nouvelle caméra.",
+				},
+			},
+			{
+				Heading = "Interface",
+				Lines = {
+					"Interface entièrement refaite : Archétypes, Clan, Groupe, Infos.",
+				},
+			},
+		},
+	},
+	{
 		Version = "0.3.0",
 		Date = "18/10/2026",
 		Title = "Style anime",
