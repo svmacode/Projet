@@ -55,7 +55,15 @@ local function weldTo(part: BasePart, target: BasePart, offset: CFrame)
 	weld.Parent = part
 end
 
-local function addPart(folder: Instance, target: BasePart, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material?, shape: string?): Part
+local function addPart(
+	folder: Instance,
+	target: BasePart,
+	size: Vector3,
+	offset: CFrame,
+	color: Color3,
+	material: Enum.Material?,
+	shape: string?
+): Part
 	local part = Instance.new("Part")
 	part.Name = "Habit"
 	part.Size = size
@@ -73,7 +81,14 @@ local function addPart(folder: Instance, target: BasePart, size: Vector3, offset
 	return part
 end
 
-local function addWedge(folder: Instance, target: BasePart, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material?)
+local function addWedge(
+	folder: Instance,
+	target: BasePart,
+	size: Vector3,
+	offset: CFrame,
+	color: Color3,
+	material: Enum.Material?
+)
 	local wedge = Instance.new("WedgePart")
 	wedge.Name = "Habit"
 	wedge.Size = size
@@ -101,7 +116,15 @@ local function stripAvatar(character: Model)
 	end
 end
 
-local function jerseyText(part: BasePart, face: Enum.NormalId, text: string, color: Color3, stroke: Color3, scale: UDim2, position: UDim2)
+local function jerseyText(
+	part: BasePart,
+	face: Enum.NormalId,
+	text: string,
+	color: Color3,
+	stroke: Color3,
+	scale: UDim2,
+	position: UDim2
+)
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "Numero"
 	gui.Face = face
@@ -178,8 +201,22 @@ local function applyKit(character: Model, folder: Folder, options: OutfitOptions
 		addPart(folder, torso, Vector3.new(0.12, 2.02, 1.02), CFrame.new(0.95, 0, 0), accent)
 		addPart(folder, torso, Vector3.new(0.12, 2.02, 1.02), CFrame.new(-0.95, 0, 0), accent)
 	elseif pattern == "Bolt" then
-		addPart(folder, torso, Vector3.new(0.35, 1.3, 0.05), CFrame.new(0.2, 0.3, -0.52) * CFrame.Angles(0, 0, 0.6), accent, Enum.Material.Neon)
-		addPart(folder, torso, Vector3.new(0.35, 1.1, 0.05), CFrame.new(-0.2, -0.45, -0.52) * CFrame.Angles(0, 0, 0.6), accent, Enum.Material.Neon)
+		addPart(
+			folder,
+			torso,
+			Vector3.new(0.35, 1.3, 0.05),
+			CFrame.new(0.2, 0.3, -0.52) * CFrame.Angles(0, 0, 0.6),
+			accent,
+			Enum.Material.Neon
+		)
+		addPart(
+			folder,
+			torso,
+			Vector3.new(0.35, 1.1, 0.05),
+			CFrame.new(-0.2, -0.45, -0.52) * CFrame.Angles(0, 0, 0.6),
+			accent,
+			Enum.Material.Neon
+		)
 		addPart(folder, torso, Vector3.new(2.02, 0.12, 1.02), CFrame.new(0, -0.9, 0), kit.Trim)
 	elseif pattern == "Scales" then
 		for row = 0, 2 do
@@ -195,11 +232,27 @@ local function applyKit(character: Model, folder: Folder, options: OutfitOptions
 			end
 		end
 	elseif pattern == "Armor" then
-		addPart(folder, torso, Vector3.new(0.9, 0.35, 1.2), CFrame.new(1.35, 0.85, 0) * CFrame.Angles(0, 0, -0.25), accent, Enum.Material.Metal)
-		addPart(folder, torso, Vector3.new(0.9, 0.35, 1.2), CFrame.new(-1.35, 0.85, 0) * CFrame.Angles(0, 0, 0.25), accent, Enum.Material.Metal)
+		addPart(
+			folder,
+			torso,
+			Vector3.new(0.9, 0.35, 1.2),
+			CFrame.new(1.35, 0.85, 0) * CFrame.Angles(0, 0, -0.25),
+			accent,
+			Enum.Material.Metal
+		)
+		addPart(
+			folder,
+			torso,
+			Vector3.new(0.9, 0.35, 1.2),
+			CFrame.new(-1.35, 0.85, 0) * CFrame.Angles(0, 0, 0.25),
+			accent,
+			Enum.Material.Metal
+		)
 		addPart(folder, torso, Vector3.new(2.04, 0.16, 1.04), CFrame.new(0, -0.6, 0), kit.Trim, Enum.Material.Metal)
 	elseif pattern == "Stars" then
-		for _, offset in { Vector3.new(-0.5, 0.45, -0.53), Vector3.new(0.45, -0.1, -0.53), Vector3.new(-0.3, -0.6, -0.53) } do
+		for _, offset in
+			{ Vector3.new(-0.5, 0.45, -0.53), Vector3.new(0.45, -0.1, -0.53), Vector3.new(-0.3, -0.6, -0.53) }
+		do
 			addPart(folder, torso, Vector3.new(0.3, 0.3, 0.3), CFrame.new(offset), kit.Trim, Enum.Material.Neon, "Ball")
 		end
 		addPart(folder, torso, Vector3.new(2.02, 0.1, 1.02), CFrame.new(0, -0.95, 0), accent)
@@ -220,10 +273,34 @@ local function applyKit(character: Model, folder: Folder, options: OutfitOptions
 	end
 
 	-- Numéro dans le dos et sur le devant.
-	jerseyText(torso, Enum.NormalId.Back, tostring(options.Number), Color3.fromRGB(255, 255, 255), Color3.fromRGB(20, 20, 24), UDim2.fromScale(0.8, 0.7), UDim2.fromScale(0.1, 0.1))
-	jerseyText(torso, Enum.NormalId.Front, tostring(options.Number), kit.Trim, Color3.fromRGB(20, 20, 24), UDim2.fromScale(0.3, 0.3), UDim2.fromScale(0.62, 0.08))
+	jerseyText(
+		torso,
+		Enum.NormalId.Back,
+		tostring(options.Number),
+		Color3.fromRGB(255, 255, 255),
+		Color3.fromRGB(20, 20, 24),
+		UDim2.fromScale(0.8, 0.7),
+		UDim2.fromScale(0.1, 0.1)
+	)
+	jerseyText(
+		torso,
+		Enum.NormalId.Front,
+		tostring(options.Number),
+		kit.Trim,
+		Color3.fromRGB(20, 20, 24),
+		UDim2.fromScale(0.3, 0.3),
+		UDim2.fromScale(0.62, 0.08)
+	)
 	if options.ClanTag and options.ClanTag ~= "" then
-		jerseyText(torso, Enum.NormalId.Front, `[{options.ClanTag}]`, Color3.fromRGB(255, 255, 255), Color3.fromRGB(20, 20, 24), UDim2.fromScale(0.5, 0.2), UDim2.fromScale(0.05, 0.75))
+		jerseyText(
+			torso,
+			Enum.NormalId.Front,
+			`[{options.ClanTag}]`,
+			Color3.fromRGB(255, 255, 255),
+			Color3.fromRGB(20, 20, 24),
+			UDim2.fromScale(0.5, 0.2),
+			UDim2.fromScale(0.05, 0.75)
+		)
 	end
 end
 

@@ -128,7 +128,11 @@ function Court.pushOutside(dims: Dimensions, localPos: Vector3, side: number, ra
 	local pushed = anchor + offset.Unit * (radius + 0.5)
 	-- Le point doit rester dans le terrain, côté terrain du but.
 	local maxX = dims.Length / 2 - 1
-	return Vector3.new(math.clamp(pushed.X, -maxX, maxX), localPos.Y, math.clamp(pushed.Z, -dims.Width / 2 + 1, dims.Width / 2 - 1))
+	return Vector3.new(
+		math.clamp(pushed.X, -maxX, maxX),
+		localPos.Y,
+		math.clamp(pushed.Z, -dims.Width / 2 + 1, dims.Width / 2 - 1)
+	)
 end
 
 function Court.penaltySpot(dims: Dimensions, side: number): Vector3

@@ -249,7 +249,10 @@ local LIST: { Archetype } = {
 				Name = "Étincelle",
 				Japanese = "火花ダッシュ",
 				Description = "Élan + 20 % de vitesse pendant 2 s.",
-				Effects = { { Kind = "Dash", Speed = 90, Duration = 0.24 }, { Kind = "SelfBuff", Duration = 2, Haste = 1.2 } },
+				Effects = {
+					{ Kind = "Dash", Speed = 90, Duration = 0.24 },
+					{ Kind = "SelfBuff", Duration = 2, Haste = 1.2 },
+				},
 				Color = rgb(255, 122, 40),
 			},
 			{
@@ -450,7 +453,10 @@ local LIST: { Archetype } = {
 				Name = "Glissade de Givre",
 				Japanese = "霜滑り",
 				Description = "Plongeon + zone d'arrêt +20 % pendant 2 s.",
-				Effects = { { Kind = "Dive", Speed = 86, Duration = 0.3 }, { Kind = "SelfBuff", Duration = 2, CatchMult = 1.2 } },
+				Effects = {
+					{ Kind = "Dive", Speed = 86, Duration = 0.3 },
+					{ Kind = "SelfBuff", Duration = 2, CatchMult = 1.2 },
+				},
 				Color = rgb(150, 230, 255),
 			},
 			{
@@ -620,7 +626,10 @@ local LIST: { Archetype } = {
 				Name = "Pas du Phénix",
 				Japanese = "鳳凰の歩み",
 				Description = "Élan enflammé + 35 % de vitesse pendant 3 s.",
-				Effects = { { Kind = "Dash", Speed = 100, Duration = 0.26 }, { Kind = "SelfBuff", Duration = 3, Haste = 1.35 } },
+				Effects = {
+					{ Kind = "Dash", Speed = 100, Duration = 0.26 },
+					{ Kind = "SelfBuff", Duration = 3, Haste = 1.35 },
+				},
 				Color = rgb(255, 120, 40),
 			},
 			{
@@ -700,7 +709,10 @@ local LIST: { Archetype } = {
 				Name = "Ailes Célestes",
 				Japanese = "天の翼",
 				Description = "Plongeon très long et zone d'arrêt +30 %.",
-				Effects = { { Kind = "Dive", Speed = 104, Duration = 0.32 }, { Kind = "SelfBuff", Duration = 2, CatchMult = 1.3 } },
+				Effects = {
+					{ Kind = "Dive", Speed = 104, Duration = 0.32 },
+					{ Kind = "SelfBuff", Duration = 2, CatchMult = 1.3 },
+				},
 				Color = rgb(255, 240, 200),
 			},
 			{
@@ -791,7 +803,10 @@ local LIST: { Archetype } = {
 				Name = "Déchirure",
 				Japanese = "裂け目",
 				Description = "Téléportation devant le porteur adverse (60 studs).",
-				Effects = { { Kind = "BlinkToCarrier", Range = 60 }, { Kind = "SelfBuff", Duration = 1.5, Haste = 1.3 } },
+				Effects = {
+					{ Kind = "BlinkToCarrier", Range = 60 },
+					{ Kind = "SelfBuff", Duration = 1.5, Haste = 1.3 },
+				},
 				Color = rgb(255, 40, 200),
 			},
 			{

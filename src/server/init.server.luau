@@ -42,4 +42,6 @@ for _, name in ORDER do
 	end
 end
 
-print(`[Handball Legends] serveur démarré ({ServerRole.Role}{if ServerRole.LocalMatches then ", matchs locaux" else ""})`)
+print(
+	`[Handball Legends] serveur démarré ({ServerRole.Role}{if ServerRole.LocalMatches then ", matchs locaux" else ""})`
+)

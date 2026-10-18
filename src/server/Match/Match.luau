@@ -31,6 +31,7 @@ local Bots = require(script.Parent.Bots)
 local CourtBuilder = require(script.Parent.CourtBuilder)
 local MatchTypes = require(script.Parent.MatchTypes)
 local Outfit = require(script.Parent.Outfit)
+local Guard = require(script.Parent.Parent.Lib.Guard)
 
 type Participant = MatchTypes.Participant
 
@@ -83,7 +84,13 @@ end
 
 -- Construction --------------------------------------------------------------------------
 
-function Match.new(config: MatchConfig, players: { Player }, infos: { [Player]: PlayerInfo }, origin: CFrame, parent: Instance): any
+function Match.new(
+	config: MatchConfig,
+	players: { Player },
+	infos: { [Player]: PlayerInfo },
+	origin: CFrame,
+	parent: Instance
+): any
 	local self = setmetatable({}, Match) :: any
 	self.Config = config
 	self.ModeInfo = Config.Modes[config.Mode]
@@ -673,7 +680,8 @@ function Match:autoAssign()
 					participant.ArchetypeId = pool[rng:NextInteger(1, #pool)]
 				else
 					local player = participant.Player
-					participant.ArchetypeId = defaultArchetype(if player then self.Infos[player] else nil, participant.Poste :: string)
+					participant.ArchetypeId =
+						defaultArchetype(if player then self.Infos[player] else nil, participant.Poste :: string)
 				end
 			end
 			participant.Ready = true
@@ -719,7 +727,12 @@ function Match:isFrozen(participant: Participant): boolean
 		return true
 	end
 	local setPiece: SetPiece? = self.SetPiece
-	if setPiece and setPiece.Thrower == participant and self.Ball.Holder == participant and setPiece.Kind ~= "GoalThrow" then
+	if
+		setPiece
+		and setPiece.Thrower == participant
+		and self.Ball.Holder == participant
+		and setPiece.Kind ~= "GoalThrow"
+	then
 		return true
 	end
 	return false
@@ -794,7 +807,11 @@ function Match:awardSetPiece(kind: string, team: string, localSpot: Vector3, rea
 		spot = Court.pushOutside(dims, spot, attackSide, dims.FreeThrowRadius)
 		spot = Court.pushOutside(dims, spot, -attackSide, dims.GoalAreaRadius + 1)
 	elseif kind == "ThrowIn" then
-		spot = Vector3.new(math.clamp(spot.X, -dims.Length / 2 + 2, dims.Length / 2 - 2), 0, math.sign(spot.Z) * (dims.Width / 2 - 0.5))
+		spot = Vector3.new(
+			math.clamp(spot.X, -dims.Length / 2 + 2, dims.Length / 2 - 2),
+			0,
+			math.sign(spot.Z) * (dims.Width / 2 - 0.5)
+		)
 		spot = Court.pushOutside(dims, spot, attackSide, dims.GoalAreaRadius + 1)
 		spot = Court.pushOutside(dims, spot, -attackSide, dims.GoalAreaRadius + 1)
 	elseif kind == "Corner" then
@@ -822,7 +839,11 @@ function Match:awardSetPiece(kind: string, team: string, localSpot: Vector3, rea
 				local flat = Vector3.new(localPos.X, 0, localPos.Z)
 				if kind == "Penalty" then
 					if participant.Poste == "Gardien" and participant.Team ~= team then
-						self:placeAt(participant, Court.keeperSpot(dims, attackSide) + Vector3.new(attackSide * 1.5, 0, 0), spot)
+						self:placeAt(
+							participant,
+							Court.keeperSpot(dims, attackSide) + Vector3.new(attackSide * 1.5, 0, 0),
+							spot
+						)
 					else
 						local pushed = Court.pushOutside(dims, flat, attackSide, dims.FreeThrowRadius + 1)
 						if (pushed - flat).Magnitude > 0.1 then
@@ -894,9 +915,14 @@ function Match:startThrowOff(team: string)
 	self:formation(true)
 	local thrower = self:chooseThrower(team, Vector3.zero, false)
 	if thrower then
-		self:placeAt(thrower, Vector3.new(self:defendSideOf(team) * 1.5, 0, 0), Vector3.new(self:attackSideOf(team) * 10, 0, 0))
+		self:placeAt(
+			thrower,
+			Vector3.new(self:defendSideOf(team) * 1.5, 0, 0),
+			Vector3.new(self:attackSideOf(team) * 10, 0, 0)
+		)
 		self.Ball:give(thrower, true)
-		self.SetPiece = { Kind = "ThrowOff", Team = team, Thrower = thrower, WhistleAt = now() + Config.Match.ThrowOffCountdown }
+		self.SetPiece =
+			{ Kind = "ThrowOff", Team = team, Thrower = thrower, WhistleAt = now() + Config.Match.ThrowOffCountdown }
 	end
 	self:setPossession(team)
 	self:event("ThrowOff", { Team = team, Countdown = Config.Match.ThrowOffCountdown })
@@ -1094,13 +1120,13 @@ function Match:onGoal(side: number, ballObject: any)
 		if self.Finished or self.Half ~= half or (self.Phase :: string) ~= "Goal" then
 			return
 		end
-		if self.Half == 3 then
-			self.Clock = 0 -- but en or : fin du match
+		if self.Half == 3 or self.Clock <= 0 then
+			-- But en or, ou but sur la sirène : la période est terminée.
+			self.Clock = 0
+			self.Phase = "PeriodEnd"
 			return
 		end
-		if self.Clock > 0 then
-			self:startThrowOff(otherTeam(scoringTeam))
-		end
+		self:startThrowOff(otherTeam(scoringTeam))
 	end)
 end
 
@@ -1186,7 +1212,10 @@ function Match:actionPass(participant: Participant, direction: Vector3, hint: Pa
 	if not origin then
 		return
 	end
-	local target = if hint and hint.Team == participant.Team and hint ~= participant and self:isActive(hint)
+	local target = if hint
+			and hint.Team == participant.Team
+			and hint ~= participant
+			and self:isActive(hint)
 		then hint
 		else self:pickPassTarget(participant, direction)
 	local velocity: Vector3
@@ -1194,7 +1223,9 @@ function Match:actionPass(participant: Participant, direction: Vector3, hint: Pa
 		local targetRoot = target.Root
 		local distance = (targetRoot.Position - origin).Magnitude
 		local travel = math.clamp(distance / Config.Ball.PassSpeed, 0.22, 1.1)
-		local lead = Vector3.new(targetRoot.AssemblyLinearVelocity.X, 0, targetRoot.AssemblyLinearVelocity.Z) * travel * 0.85
+		local lead = Vector3.new(targetRoot.AssemblyLinearVelocity.X, 0, targetRoot.AssemblyLinearVelocity.Z)
+			* travel
+			* 0.85
 		local aim = targetRoot.Position + lead + Vector3.new(0, 1.2, 0)
 		velocity = BallMath.solveLob(origin, aim, travel)
 	else
@@ -1225,6 +1256,9 @@ function Match:actionShoot(participant: Participant, direction: Vector3, charge:
 	local aim = (direction + Vector3.new(0, 0.04, 0)).Unit
 	local velocity = aim * speed
 	self.Ball:release(origin, velocity, "Shot", mods, nil)
+	-- Un tir remet à zéro le compteur de jeu passif.
+	self.PossessionStart = now()
+	self.PassiveWarning = false
 
 	local dims: Court.Dimensions = self.Court.Dims
 	local side = self:attackSideOf(participant.Team)
@@ -1232,7 +1266,8 @@ function Match:actionShoot(participant: Participant, direction: Vector3, charge:
 		local right = aim:Cross(Vector3.yAxis)
 		if right.Magnitude > 0.01 then
 			right = right.Unit
-			local goalCenter = self.Court.CFrame:PointToWorldSpace(Vector3.new(side * dims.Length / 2, dims.GoalHeight / 2, 0))
+			local goalCenter =
+				self.Court.CFrame:PointToWorldSpace(Vector3.new(side * dims.Length / 2, dims.GoalHeight / 2, 0))
 			local sign = if right:Dot(goalCenter - origin) >= 0 then 1 else -1
 			self.Ball.Accel = right * sign * 70 * mods.Curve
 		end
@@ -1245,7 +1280,9 @@ function Match:actionShoot(participant: Participant, direction: Vector3, charge:
 			keeperZ = if keeperLocal then keeperLocal.Z else 0
 		end
 		local cornerZ = (if keeperZ > 0 then -1 else 1) * (dims.GoalWidth / 2 - 1)
-		self.Ball.HomingTarget = self.Court.CFrame:PointToWorldSpace(Vector3.new(side * (dims.Length / 2 + 1), dims.GoalHeight * 0.7, cornerZ))
+		self.Ball.HomingTarget = self.Court.CFrame:PointToWorldSpace(
+			Vector3.new(side * (dims.Length / 2 + 1), dims.GoalHeight * 0.7, cornerZ)
+		)
 	end
 	self.Ball:broadcast()
 	self:afterRelease(participant)
@@ -1298,7 +1335,12 @@ function Match:actionDash(participant: Participant, direction: Vector3)
 	end
 	participant.NextDashAt = now() + Config.Movement.DashCooldown - 0.15
 	if participant.IsBot then
-		Abilities.impulse(self, participant, horizontal(direction) * Config.Movement.DashSpeed, Config.Movement.DashDuration)
+		Abilities.impulse(
+			self,
+			participant,
+			horizontal(direction) * Config.Movement.DashSpeed,
+			Config.Movement.DashDuration
+		)
 	end
 	self:event("Dash", { Model = participant.Model })
 end
@@ -1425,7 +1467,8 @@ function Match:handleAction(player: Player, action: string, a: any, b: any)
 		return
 	end
 	if action == "Pass" then
-		if typeof(a) ~= "Vector3" then
+		local direction = Guard.direction(a)
+		if not direction then
 			return
 		end
 		local hint: Participant? = nil
@@ -1436,21 +1479,24 @@ function Match:handleAction(player: Player, action: string, a: any, b: any)
 				end
 			end
 		end
-		self:actionPass(participant, a, hint)
+		self:actionPass(participant, direction, hint)
 	elseif action == "Shoot" then
-		if typeof(a) ~= "Vector3" or typeof(b) ~= "number" then
+		local direction = Guard.direction(a)
+		local charge = Guard.number(b, 0, 1)
+		if not direction or not charge then
 			return
 		end
-		self:actionShoot(participant, a, b)
+		self:actionShoot(participant, direction, charge)
 	elseif action == "Dribble" then
 		self:actionDribble(participant)
 	elseif action == "Contact" then
 		self:actionContact(participant)
 	elseif action == "Dash" then
-		if typeof(a) ~= "Vector3" then
+		local direction = Guard.direction(a)
+		if not direction then
 			return
 		end
-		self:actionDash(participant, a)
+		self:actionDash(participant, direction)
 	elseif action == "Power" then
 		if a == 1 or a == 2 or a == 3 then
 			self:actionPower(participant, a)
@@ -1501,7 +1547,10 @@ function Match:checkHolderRules()
 	if grounded then
 		if holder.Poste == "Gardien" then
 			local ownSide = self:defendSideOf(holder.Team)
-			if not Court.inGoalArea(dims, localPos, ownSide) and Court.distanceToGoal(dims, localPos, ownSide) > dims.GoalAreaRadius + 1.5 then
+			if
+				not Court.inGoalArea(dims, localPos, ownSide)
+				and Court.distanceToGoal(dims, localPos, ownSide) > dims.GoalAreaRadius + 1.5
+			then
 				self:violation(holder, "GARDIEN HORS ZONE")
 				return
 			end
@@ -1538,15 +1587,25 @@ function Match:enforceZones()
 				local localPos = self:localOf(participant)
 				if localPos then
 					for _, side in { -1, 1 } do
-						if Court.distanceToGoal(dims, localPos, side) < dims.GoalAreaRadius - 1 and math.abs(localPos.X) <= dims.Length / 2 then
+						if
+							Court.distanceToGoal(dims, localPos, side) < dims.GoalAreaRadius - 1
+							and math.abs(localPos.X) <= dims.Length / 2
+						then
 							if side == self:defendSideOf(participant.Team) then
 								participant.ZoneTouchUntil = now() + 0.5
 							end
-							local pushed = Court.pushOutside(dims, Vector3.new(localPos.X, 0, localPos.Z), side, dims.GoalAreaRadius + 0.6)
+							local pushed = Court.pushOutside(
+								dims,
+								Vector3.new(localPos.X, 0, localPos.Z),
+								side,
+								dims.GoalAreaRadius + 0.6
+							)
 							local root = participant.Root :: BasePart
 							local look = root.CFrame.LookVector
-							local world = self.Court.CFrame:PointToWorldSpace(pushed + Vector3.new(0, localPos.Y, 0))
-							;(participant.Model :: Model):PivotTo(CFrame.lookAt(world, world + Vector3.new(look.X, 0, look.Z)))
+							local world = self.Court.CFrame:PointToWorldSpace(pushed + Vector3.new(0, localPos.Y, 0));
+							(participant.Model :: Model):PivotTo(
+								CFrame.lookAt(world, world + Vector3.new(look.X, 0, look.Z))
+							)
 						end
 					end
 				end
@@ -1577,7 +1636,11 @@ function Match:updateParticipants(dt: number)
 		if participant.RamUntil > t and participant.Root then
 			for _, opponent in self:opponentsOf(participant) do
 				local opponentRoot = opponent.Root
-				if opponentRoot and (opponentRoot.Position - participant.Root.Position).Magnitude < 4.5 and not self:isStunned(opponent) then
+				if
+					opponentRoot
+					and (opponentRoot.Position - participant.Root.Position).Magnitude < 4.5
+					and not self:isStunned(opponent)
+				then
 					if not self:hasEffect(opponent, "Unstoppable") then
 						self:stun(opponent, 0.9, "PERCUTÉ !")
 					end
@@ -1585,7 +1648,8 @@ function Match:updateParticipants(dt: number)
 			end
 		end
 		if self.Phase == "Live" and self:isActive(participant) then
-			participant.Ultimate = math.min(Config.Powers.UltimateMax, participant.Ultimate + Config.Powers.UltimatePassivePerSecond * dt)
+			participant.Ultimate =
+				math.min(Config.Powers.UltimateMax, participant.Ultimate + Config.Powers.UltimatePassivePerSecond * dt)
 		end
 		self:applyMovement(participant)
 		if participant.IsBot then
@@ -1603,7 +1667,13 @@ function Match:update(dt: number)
 		self.Clock = math.max(0, self.Clock - dt)
 	end
 	local setPiece: SetPiece? = self.SetPiece
-	if self.Phase == "SetPiece" and setPiece and setPiece.Kind ~= "ThrowOff" and t >= setPiece.WhistleAt and self.Ball.Locked then
+	if
+		self.Phase == "SetPiece"
+		and setPiece
+		and setPiece.Kind ~= "ThrowOff"
+		and t >= setPiece.WhistleAt
+		and self.Ball.Locked
+	then
 		self:whistle()
 	end
 	self:updateParticipants(dt)
@@ -1669,6 +1739,7 @@ function Match:snapshot(): any
 		Possession = self.PossessionTeam,
 		PassiveWarning = self.PassiveWarning,
 		CourtCFrame = self.Court.CFrame,
+		CourtModel = self.Court.Model,
 		CourtMode = self.Config.Mode,
 		Participants = participants,
 		SetPiece = if self.SetPiece then self.SetPiece.Kind else nil,
@@ -1836,7 +1907,12 @@ function Match:run(): any
 		end
 	end
 
-	if not self.Finished and not self.ForfeitWinner and not self.Config.Training and self.Score.Rouge == self.Score.Bleu then
+	if
+		not self.Finished
+		and not self.ForfeitWinner
+		and not self.Config.Training
+		and self.Score.Rouge == self.Score.Bleu
+	then
 		self.Half = 3
 		self.Clock = Config.Match.GoldenGoalDuration
 		self:event("GoldenGoal", { Duration = Config.Match.GoldenGoalDuration })

@@ -77,7 +77,12 @@ end
 
 type Formed = { Rouge: { Entry }, Bleu: { Entry } }
 
-local function formMatches(entries: { Entry }, teamSize: number, ranked: boolean, now: number): ({ Formed }, { [string]: boolean })
+local function formMatches(
+	entries: { Entry },
+	teamSize: number,
+	ranked: boolean,
+	now: number
+): ({ Formed }, { [string]: boolean })
 	table.sort(entries, function(a, b)
 		return a.Joined < b.Joined
 	end)
@@ -293,7 +298,17 @@ local function tickLocal()
 		local teamSize = Config.Modes[bucket.mode].TeamSize
 		local formed, used = formMatches(bucket.entries, teamSize, bucket.ranked, now)
 		for _, match in formed do
-			launch(newConfig(bucket.mode, bucket.ranked, false, false, idsOf(match.Rouge), idsOf(match.Bleu), partiesOf(match)))
+			launch(
+				newConfig(
+					bucket.mode,
+					bucket.ranked,
+					false,
+					false,
+					idsOf(match.Rouge),
+					idsOf(match.Bleu),
+					partiesOf(match)
+				)
+			)
 		end
 		if ServerRole.IsStudio then
 			-- Tests en solo : au-delà d'un court délai, des bots complètent.
@@ -370,7 +385,10 @@ local function tickShared()
 						end)
 					end
 				end
-				task.spawn(launch, newConfig(mode, ranked, false, false, idsOf(match.Rouge), idsOf(match.Bleu), partiesOf(match)))
+				task.spawn(
+					launch,
+					newConfig(mode, ranked, false, false, idsOf(match.Rouge), idsOf(match.Bleu), partiesOf(match))
+				)
 			end
 		end
 	end
@@ -379,7 +397,12 @@ end
 local function publishEntry(search: LocalSearch)
 	local queue = MemoryStoreService:GetSortedMap(queueName(search.Mode, search.Ranked))
 	pcall(function()
-		queue:SetAsync(search.Entry.Key, HttpService:JSONEncode(search.Entry), Config.Server.QueueEntryTtl, search.Entry.Joined)
+		queue:SetAsync(
+			search.Entry.Key,
+			HttpService:JSONEncode(search.Entry),
+			Config.Server.QueueEntryTtl,
+			search.Entry.Joined
+		)
 	end)
 end
 

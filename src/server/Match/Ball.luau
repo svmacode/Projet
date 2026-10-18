@@ -138,7 +138,14 @@ function Ball.give(self: any, participant: Participant, locked: boolean?)
 	self:broadcast()
 end
 
-function Ball.release(self: any, origin: Vector3, velocity: Vector3, kind: ThrowKind, mods: ShotMods?, passTarget: Participant?)
+function Ball.release(
+	self: any,
+	origin: Vector3,
+	velocity: Vector3,
+	kind: ThrowKind,
+	mods: ShotMods?,
+	passTarget: Participant?
+)
 	local thrower = self.Holder
 	self.State = "Flight"
 	self.Holder = nil
@@ -242,7 +249,8 @@ function Ball.checkContacts(self: any)
 				radius = Config.Ball.KeeperCatchRadius * catchMult * keeperMult * diveBonus
 				role = "Keeper"
 			elseif not sameTeam then
-				radius = (if stance then Config.Ball.InterceptStanceRadius * 0.6 else Config.Ball.BlockRadius) * interceptMult
+				radius = (if stance then Config.Ball.InterceptStanceRadius * 0.6 else Config.Ball.BlockRadius)
+					* interceptMult
 				role = "Block"
 			end
 		elseif self.Kind == "Pass" then
@@ -250,7 +258,8 @@ function Ball.checkContacts(self: any)
 				radius = Config.Ball.CatchRadius * (if participant == self.PassTarget then 1.25 else 1)
 				role = "Catch"
 			else
-				radius = (if stance then Config.Ball.InterceptStanceRadius else Config.Ball.InterceptRadius) * interceptMult
+				radius = (if stance then Config.Ball.InterceptStanceRadius else Config.Ball.InterceptRadius)
+					* interceptMult
 				if participant.Poste == "Gardien" then
 					radius = math.max(radius, Config.Ball.KeeperCatchRadius * 0.8)
 				end

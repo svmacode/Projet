@@ -59,7 +59,11 @@ local function xpFor(result: MatchResult): number
 		return xp.Training
 	end
 	local base = if result.Outcome == "Win" then xp.Win elseif result.Outcome == "Draw" then xp.Draw else xp.Loss
-	return base + result.Goals * xp.Goal + result.Assists * xp.Assist + result.Saves * xp.Save + result.Interceptions * xp.Interception
+	return base
+		+ result.Goals * xp.Goal
+		+ result.Assists * xp.Assist
+		+ result.Saves * xp.Save
+		+ result.Interceptions * xp.Interception
 end
 
 local function rpFor(result: MatchResult): number

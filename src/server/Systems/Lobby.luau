@@ -20,7 +20,14 @@ local INK = Color3.fromRGB(16, 16, 22)
 local PAPER = Color3.fromRGB(255, 250, 238)
 local RED = Color3.fromRGB(226, 32, 52)
 
-local function part(parent: Instance, name: string, size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material?): Part
+local function part(
+	parent: Instance,
+	name: string,
+	size: Vector3,
+	cframe: CFrame,
+	color: Color3,
+	material: Enum.Material?
+): Part
 	local p = Instance.new("Part")
 	p.Name = name
 	p.Anchored = true
@@ -45,17 +52,31 @@ end
 local function sakura(parent: Instance, position: Vector3, scale: number)
 	local tree = Instance.new("Model")
 	tree.Name = "Cerisier"
-	local trunk = part(tree, "Tronc", Vector3.new(1.6, 9, 1.6) * scale, CFrame.new(position + Vector3.new(0, 4.5 * scale, 0)), Color3.fromRGB(110, 70, 60), Enum.Material.Wood)
+	local trunk = part(
+		tree,
+		"Tronc",
+		Vector3.new(1.6, 9, 1.6) * scale,
+		CFrame.new(position + Vector3.new(0, 4.5 * scale, 0)),
+		Color3.fromRGB(110, 70, 60),
+		Enum.Material.Wood
+	)
 	trunk.CanCollide = true
 	local pinks = { Color3.fromRGB(255, 183, 213), Color3.fromRGB(255, 160, 200), Color3.fromRGB(255, 205, 225) }
 	for i = 1, 6 do
 		local angle = i * math.pi / 3
 		local offset = Vector3.new(math.cos(angle) * 3.2, 9.5 + (i % 2) * 1.6, math.sin(angle) * 3.2) * scale
-		local blossom = part(tree, "Fleurs", Vector3.new(6.5, 6.5, 6.5) * scale, CFrame.new(position + offset), pinks[i % 3 + 1])
+		local blossom =
+			part(tree, "Fleurs", Vector3.new(6.5, 6.5, 6.5) * scale, CFrame.new(position + offset), pinks[i % 3 + 1])
 		blossom.Shape = Enum.PartType.Ball
 		blossom.CanCollide = false
 	end
-	local top = part(tree, "Fleurs", Vector3.new(7, 7, 7) * scale, CFrame.new(position + Vector3.new(0, 12, 0) * scale), pinks[1])
+	local top = part(
+		tree,
+		"Fleurs",
+		Vector3.new(7, 7, 7) * scale,
+		CFrame.new(position + Vector3.new(0, 12, 0) * scale),
+		pinks[1]
+	)
 	top.Shape = Enum.PartType.Ball
 	top.CanCollide = false
 	local petals = Instance.new("ParticleEmitter")
@@ -83,7 +104,15 @@ local function surfaceGui(target: BasePart, face: Enum.NormalId, ppu: number): S
 	return gui
 end
 
-local function label(parent: Instance, text: string, position: UDim2, size: UDim2, color: Color3, font: Enum.Font, strokeColor: Color3?): TextLabel
+local function label(
+	parent: Instance,
+	text: string,
+	position: UDim2,
+	size: UDim2,
+	color: Color3,
+	font: Enum.Font,
+	strokeColor: Color3?
+): TextLabel
 	local l = Instance.new("TextLabel")
 	l.BackgroundTransparency = 1
 	l.Position = position
@@ -115,7 +144,15 @@ local function buildTutorialBoard(parent: Instance, cframe: CFrame)
 	header.Size = UDim2.fromScale(1, 0.16)
 	header.BackgroundColor3 = RED
 	header.Parent = background
-	label(header, "TUTORIEL  チュートリアル", UDim2.fromScale(0.02, 0.05), UDim2.fromScale(0.96, 0.9), PAPER, Enum.Font.Bangers, INK)
+	label(
+		header,
+		"TUTORIEL  チュートリアル",
+		UDim2.fromScale(0.02, 0.05),
+		UDim2.fromScale(0.96, 0.9),
+		PAPER,
+		Enum.Font.Bangers,
+		INK
+	)
 	local list = Instance.new("Frame")
 	list.BackgroundTransparency = 1
 	list.Position = UDim2.fromScale(0.04, 0.2)
@@ -126,10 +163,18 @@ local function buildTutorialBoard(parent: Instance, cframe: CFrame)
 	layout.Parent = list
 	for index = 2, #Tutorial do
 		local step = Tutorial[index]
-		local row = label(list, `{index - 1}. {step.Title}`, UDim2.new(), UDim2.fromScale(1, 0.12), INK, Enum.Font.Bangers)
+		local row =
+			label(list, `{index - 1}. {step.Title}`, UDim2.new(), UDim2.fromScale(1, 0.12), INK, Enum.Font.Bangers)
 		row.TextXAlignment = Enum.TextXAlignment.Left
 	end
-	local hint = label(list, "Ouvre le menu TUTORIEL pour tous les détails !", UDim2.new(), UDim2.fromScale(1, 0.1), RED, Enum.Font.GothamBold)
+	local hint = label(
+		list,
+		"Ouvre le menu TUTORIEL pour tous les détails !",
+		UDim2.new(),
+		UDim2.fromScale(1, 0.1),
+		RED,
+		Enum.Font.GothamBold
+	)
 	hint.TextXAlignment = Enum.TextXAlignment.Left
 end
 
@@ -138,9 +183,30 @@ local function build(): Model
 	world.Name = "LyceeSeiryo"
 
 	-- Sol : pelouse + cour pavée.
-	part(world, "Pelouse", Vector3.new(420, 4, 420), CFrame.new(0, -2, 0), Color3.fromRGB(110, 200, 110), Enum.Material.Grass)
-	part(world, "Cour", Vector3.new(120, 0.4, 140), CFrame.new(0, 0.2, -10), Color3.fromRGB(226, 214, 196), Enum.Material.Pavement)
-	part(world, "Allee", Vector3.new(24, 0.42, 120), CFrame.new(0, 0.21, 110), Color3.fromRGB(205, 190, 170), Enum.Material.Pavement)
+	part(
+		world,
+		"Pelouse",
+		Vector3.new(420, 4, 420),
+		CFrame.new(0, -2, 0),
+		Color3.fromRGB(110, 200, 110),
+		Enum.Material.Grass
+	)
+	part(
+		world,
+		"Cour",
+		Vector3.new(120, 0.4, 140),
+		CFrame.new(0, 0.2, -10),
+		Color3.fromRGB(226, 214, 196),
+		Enum.Material.Pavement
+	)
+	part(
+		world,
+		"Allee",
+		Vector3.new(24, 0.42, 120),
+		CFrame.new(0, 0.21, 110),
+		Color3.fromRGB(205, 190, 170),
+		Enum.Material.Pavement
+	)
 
 	-- Point d'apparition.
 	local spawn = Instance.new("SpawnLocation")
@@ -172,13 +238,32 @@ local function build(): Model
 					Enum.Material.Glass
 				)
 				window.Reflectance = 0.15
-				part(building, "Cadre", Vector3.new(7.6, 0.5, 0.6), CFrame.new(column * 11, 6.3 + floor * 12, -79.8), INK)
+				part(
+					building,
+					"Cadre",
+					Vector3.new(7.6, 0.5, 0.6),
+					CFrame.new(column * 11, 6.3 + floor * 12, -79.8),
+					INK
+				)
 			end
 		end
 	end
-	part(building, "Porte", Vector3.new(16, 12, 0.6), CFrame.new(0, 8, -79.8), Color3.fromRGB(120, 80, 60), Enum.Material.Wood)
+	part(
+		building,
+		"Porte",
+		Vector3.new(16, 12, 0.6),
+		CFrame.new(0, 8, -79.8),
+		Color3.fromRGB(120, 80, 60),
+		Enum.Material.Wood
+	)
 	-- Horloge.
-	local clock = part(building, "Horloge", Vector3.new(0.6, 9, 9), CFrame.new(0, 38, -79.6) * CFrame.Angles(0, math.pi / 2, 0), PAPER)
+	local clock = part(
+		building,
+		"Horloge",
+		Vector3.new(0.6, 9, 9),
+		CFrame.new(0, 38, -79.6) * CFrame.Angles(0, math.pi / 2, 0),
+		PAPER
+	)
 	clock.Shape = Enum.PartType.Cylinder
 	-- Enseigne géante.
 	local sign = part(building, "Enseigne", Vector3.new(70, 12, 1), CFrame.new(0, 58, -86), INK)
@@ -187,8 +272,23 @@ local function build(): Model
 	signBg.Size = UDim2.fromScale(1, 1)
 	signBg.BackgroundColor3 = INK
 	signBg.Parent = signGui
-	label(signBg, "HANDBALL LEGENDS", UDim2.fromScale(0.02, 0.02), UDim2.fromScale(0.96, 0.7), Color3.fromRGB(255, 214, 40), Enum.Font.Bangers, RED)
-	label(signBg, "ハンドボール・レジェンズ  ✦  LYCÉE SEIRYŌ", UDim2.fromScale(0.05, 0.72), UDim2.fromScale(0.9, 0.24), PAPER, Enum.Font.GothamBold)
+	label(
+		signBg,
+		"HANDBALL LEGENDS",
+		UDim2.fromScale(0.02, 0.02),
+		UDim2.fromScale(0.96, 0.7),
+		Color3.fromRGB(255, 214, 40),
+		Enum.Font.Bangers,
+		RED
+	)
+	label(
+		signBg,
+		"ハンドボール・レジェンズ  ✦  LYCÉE SEIRYŌ",
+		UDim2.fromScale(0.05, 0.72),
+		UDim2.fromScale(0.9, 0.24),
+		PAPER,
+		Enum.Font.GothamBold
+	)
 	outline(building)
 	building.Parent = world
 
@@ -208,7 +308,14 @@ local function build(): Model
 	-- Terrain d'échauffement avec un but.
 	local warmup = Instance.new("Model")
 	warmup.Name = "Echauffement"
-	part(warmup, "Sol", Vector3.new(50, 0.5, 30), CFrame.new(-40, 0.45, 0), Color3.fromRGB(214, 150, 84), Enum.Material.WoodPlanks)
+	part(
+		warmup,
+		"Sol",
+		Vector3.new(50, 0.5, 30),
+		CFrame.new(-40, 0.45, 0),
+		Color3.fromRGB(214, 150, 84),
+		Enum.Material.WoodPlanks
+	)
 	for _, z in { -15, 15 } do
 		part(warmup, "Ligne", Vector3.new(50, 0.52, 0.3), CFrame.new(-40, 0.46, z), PAPER)
 	end
@@ -240,9 +347,23 @@ local function build(): Model
 
 	-- Bancs et lanternes.
 	for _, x in { -30, 30 } do
-		part(world, "Banc", Vector3.new(10, 1, 3), CFrame.new(x, 1.5, 60), Color3.fromRGB(150, 100, 60), Enum.Material.Wood)
+		part(
+			world,
+			"Banc",
+			Vector3.new(10, 1, 3),
+			CFrame.new(x, 1.5, 60),
+			Color3.fromRGB(150, 100, 60),
+			Enum.Material.Wood
+		)
 		for _, z in { 70, 95 } do
-			local lantern = part(world, "Lanterne", Vector3.new(2, 3, 2), CFrame.new(x * 0.6, 6, z), Color3.fromRGB(255, 220, 140), Enum.Material.Neon)
+			local lantern = part(
+				world,
+				"Lanterne",
+				Vector3.new(2, 3, 2),
+				CFrame.new(x * 0.6, 6, z),
+				Color3.fromRGB(255, 220, 140),
+				Enum.Material.Neon
+			)
 			local light = Instance.new("PointLight")
 			light.Color = Color3.fromRGB(255, 200, 120)
 			light.Range = 16
@@ -276,9 +397,25 @@ local function nametag(player: Player, character: Model)
 	gui.AlwaysOnTop = false
 	gui.Parent = head
 	local tag = Clan.tagOf(player)
-	local name = label(gui, (if tag then `[{tag}] ` else "") .. player.DisplayName, UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.6), PAPER, Enum.Font.Bangers, INK)
+	local name = label(
+		gui,
+		(if tag then `[{tag}] ` else "") .. player.DisplayName,
+		UDim2.fromScale(0, 0),
+		UDim2.fromScale(1, 0.6),
+		PAPER,
+		Enum.Font.Bangers,
+		INK
+	)
 	name.TextStrokeTransparency = 0
-	local level = label(gui, `NIV. {if profile then profile.Level else 1}`, UDim2.fromScale(0.3, 0.6), UDim2.fromScale(0.4, 0.4), Color3.fromRGB(255, 214, 40), Enum.Font.Bangers, INK)
+	local level = label(
+		gui,
+		`NIV. {if profile then profile.Level else 1}`,
+		UDim2.fromScale(0.3, 0.6),
+		UDim2.fromScale(0.4, 0.4),
+		Color3.fromRGB(255, 214, 40),
+		Enum.Font.Bangers,
+		INK
+	)
 	level.TextStrokeTransparency = 0
 	local humanoid = character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
@@ -325,7 +462,8 @@ function Lobby.start()
 	-- Rafraîchir l'aperçu quand l'équipement ou le niveau change.
 	local lastEquipped: { [Player]: string } = {}
 	PlayerData.Changed:Connect(function(player, profile)
-		local signature = `{profile.Equipped.Mask}|{profile.Equipped.Gloves}|{profile.Equipped.Shoes}|{profile.Level}|{profile.ClanId}`
+		local signature =
+			`{profile.Equipped.Mask}|{profile.Equipped.Gloves}|{profile.Equipped.Shoes}|{profile.Level}|{profile.ClanId}`
 		if lastEquipped[player] == signature then
 			return
 		end

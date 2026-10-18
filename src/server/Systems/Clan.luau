@@ -327,10 +327,14 @@ ACTIONS.Create = function(player, nameArg, tagArg)
 	end
 	tag = string.upper(tag)
 	if not validName(name) then
-		return Remote.fail(`Le nom doit faire {Config.Clan.NameMinLength} à {Config.Clan.NameMaxLength} caractères (lettres, chiffres, espaces).`)
+		return Remote.fail(
+			`Le nom doit faire {Config.Clan.NameMinLength} à {Config.Clan.NameMaxLength} caractères (lettres, chiffres, espaces).`
+		)
 	end
 	if not validTag(tag) then
-		return Remote.fail(`Le tag doit faire {Config.Clan.TagMinLength} à {Config.Clan.TagMaxLength} lettres majuscules ou chiffres.`)
+		return Remote.fail(
+			`Le tag doit faire {Config.Clan.TagMinLength} à {Config.Clan.TagMaxLength} lettres majuscules ou chiffres.`
+		)
 	end
 	local profile = PlayerData.get(player)
 	if not profile then

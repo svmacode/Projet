@@ -158,7 +158,12 @@ function Abilities.execute(match: any, participant: Participant, power: Archetyp
 			local direction = if humanoid and humanoid.MoveDirection.Magnitude > 0.1
 				then Vector3.new(humanoid.MoveDirection.X, 0, humanoid.MoveDirection.Z).Unit
 				else flatLook(participant)
-			Abilities.impulse(match, participant, direction * (effect.Speed or 70) + Vector3.new(0, 10, 0), effect.Duration or 0.3)
+			Abilities.impulse(
+				match,
+				participant,
+				direction * (effect.Speed or 70) + Vector3.new(0, 10, 0),
+				effect.Duration or 0.3
+			)
 			participant.DiveUntil = t + (effect.Duration or 0.3) + 0.35
 		elseif kind == "Blink" then
 			local target = root.Position + flatLook(participant) * (effect.Distance or 24)

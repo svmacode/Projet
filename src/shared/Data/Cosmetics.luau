@@ -95,9 +95,25 @@ local LIST: { Cosmetic } = {
 		Rarity = "Commun",
 		Parts = {
 			part(Vector3.new(2.06, 0.26, 1.06), at(0, 0.24, 0), rgb(250, 250, 245), FABRIC),
-			part(Vector3.new(0.06, 0.2, 0.2), at(0, 0.24, -0.54) * CFrame.Angles(0, HALF_PI, 0), rgb(220, 30, 50), nil, "Cylinder"),
-			part(Vector3.new(0.12, 0.16, 0.55), at(0.18, 0.12, 0.74) * CFrame.Angles(0.5, 0.25, 0), rgb(250, 250, 245), FABRIC),
-			part(Vector3.new(0.12, 0.16, 0.5), at(-0.12, 0.06, 0.72) * CFrame.Angles(0.7, -0.2, 0), rgb(250, 250, 245), FABRIC),
+			part(
+				Vector3.new(0.06, 0.2, 0.2),
+				at(0, 0.24, -0.54) * CFrame.Angles(0, HALF_PI, 0),
+				rgb(220, 30, 50),
+				nil,
+				"Cylinder"
+			),
+			part(
+				Vector3.new(0.12, 0.16, 0.55),
+				at(0.18, 0.12, 0.74) * CFrame.Angles(0.5, 0.25, 0),
+				rgb(250, 250, 245),
+				FABRIC
+			),
+			part(
+				Vector3.new(0.12, 0.16, 0.5),
+				at(-0.12, 0.06, 0.72) * CFrame.Angles(0.7, -0.2, 0),
+				rgb(250, 250, 245),
+				FABRIC
+			),
 		},
 	},
 	{
@@ -133,7 +149,13 @@ local LIST: { Cosmetic } = {
 		Rarity = "PeuCommun",
 		Parts = {
 			faceplate(rgb(200, 24, 30)),
-			part(Vector3.new(1.0, 0.22, 0.22), at(0, 0.02, -1.08) * CFrame.Angles(0, HALF_PI, 0), rgb(200, 24, 30), nil, "Cylinder"),
+			part(
+				Vector3.new(1.0, 0.22, 0.22),
+				at(0, 0.02, -1.08) * CFrame.Angles(0, HALF_PI, 0),
+				rgb(200, 24, 30),
+				nil,
+				"Cylinder"
+			),
 			part(Vector3.new(0.42, 0.1, 0.04), at(0.3, 0.26, -0.65) * CFrame.Angles(0, 0, 0.3), rgb(20, 20, 24)),
 			part(Vector3.new(0.42, 0.1, 0.04), at(-0.3, 0.26, -0.65) * CFrame.Angles(0, 0, -0.3), rgb(20, 20, 24)),
 			part(Vector3.new(0.9, 0.08, 0.04), at(0, -0.3, -0.65), rgb(255, 220, 120)),
@@ -146,10 +168,35 @@ local LIST: { Cosmetic } = {
 		Rarity = "Rare",
 		Parts = {
 			faceplate(rgb(180, 20, 34)),
-			part(Vector3.new(0.7, 0.16, 0.16), at(0.5, 0.78, -0.42) * CFrame.Angles(0, 0, HALF_PI - 0.35), rgb(255, 220, 90), nil, "Cylinder"),
-			part(Vector3.new(0.7, 0.16, 0.16), at(-0.5, 0.78, -0.42) * CFrame.Angles(0, 0, HALF_PI + 0.35), rgb(255, 220, 90), nil, "Cylinder"),
-			glow(part(Vector3.new(0.26, 0.1, 0.04), at(0.3, 0.14, -0.65) * CFrame.Angles(0, 0, -0.25), rgb(255, 230, 60), NEON), 5),
-			part(Vector3.new(0.26, 0.1, 0.04), at(-0.3, 0.14, -0.65) * CFrame.Angles(0, 0, 0.25), rgb(255, 230, 60), NEON),
+			part(
+				Vector3.new(0.7, 0.16, 0.16),
+				at(0.5, 0.78, -0.42) * CFrame.Angles(0, 0, HALF_PI - 0.35),
+				rgb(255, 220, 90),
+				nil,
+				"Cylinder"
+			),
+			part(
+				Vector3.new(0.7, 0.16, 0.16),
+				at(-0.5, 0.78, -0.42) * CFrame.Angles(0, 0, HALF_PI + 0.35),
+				rgb(255, 220, 90),
+				nil,
+				"Cylinder"
+			),
+			glow(
+				part(
+					Vector3.new(0.26, 0.1, 0.04),
+					at(0.3, 0.14, -0.65) * CFrame.Angles(0, 0, -0.25),
+					rgb(255, 230, 60),
+					NEON
+				),
+				5
+			),
+			part(
+				Vector3.new(0.26, 0.1, 0.04),
+				at(-0.3, 0.14, -0.65) * CFrame.Angles(0, 0, 0.25),
+				rgb(255, 230, 60),
+				NEON
+			),
 			part(Vector3.new(0.12, 0.2, 0.06), at(0.22, -0.4, -0.64), rgb(255, 255, 250), nil, "Wedge"),
 			part(Vector3.new(0.12, 0.2, 0.06), at(-0.22, -0.4, -0.64), rgb(255, 255, 250), nil, "Wedge"),
 		},
@@ -161,10 +208,35 @@ local LIST: { Cosmetic } = {
 		Rarity = "Epique",
 		Parts = {
 			faceplate(rgb(248, 240, 226)),
-			part(Vector3.new(1.0, 0.16, 0.16), at(0.62, 0.86, -0.3) * CFrame.Angles(0.3, 0, HALF_PI - 0.6), rgb(255, 196, 40), METAL, "Cylinder"),
-			part(Vector3.new(1.0, 0.16, 0.16), at(-0.62, 0.86, -0.3) * CFrame.Angles(0.3, 0, HALF_PI + 0.6), rgb(255, 196, 40), METAL, "Cylinder"),
-			glow(part(Vector3.new(0.3, 0.12, 0.04), at(0.3, 0.12, -0.65) * CFrame.Angles(0, 0, -0.4), rgb(255, 30, 60), NEON), 7),
-			part(Vector3.new(0.3, 0.12, 0.04), at(-0.3, 0.12, -0.65) * CFrame.Angles(0, 0, 0.4), rgb(255, 30, 60), NEON),
+			part(
+				Vector3.new(1.0, 0.16, 0.16),
+				at(0.62, 0.86, -0.3) * CFrame.Angles(0.3, 0, HALF_PI - 0.6),
+				rgb(255, 196, 40),
+				METAL,
+				"Cylinder"
+			),
+			part(
+				Vector3.new(1.0, 0.16, 0.16),
+				at(-0.62, 0.86, -0.3) * CFrame.Angles(0.3, 0, HALF_PI + 0.6),
+				rgb(255, 196, 40),
+				METAL,
+				"Cylinder"
+			),
+			glow(
+				part(
+					Vector3.new(0.3, 0.12, 0.04),
+					at(0.3, 0.12, -0.65) * CFrame.Angles(0, 0, -0.4),
+					rgb(255, 30, 60),
+					NEON
+				),
+				7
+			),
+			part(
+				Vector3.new(0.3, 0.12, 0.04),
+				at(-0.3, 0.12, -0.65) * CFrame.Angles(0, 0, 0.4),
+				rgb(255, 30, 60),
+				NEON
+			),
 			part(Vector3.new(0.9, 0.14, 0.05), at(0, -0.32, -0.65), rgb(170, 10, 30)),
 			part(Vector3.new(1.36, 0.08, 0.18), at(0, 0.45, -0.56), rgb(255, 196, 40), METAL),
 		},
@@ -179,10 +251,35 @@ local LIST: { Cosmetic } = {
 			faceplate(rgb(20, 120, 70), METAL),
 			part(Vector3.new(1.4, 0.1, 0.2), at(0, 0.48, -0.56), rgb(255, 200, 40), METAL),
 			part(Vector3.new(1.4, 0.1, 0.2), at(0, -0.48, -0.56), rgb(255, 200, 40), METAL),
-			part(Vector3.new(1.1, 0.14, 0.14), at(0.7, 0.75, 0.05) * CFrame.Angles(-0.6, 0, HALF_PI - 0.5), rgb(255, 220, 120), METAL, "Cylinder"),
-			part(Vector3.new(1.1, 0.14, 0.14), at(-0.7, 0.75, 0.05) * CFrame.Angles(-0.6, 0, HALF_PI + 0.5), rgb(255, 220, 120), METAL, "Cylinder"),
-			glow(part(Vector3.new(0.32, 0.12, 0.04), at(0.3, 0.1, -0.65) * CFrame.Angles(0, 0, -0.3), rgb(80, 255, 230), NEON), 8),
-			part(Vector3.new(0.32, 0.12, 0.04), at(-0.3, 0.1, -0.65) * CFrame.Angles(0, 0, 0.3), rgb(80, 255, 230), NEON),
+			part(
+				Vector3.new(1.1, 0.14, 0.14),
+				at(0.7, 0.75, 0.05) * CFrame.Angles(-0.6, 0, HALF_PI - 0.5),
+				rgb(255, 220, 120),
+				METAL,
+				"Cylinder"
+			),
+			part(
+				Vector3.new(1.1, 0.14, 0.14),
+				at(-0.7, 0.75, 0.05) * CFrame.Angles(-0.6, 0, HALF_PI + 0.5),
+				rgb(255, 220, 120),
+				METAL,
+				"Cylinder"
+			),
+			glow(
+				part(
+					Vector3.new(0.32, 0.12, 0.04),
+					at(0.3, 0.1, -0.65) * CFrame.Angles(0, 0, -0.3),
+					rgb(80, 255, 230),
+					NEON
+				),
+				8
+			),
+			part(
+				Vector3.new(0.32, 0.12, 0.04),
+				at(-0.3, 0.1, -0.65) * CFrame.Angles(0, 0, 0.3),
+				rgb(80, 255, 230),
+				NEON
+			),
 		},
 	},
 	{
@@ -193,10 +290,35 @@ local LIST: { Cosmetic } = {
 		Sparkles = rgb(255, 60, 220),
 		Parts = {
 			part(Vector3.new(1.4, 1.0, 0.18), at(0, 0, -0.56), rgb(14, 8, 24), GLASS),
-			glow(part(Vector3.new(0.36, 0.14, 0.04), at(0.3, 0.1, -0.665) * CFrame.Angles(0, 0, -0.2), rgb(255, 40, 220), NEON), 10),
-			part(Vector3.new(0.36, 0.14, 0.04), at(-0.3, 0.1, -0.665) * CFrame.Angles(0, 0, 0.2), rgb(255, 40, 220), NEON),
-			part(Vector3.new(0.08, 1.7, 1.7), at(0, 1.05, 0.15) * CFrame.Angles(0, 0, HALF_PI), rgb(255, 40, 220), NEON, "Cylinder"),
-			part(Vector3.new(0.09, 1.4, 1.4), at(0, 1.05, 0.15) * CFrame.Angles(0, 0, HALF_PI), rgb(14, 8, 24), nil, "Cylinder"),
+			glow(
+				part(
+					Vector3.new(0.36, 0.14, 0.04),
+					at(0.3, 0.1, -0.665) * CFrame.Angles(0, 0, -0.2),
+					rgb(255, 40, 220),
+					NEON
+				),
+				10
+			),
+			part(
+				Vector3.new(0.36, 0.14, 0.04),
+				at(-0.3, 0.1, -0.665) * CFrame.Angles(0, 0, 0.2),
+				rgb(255, 40, 220),
+				NEON
+			),
+			part(
+				Vector3.new(0.08, 1.7, 1.7),
+				at(0, 1.05, 0.15) * CFrame.Angles(0, 0, HALF_PI),
+				rgb(255, 40, 220),
+				NEON,
+				"Cylinder"
+			),
+			part(
+				Vector3.new(0.09, 1.4, 1.4),
+				at(0, 1.05, 0.15) * CFrame.Angles(0, 0, HALF_PI),
+				rgb(14, 8, 24),
+				nil,
+				"Cylinder"
+			),
 		},
 	},
 	------------------------------------------------------------------ GANTS
@@ -226,7 +348,13 @@ local LIST: { Cosmetic } = {
 		Parts = {
 			glove(rgb(255, 110, 20)),
 			cuff(rgb(255, 220, 60)),
-			part(Vector3.new(0.3, 0.45, 0.5), at(0, -0.25, 0.55) * CFrame.Angles(0, math.pi, 0), rgb(255, 200, 40), NEON, "Wedge"),
+			part(
+				Vector3.new(0.3, 0.45, 0.5),
+				at(0, -0.25, 0.55) * CFrame.Angles(0, math.pi, 0),
+				rgb(255, 200, 40),
+				NEON,
+				"Wedge"
+			),
 		},
 	},
 	{
@@ -248,7 +376,13 @@ local LIST: { Cosmetic } = {
 		Parts = {
 			glove(rgb(170, 230, 255), GLASS),
 			glow(cuff(rgb(80, 220, 255), NEON), 5),
-			part(Vector3.new(0.18, 0.4, 0.18), at(0.5, -0.4, 0) * CFrame.Angles(0, 0, -0.5), rgb(220, 250, 255), GLASS, "Wedge"),
+			part(
+				Vector3.new(0.18, 0.4, 0.18),
+				at(0.5, -0.4, 0) * CFrame.Angles(0, 0, -0.5),
+				rgb(220, 250, 255),
+				GLASS,
+				"Wedge"
+			),
 		},
 	},
 	{
@@ -312,7 +446,12 @@ local LIST: { Cosmetic } = {
 		Parts = {
 			shoe(rgb(255, 214, 30)),
 			sole(rgb(30, 30, 60)),
-			part(Vector3.new(0.05, 0.3, 0.6), at(0.56, -0.78, -0.14) * CFrame.Angles(0.6, 0, 0), rgb(40, 40, 120), NEON),
+			part(
+				Vector3.new(0.05, 0.3, 0.6),
+				at(0.56, -0.78, -0.14) * CFrame.Angles(0.6, 0, 0),
+				rgb(40, 40, 120),
+				NEON
+			),
 		},
 	},
 	{
@@ -356,7 +495,13 @@ local LIST: { Cosmetic } = {
 		Parts = {
 			shoe(rgb(252, 250, 244)),
 			sole(rgb(255, 196, 40)),
-			part(Vector3.new(0.08, 0.5, 0.7), at(0.6, -0.6, 0.15) * CFrame.Angles(-0.4, 0, 0), rgb(255, 230, 140), NEON, "Wedge"),
+			part(
+				Vector3.new(0.08, 0.5, 0.7),
+				at(0.6, -0.6, 0.15) * CFrame.Angles(-0.4, 0, 0),
+				rgb(255, 230, 140),
+				NEON,
+				"Wedge"
+			),
 		},
 	},
 	{

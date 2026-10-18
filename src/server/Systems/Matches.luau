@@ -80,12 +80,15 @@ local function grantRewards(match: any, results: any)
 	end
 end
 
-local function runMatch(config: MatchConfig, players: { Player }, origin: CFrame): any
+local function runMatch(config: MatchConfig, players: { Player }, origin: CFrame, onCreated: (() -> ())?): any
 	local infos: { [Player]: Match.PlayerInfo } = {}
 	for _, player in players do
 		infos[player] = playerInfo(player)
 	end
 	local match = Match.new(config, players, infos, origin, folder())
+	if onCreated then
+		onCreated()
+	end
 	for _, player in players do
 		busy[player] = match
 	end
@@ -157,7 +160,33 @@ local function returnToLobby(players: { Player }, parties: { { number } }?)
 	end
 end
 
+-- Plateforme provisoire : les joueurs arrivent avant la construction du terrain.
+local function buildWaitingArea(): Model
+	local area = Instance.new("Model")
+	area.Name = "SalleAttente"
+	local floor = Instance.new("Part")
+	floor.Name = "Sol"
+	floor.Anchored = true
+	floor.Size = Vector3.new(120, 2, 120)
+	floor.CFrame = CFrame.new(0, -1, 0)
+	floor.Color = Color3.fromRGB(214, 150, 84)
+	floor.Material = Enum.Material.WoodPlanks
+	floor.Parent = area
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Anchored = true
+	spawn.Size = Vector3.new(12, 0.4, 12)
+	spawn.CFrame = CFrame.new(0, 0.2, 0)
+	spawn.Duration = 0
+	spawn.Neutral = true
+	spawn.Transparency = 1
+	spawn.CanCollide = false
+	spawn.Parent = area
+	area.Parent = Workspace
+	return area
+end
+
 local function hostReservedMatch()
+	local waitingArea = buildWaitingArea()
 	local map = MemoryStoreService:GetHashMap("HL_Matches")
 	local config: MatchConfig? = nil
 	for _ = 1, 25 do
@@ -216,7 +245,14 @@ local function hostReservedMatch()
 	if #players == 0 then
 		return
 	end
-	runMatch(config, players, CFrame.new(0, 0, 0))
+	runMatch(config, players, CFrame.new(0, 0, 0), function()
+		-- Le terrain est construit : la plateforme provisoire disparaît
+		-- (le point d'apparition reste pour les réapparitions).
+		local floor = waitingArea:FindFirstChild("Sol")
+		if floor then
+			floor:Destroy()
+		end
+	end)
 	returnToLobby(Players:GetPlayers(), config.Parties)
 end
 
