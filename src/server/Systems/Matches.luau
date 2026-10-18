@@ -98,9 +98,9 @@ local function runMatch(config: MatchConfig, players: { Player }, origin: CFrame
 		results = nil
 	end
 	if results then
-		local granted, err = pcall(grantRewards, match, results)
-		if not granted then
-			warn(`[Matches] erreur pendant les récompenses : {err}`)
+		local granted = table.pack(pcall(grantRewards, match, results))
+		if not granted[1] then
+			warn(`[Matches] erreur pendant les récompenses : {granted[2]}`)
 		end
 	end
 	task.wait(Config.Match.EndScreenTime)
