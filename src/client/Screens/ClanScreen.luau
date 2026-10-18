@@ -29,6 +29,8 @@ function ClanScreen.crest(parent: Instance, clan: any, size: Vector2, z: number)
 		Parent = parent,
 	})
 	Kit.corner(banner, Theme.RadiusLarge)
+	Kit.border(banner, C.Ink, 3)
+	Kit.shade(banner, 0.28)
 	local pattern = clan.BannerPattern
 	if pattern == "Bande" then
 		Kit.new("Frame", {
@@ -83,9 +85,10 @@ function ClanScreen.crest(parent: Instance, clan: any, size: Vector2, z: number)
 		Parent = banner,
 	})
 	Kit.corner(disc, 1000)
+	Kit.border(disc, accent, 3)
 	Kit.label({
 		Text = ClanStyle.emblem(clan.Emblem).Glyph,
-		Font = Theme.Fonts.Display,
+		Font = Theme.Fonts.Hero,
 		TextSize = math.floor(size.Y * 0.32),
 		Color = accent,
 		AlignX = Enum.TextXAlignment.Center,
@@ -96,12 +99,36 @@ function ClanScreen.crest(parent: Instance, clan: any, size: Vector2, z: number)
 	return banner
 end
 
+-- Intertitre en plaque inclinée.
+local function heading(parent: Instance, text: string, color: Color3, position: UDim2, z: number): Frame
+	local plate = Kit.plate({
+		Color = color,
+		Size = UDim2.fromOffset(24 + #text * 14, 30),
+		Position = position,
+		BorderThickness = 2.5,
+		Shadow = false,
+		ZIndex = z,
+		Parent = parent,
+	})
+	Kit.label({
+		Text = string.upper(text),
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.H3,
+		Color = Theme.onColor(color),
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = z + 1,
+		Parent = plate,
+	})
+	return plate
+end
+
 local function swatches(parent: Instance, label: string, y: number, selected: number, onPick: (number) -> (), z: number)
 	Kit.label({
 		Text = label,
-		Font = Theme.Fonts.Bold,
-		TextSize = Theme.Text.Tiny,
-		Color = C.TextFaint,
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
 		Position = UDim2.fromOffset(0, y),
 		Size = UDim2.new(1, 0, 0, 16),
 		ZIndex = z,
@@ -115,15 +142,16 @@ local function swatches(parent: Instance, label: string, y: number, selected: nu
 			AutoButtonColor = false,
 			Text = "",
 			BackgroundColor3 = color,
+			BorderSizePixel = 0,
 			Size = UDim2.fromOffset(28, 28),
+			Rotation = if index == selected then -8 else 0,
 			LayoutOrder = index,
 			ZIndex = z,
 			Parent = row,
 		})
 		Kit.corner(swatch, 6)
-		if index == selected then
-			Kit.border(swatch, C.White, 2)
-		end
+		Kit.border(swatch, if index == selected then C.White else C.Ink, if index == selected then 3 else 2)
+		Kit.shade(swatch, 0.25)
 		swatch.Activated:Connect(function()
 			onPick(index)
 		end)
@@ -131,7 +159,8 @@ local function swatches(parent: Instance, label: string, y: number, selected: nu
 end
 
 function ClanScreen.create(parent: Instance): Page.Page
-	local page = Page.full(parent, "Clan", "Fonde ton clan, recrute et porte vos couleurs sur le terrain.")
+	local accent = Theme.Section.Clan
+	local page = Page.full(parent, "Clan", "Fonde ton clan, recrute et porte vos couleurs sur le terrain.", accent)
 	local content = page.Content
 	local meta = { Credits = 0, ProductEnabled = false, Price = Config.ProductRobuxPrice.ClanCreation }
 	local inviting = false
@@ -141,9 +170,44 @@ function ClanScreen.create(parent: Instance): Page.Page
 		local clan = State.Clan
 		if not clan then
 			local card = Kit.surface({
-				Color = C.Surface,
-				Size = UDim2.fromOffset(520, 420),
+				Color = Theme.darken(accent, 0.6),
+				Size = UDim2.fromOffset(520, 440),
+				Position = UDim2.fromOffset(4, 4),
 				Radius = Theme.RadiusLarge,
+				BorderThickness = 3,
+				Shadow = true,
+				ShadowOffset = 8,
+				ShadowColor = accent,
+				ZIndex = 12,
+				Parent = content,
+			})
+			Kit.halftone({
+				Parent = card,
+				Color = accent,
+				Columns = 16,
+				Rows = 8,
+				Spacing = 16,
+				Flip = true,
+				Position = UDim2.new(1, -4, 0, 4),
+				AnchorPoint = Vector2.new(1, 0),
+				ZIndex = 12,
+			})
+			-- Blason d'exemple à droite de la carte.
+			local preview = ClanScreen.crest(content, {
+				BannerColor = 1,
+				EmblemColor = 2,
+				BannerPattern = "Diagonale",
+				Emblem = ClanStyle.Emblems[1].Id,
+			}, Vector2.new(260, 160), 12)
+			preview.Position = UDim2.fromOffset(580, 40)
+			preview.Rotation = 4
+			Kit.label({
+				Text = "Ton blason, tes couleurs, ton accent de tenue.",
+				Font = Theme.Fonts.Display,
+				TextSize = Theme.Text.H3,
+				Color = C.TextMuted,
+				Position = UDim2.fromOffset(580, 220),
+				Size = UDim2.fromOffset(420, 26),
 				ZIndex = 12,
 				Parent = content,
 			})
@@ -153,16 +217,19 @@ function ClanScreen.create(parent: Instance): Page.Page
 				ZIndex = 13,
 				Parent = card,
 			})
-			Kit.label({
-				Text = "Créer un clan",
-				Font = Theme.Fonts.Display,
-				TextSize = Theme.Text.H2,
-				Size = UDim2.new(1, 0, 0, 32),
+			Kit.title({
+				Text = "CRÉER UN CLAN",
+				TextSize = 44,
+				ShadowColor = accent,
+				Size = UDim2.new(1, 0, 0, 48),
+				Position = UDim2.fromOffset(0, -6),
+				Rotation = -2,
 				ZIndex = 14,
 				Parent = inner,
 			})
 			Kit.label({
 				Text = `Jusqu'à {Config.Clan.MaxMembers} membres, un blason personnalisé, des rôles et un classement des victoires.`,
+				Font = Theme.Fonts.Semibold,
 				TextSize = Theme.Text.Small,
 				Color = C.TextMuted,
 				Wrap = true,
@@ -175,9 +242,9 @@ function ClanScreen.create(parent: Instance): Page.Page
 			local function field(label: string, placeholder: string, y: number): TextBox
 				Kit.label({
 					Text = label,
-					Font = Theme.Fonts.Bold,
-					TextSize = Theme.Text.Tiny,
-					Color = C.TextFaint,
+					Font = Theme.Fonts.Display,
+					TextSize = Theme.Text.Small,
+					Color = accent,
 					Position = UDim2.fromOffset(0, y),
 					Size = UDim2.new(1, 0, 0, 16),
 					ZIndex = 14,
@@ -191,7 +258,8 @@ function ClanScreen.create(parent: Instance): Page.Page
 					TextSize = Theme.Text.Body,
 					TextColor3 = C.Text,
 					TextXAlignment = Enum.TextXAlignment.Left,
-					BackgroundColor3 = C.Surface2,
+					BackgroundColor3 = C.Background,
+					BorderSizePixel = 0,
 					ClearTextOnFocus = false,
 					Size = UDim2.new(1, 0, 0, 46),
 					Position = UDim2.fromOffset(0, y + 20),
@@ -208,12 +276,14 @@ function ClanScreen.create(parent: Instance): Page.Page
 				field("TAG", `{Config.Clan.TagMinLength} à {Config.Clan.TagMaxLength} lettres ou chiffres`, 176)
 			local create = Kit.button({
 				Text = if meta.Credits > 0
-					then "Créer le clan"
-					elseif meta.ProductEnabled then `Créer le clan · {meta.Price} R$`
-					else "Bientôt disponible",
+					then "CRÉER LE CLAN"
+					elseif meta.ProductEnabled then `CRÉER LE CLAN · {meta.Price} R$`
+					else "BIENTÔT DISPONIBLE",
 				Variant = "Primary",
-				Size = UDim2.new(1, 0, 0, 52),
-				Position = UDim2.new(0, 0, 1, -52),
+				Font = Theme.Fonts.Display,
+				TextSize = Theme.Text.H3 + 2,
+				Size = UDim2.new(1, -4, 0, 54),
+				Position = UDim2.new(0, 0, 1, -56),
 				ZIndex = 14,
 				Parent = inner,
 				OnClick = function()
@@ -236,24 +306,34 @@ function ClanScreen.create(parent: Instance): Page.Page
 		local canManage = myRole == "Chef" or myRole == "Officier"
 
 		-- En-tête.
-		ClanScreen.crest(content, clan, Vector2.new(220, 132), 12)
-		Kit.label({
-			Text = `[{clan.Tag}] {clan.Name}`,
-			Font = Theme.Fonts.Display,
-			TextSize = Theme.Text.H1,
-			Position = UDim2.fromOffset(248, 16),
-			Size = UDim2.new(1, -560, 0, 44),
+		local crest = ClanScreen.crest(content, clan, Vector2.new(220, 132), 12)
+		crest.Rotation = -3
+		local bannerColor = ClanStyle.color(clan.BannerColor)
+		Kit.title({
+			Text = string.upper(`[{clan.Tag}] {clan.Name}`),
+			TextSize = 52,
+			ShadowColor = bannerColor,
+			Position = UDim2.fromOffset(252, 6),
+			Size = UDim2.new(1, -580, 0, 58),
+			Rotation = -2,
 			ZIndex = 12,
 			Parent = content,
 		})
-		Kit.label({
-			Text = `{#clan.Members} / {clan.MaxMembers} membres  ·  {clan.Wins} victoires  ·  rôle : {myRole}`,
-			Color = C.TextMuted,
-			Position = UDim2.fromOffset(248, 64),
-			Size = UDim2.new(1, -560, 0, 22),
+		local stats = Kit.box({
+			Size = UDim2.new(1, -580, 0, 30),
+			Position = UDim2.fromOffset(256, 76),
 			ZIndex = 12,
 			Parent = content,
 		})
+		Kit.list(stats, 10, true, nil, Enum.VerticalAlignment.Center)
+		Kit.pill(stats, `{#clan.Members} / {clan.MaxMembers} membres`, C.Cyan, 1)
+		Kit.pill(stats, `{clan.Wins} victoires`, C.Accent, 2)
+		Kit.pill(stats, `Rôle : {myRole}`, accent, 3)
+		for _, child in stats:GetDescendants() do
+			if child:IsA("GuiObject") then
+				child.ZIndex = 13
+			end
+		end
 		local actions = Kit.box({
 			Size = UDim2.fromOffset(300, 44),
 			Position = UDim2.new(1, 0, 0, 16),
@@ -264,8 +344,9 @@ function ClanScreen.create(parent: Instance): Page.Page
 		Kit.list(actions, 10, true, Enum.HorizontalAlignment.Right)
 		if canManage then
 			Kit.button({
-				Text = "Inviter",
+				Text = "INVITER",
 				Variant = "Primary",
+				Font = Theme.Fonts.Display,
 				Size = UDim2.fromOffset(120, 44),
 				Order = 1,
 				ZIndex = 13,
@@ -277,8 +358,9 @@ function ClanScreen.create(parent: Instance): Page.Page
 			})
 		end
 		Kit.button({
-			Text = "Quitter",
+			Text = "QUITTER",
 			Variant = "Danger",
+			Font = Theme.Fonts.Display,
 			Size = UDim2.fromOffset(120, 44),
 			Order = 2,
 			ZIndex = 13,
@@ -291,24 +373,19 @@ function ClanScreen.create(parent: Instance): Page.Page
 		-- Membres.
 		local membersCard = Kit.surface({
 			Color = C.Surface,
-			Size = UDim2.new(0.55, -12, 1, -160),
+			Size = UDim2.new(0.55, -16, 1, -168),
 			Position = UDim2.fromOffset(0, 160),
 			Radius = Theme.RadiusLarge,
+			BorderThickness = 3,
+			Shadow = true,
+			ShadowColor = accent,
 			ZIndex = 12,
 			Parent = content,
 		})
-		Kit.label({
-			Text = "Membres",
-			Font = Theme.Fonts.Bold,
-			TextSize = Theme.Text.H3,
-			Position = UDim2.fromOffset(24, 18),
-			Size = UDim2.new(1, -48, 0, 26),
-			ZIndex = 13,
-			Parent = membersCard,
-		})
+		heading(membersCard, "Membres", accent, UDim2.fromOffset(20, 16), 13)
 		local list = Kit.scroll({
-			Size = UDim2.new(1, -32, 1, -70),
-			Position = UDim2.fromOffset(16, 58),
+			Size = UDim2.new(1, -32, 1, -76),
+			Position = UDim2.fromOffset(16, 62),
 			ZIndex = 13,
 			Parent = membersCard,
 		})
@@ -321,21 +398,32 @@ function ClanScreen.create(parent: Instance): Page.Page
 				ZIndex = 14,
 				Parent = list,
 			})
+			Kit.new("Frame", {
+				BackgroundColor3 = if member.Role == "Chef"
+					then C.Accent
+					elseif member.Role == "Officier" then C.Cyan
+					else C.Surface3,
+				BorderSizePixel = 0,
+				Size = UDim2.new(0, 6, 1, -12),
+				Position = UDim2.fromOffset(6, 6),
+				ZIndex = 15,
+				Parent = row,
+			})
 			Kit.label({
 				Text = member.Name,
-				Font = Theme.Fonts.Semibold,
+				Font = Theme.Fonts.Bold,
 				Position = UDim2.fromOffset(16, 0),
 				Size = UDim2.new(1, -300, 1, 0),
 				ZIndex = 15,
 				Parent = row,
 			})
 			Kit.label({
-				Text = member.Role,
-				Font = Theme.Fonts.Bold,
-				TextSize = Theme.Text.Small,
+				Text = string.upper(member.Role),
+				Font = Theme.Fonts.Display,
+				TextSize = Theme.Text.Body,
 				Color = if member.Role == "Chef"
 					then C.Accent
-					elseif member.Role == "Officier" then C.Info
+					elseif member.Role == "Officier" then C.Cyan
 					else C.TextMuted,
 				Position = UDim2.new(1, -280, 0, 0),
 				Size = UDim2.fromOffset(90, 52),
@@ -383,11 +471,14 @@ function ClanScreen.create(parent: Instance): Page.Page
 
 		-- Personnalisation ou invitations.
 		local side = Kit.surface({
-			Color = C.Surface,
-			Size = UDim2.new(0.45, -12, 1, -160),
-			Position = UDim2.new(1, 0, 0, 160),
+			Color = Theme.darken(accent, 0.65),
+			Size = UDim2.new(0.45, -16, 1, -168),
+			Position = UDim2.new(1, -8, 0, 160),
 			AnchorPoint = Vector2.new(1, 0),
 			Radius = Theme.RadiusLarge,
+			BorderThickness = 3,
+			Shadow = true,
+			ShadowColor = C.Pink,
 			ZIndex = 12,
 			Parent = content,
 		})
@@ -398,17 +489,10 @@ function ClanScreen.create(parent: Instance): Page.Page
 			Parent = side,
 		})
 		if inviting then
-			Kit.label({
-				Text = "Inviter un joueur du serveur",
-				Font = Theme.Fonts.Bold,
-				TextSize = Theme.Text.H3,
-				Size = UDim2.new(1, 0, 0, 26),
-				ZIndex = 14,
-				Parent = inner,
-			})
+			heading(inner, "Inviter un joueur", C.Pink, UDim2.fromOffset(2, 0), 14)
 			local invites = Kit.scroll({
-				Size = UDim2.new(1, 0, 1, -40),
-				Position = UDim2.fromOffset(0, 40),
+				Size = UDim2.new(1, 0, 1, -46),
+				Position = UDim2.fromOffset(0, 46),
 				ZIndex = 14,
 				Parent = inner,
 			})
@@ -460,19 +544,12 @@ function ClanScreen.create(parent: Instance): Page.Page
 				})
 			end
 		elseif canManage then
-			Kit.label({
-				Text = "Personnalisation",
-				Font = Theme.Fonts.Bold,
-				TextSize = Theme.Text.H3,
-				Size = UDim2.new(1, 0, 0, 26),
-				ZIndex = 14,
-				Parent = inner,
-			})
+			heading(inner, "Personnalisation", C.Pink, UDim2.fromOffset(2, -4), 14)
 			Kit.label({
 				Text = "EMBLÈME",
-				Font = Theme.Fonts.Bold,
-				TextSize = Theme.Text.Tiny,
-				Color = C.TextFaint,
+				Font = Theme.Fonts.Display,
+				TextSize = Theme.Text.Small,
+				Color = C.TextMuted,
 				Position = UDim2.fromOffset(0, 40),
 				Size = UDim2.new(1, 0, 0, 16),
 				ZIndex = 14,
@@ -489,15 +566,17 @@ function ClanScreen.create(parent: Instance): Page.Page
 				local button = Kit.new("TextButton", {
 					AutoButtonColor = false,
 					Text = emblem.Glyph,
-					FontFace = Theme.Fonts.Display,
-					TextSize = 18,
-					TextColor3 = if clan.Emblem == emblem.Id then C.Background else C.Text,
-					BackgroundColor3 = if clan.Emblem == emblem.Id then C.Text else C.Surface2,
+					FontFace = Theme.Fonts.Hero,
+					TextSize = 22,
+					TextColor3 = if clan.Emblem == emblem.Id then C.TextOnAccent else C.Text,
+					BackgroundColor3 = if clan.Emblem == emblem.Id then C.Accent else C.Surface2,
+					BorderSizePixel = 0,
 					LayoutOrder = index,
 					ZIndex = 15,
 					Parent = emblems,
 				})
 				Kit.corner(button, 6)
+				Kit.border(button, C.Ink, 2)
 				button.Activated:Connect(function()
 					State.request("ClanAction", "Customize", "Emblem", emblem.Id)
 				end)
@@ -517,9 +596,9 @@ function ClanScreen.create(parent: Instance): Page.Page
 			end
 			Kit.label({
 				Text = "MOTIF",
-				Font = Theme.Fonts.Bold,
-				TextSize = Theme.Text.Tiny,
-				Color = C.TextFaint,
+				Font = Theme.Fonts.Display,
+				TextSize = Theme.Text.Small,
+				Color = C.TextMuted,
 				Position = UDim2.fromOffset(0, 318),
 				Size = UDim2.new(1, 0, 0, 16),
 				ZIndex = 14,
@@ -529,6 +608,7 @@ function ClanScreen.create(parent: Instance): Page.Page
 				Options = patternOptions,
 				Value = clan.BannerPattern,
 				TextSize = Theme.Text.Tiny,
+				Color = C.Pink,
 				Size = UDim2.new(1, 0, 0, 40),
 				Position = UDim2.fromOffset(0, 338),
 				ZIndex = 14,

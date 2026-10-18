@@ -11,6 +11,29 @@ export type PatchNote = {
 
 local PatchNotes: { PatchNote } = {
 	{
+		Version = "0.3.0",
+		Date = "18/10/2026",
+		Title = "Style anime",
+		Sections = {
+			{
+				Heading = "Visuel",
+				Lines = {
+					"Nouvelle direction artistique anime : couleurs vives, contours d'encre, plaques inclinées.",
+					"Chaque section a sa couleur : Jouer, Casier, Boutique, Clan, Tutoriel, Nouveautés.",
+					"Contours façon dessin animé sur les personnages et le ballon.",
+					"Quartier, ciel et gymnase entièrement recolorés.",
+				},
+			},
+			{
+				Heading = "Match",
+				Lines = {
+					"Nouveau GOAL, nouveau tableau de score, nouveaux pouvoirs et bandeaux d'arbitrage.",
+					"Nouvelle ouverture des Balles avec rayons et révélation de la rareté.",
+				},
+			},
+		},
+	},
+	{
 		Version = "0.2.0",
 		Date = "18/10/2026",
 		Title = "Refonte complète",
