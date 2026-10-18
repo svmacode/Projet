@@ -1,5 +1,8 @@
 --!strict
--- Le lobby : le lycée Seiryō et son quartier au coucher du soleil.
+-- Le lobby : le lycée Seiryō et son quartier au coucher du soleil, avec une
+-- direction artistique d'animé : couleurs pastel saturées, enseignes néon,
+-- lanternes en papier, banderoles, cerisiers rose vif. Matériaux lisses
+-- (SmoothPlastic) et Neon uniquement, pour un rendu « cel ».
 --
 -- Campus au centre (bâtiment principal, gymnase, terrain extérieur, cour,
 -- cerisiers), rues tout autour (passages piétons, poteaux électriques,
@@ -23,29 +26,57 @@ local M = Enum.Material
 
 -- Palette du quartier.
 local COLORS = {
-	SchoolWall = rgb(238, 232, 218),
-	SchoolTrim = rgb(196, 190, 178),
-	Glass = rgb(120, 150, 175),
-	GlassLit = rgb(255, 214, 160),
-	Concrete = rgb(176, 172, 166),
-	ConcreteDark = rgb(128, 124, 120),
-	Asphalt = rgb(58, 58, 64),
-	Sidewalk = rgb(170, 164, 156),
-	Line = rgb(236, 234, 226),
-	Pole = rgb(92, 88, 86),
-	Wire = rgb(30, 30, 34),
-	Grass = rgb(104, 142, 84),
-	Dirt = rgb(176, 140, 102),
-	Wood = rgb(120, 82, 58),
+	SchoolWall = rgb(255, 244, 226),
+	SchoolTrim = rgb(255, 150, 120),
+	SchoolAccent = rgb(70, 110, 230),
+	Glass = rgb(110, 190, 255),
+	GlassLit = rgb(255, 222, 120),
+	Concrete = rgb(236, 220, 230),
+	ConcreteDark = rgb(170, 140, 190),
+	Asphalt = rgb(70, 70, 112),
+	Sidewalk = rgb(236, 196, 186),
+	Curb = rgb(255, 255, 255),
+	Line = rgb(255, 255, 255),
+	Pole = rgb(120, 100, 140),
+	Wire = rgb(30, 20, 50),
+	Grass = rgb(110, 214, 120),
+	Dirt = rgb(240, 170, 110),
+	Wood = rgb(176, 96, 64),
+	Plaza = rgb(255, 232, 214),
+	Lantern = rgb(255, 60, 60),
+	LanternGlow = rgb(255, 120, 80),
 }
 
-local HOUSE_WALLS =
-	{ rgb(236, 226, 206), rgb(214, 204, 186), rgb(196, 180, 160), rgb(226, 214, 200), rgb(184, 170, 150) }
-local ROOFS = { rgb(70, 76, 92), rgb(96, 70, 62), rgb(60, 84, 98), rgb(110, 98, 90), rgb(78, 64, 70) }
-local APARTMENT_WALLS = { rgb(214, 208, 198), rgb(198, 192, 186), rgb(226, 216, 196), rgb(186, 182, 178) }
-local AWNINGS = { rgb(200, 60, 56), rgb(40, 110, 170), rgb(46, 140, 96), rgb(220, 150, 50), rgb(120, 70, 150) }
+local HOUSE_WALLS = {
+	rgb(255, 196, 214), -- rose
+	rgb(176, 240, 214), -- menthe
+	rgb(170, 214, 255), -- bleu ciel
+	rgb(255, 236, 150), -- jaune
+	rgb(214, 196, 255), -- lilas
+	rgb(255, 214, 176), -- pêche
+}
+local ROOFS = { rgb(232, 52, 64), rgb(0, 168, 170), rgb(60, 90, 220), rgb(255, 120, 40), rgb(150, 60, 200) }
+local APARTMENT_WALLS = {
+	rgb(255, 226, 236),
+	rgb(206, 246, 232),
+	rgb(206, 230, 255),
+	rgb(255, 244, 200),
+	rgb(232, 220, 255),
+}
+local AWNINGS = { rgb(255, 46, 110), rgb(0, 190, 230), rgb(60, 220, 120), rgb(255, 196, 0), rgb(150, 80, 255) }
+-- Couleurs des néons et des banderoles.
+local NEONS = { rgb(255, 60, 160), rgb(0, 230, 255), rgb(255, 220, 40), rgb(140, 255, 90), rgb(190, 110, 255) }
+local INK = rgb(24, 14, 40)
 
 -- Primitives --------------------------------------------------------------------------------------
+
+-- Rendu « cel » : surfaces lisses, sauf le Neon (lumières) et le verre.
+local function celMaterial(material: Enum.Material?): Enum.Material
+	if material == M.Neon or material == M.Glass or material == M.ForceField then
+		return material :: Enum.Material
+	end
+	return M.SmoothPlastic
+end
 
 local function part(
 	parent: Instance,
@@ -60,7 +91,7 @@ local function part(
 	p.Size = size
 	p.CFrame = cframe
 	p.Color = color
-	p.Material = material or M.SmoothPlastic
+	p.Material = celMaterial(material)
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.CanCollide = collide ~= false
@@ -68,10 +99,11 @@ local function part(
 	return p
 end
 
-local function decor(p: BasePart): BasePart
-	p.CanCollide = false
-	p.CanQuery = false
-	p.CanTouch = false
+local function decor<T>(p: T): T
+	local base = p :: any
+	base.CanCollide = false
+	base.CanQuery = false
+	base.CanTouch = false
 	return p
 end
 
@@ -87,7 +119,7 @@ local function wedge(
 	w.Size = size
 	w.CFrame = cframe
 	w.Color = color
-	w.Material = material or M.SmoothPlastic
+	w.Material = celMaterial(material)
 	w.Parent = parent
 	return w
 end
@@ -111,13 +143,15 @@ local function sign(
 	text: string,
 	textColor: Color3,
 	background: Color3,
-	ppu: number?
+	ppu: number?,
+	font: Enum.Font?
 )
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = face
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = ppu or 30
-	gui.LightInfluence = 0.2
+	gui.LightInfluence = 0
+	gui.Brightness = 1.4
 	gui.Parent = target
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
@@ -125,15 +159,23 @@ local function sign(
 	label.BorderSizePixel = 0
 	label.Text = text
 	label.TextScaled = true
-	label.FontFace = Font.fromEnum(Enum.Font.BuilderSansExtraBold)
+	label.FontFace = Font.fromEnum(font or Enum.Font.BuilderSansExtraBold)
 	label.TextColor3 = textColor
 	label.Parent = gui
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = INK
+	stroke.Thickness = 2
+	stroke.Parent = label
 	local padding = Instance.new("UIPadding")
 	padding.PaddingTop = UDim.new(0.12, 0)
 	padding.PaddingBottom = UDim.new(0.12, 0)
 	padding.PaddingLeft = UDim.new(0.04, 0)
 	padding.PaddingRight = UDim.new(0.04, 0)
 	padding.Parent = label
+end
+
+local function Theme_darken(color: Color3): Color3
+	return color:Lerp(INK, 0.25)
 end
 
 local function pick<T>(list: { T }): T
@@ -143,17 +185,14 @@ end
 -- Fenêtres : vitre sombre ou allumée (lumière chaude du soir).
 local function window(parent: Instance, size: Vector3, cframe: CFrame, litChance: number)
 	local lit = rng:NextNumber() < litChance
-	local pane = part(
-		parent,
-		size,
-		cframe,
-		if lit then COLORS.GlassLit else COLORS.Glass,
-		if lit then M.Neon else M.Glass,
-		false
-	)
+	local litColor = if rng:NextNumber() < 0.75
+		then COLORS.GlassLit
+		else pick({ rgb(255, 150, 200), rgb(140, 230, 255) })
+	local pane =
+		part(parent, size, cframe, if lit then litColor else COLORS.Glass, if lit then M.Neon else M.Glass, false)
 	decor(pane)
 	if not lit then
-		pane.Reflectance = 0.25
+		pane.Reflectance = 0.35
 	end
 end
 
@@ -168,10 +207,10 @@ local function sakura(parent: Instance, base: Vector3, scale: number)
 		trunkHeight,
 		1.3 * scale,
 		CFrame.new(base + Vector3.new(0, trunkHeight / 2, 0)) * CFrame.Angles(0, 0, math.pi / 2),
-		rgb(88, 62, 52),
+		rgb(110, 60, 70),
 		M.Wood
 	)
-	local pinks = { rgb(255, 196, 214), rgb(250, 176, 200), rgb(255, 214, 226), rgb(240, 160, 190) }
+	local pinks = { rgb(255, 150, 196), rgb(255, 120, 180), rgb(255, 186, 220), rgb(255, 96, 160) }
 	for i = 1, 4 do
 		local angle = i * math.pi / 2 + rng:NextNumber() * 0.6
 		local branchLength = 4.5 * scale
@@ -184,7 +223,7 @@ local function sakura(parent: Instance, base: Vector3, scale: number)
 				branchLength,
 				0.6 * scale,
 				CFrame.lookAt((start + finish) / 2, finish) * CFrame.Angles(0, math.pi / 2, 0),
-				rgb(88, 62, 52),
+				rgb(110, 60, 70),
 				M.Wood
 			)
 		)
@@ -215,9 +254,10 @@ local function sakura(parent: Instance, base: Vector3, scale: number)
 	decor(crown)
 	local petals = Instance.new("ParticleEmitter")
 	petals.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	petals.Color = ColorSequence.new(rgb(255, 200, 220))
-	petals.Size = NumberSequence.new(0.22)
-	petals.Rate = 2.5
+	petals.Color = ColorSequence.new(rgb(255, 140, 200), rgb(255, 210, 230))
+	petals.LightEmission = 0.3
+	petals.Size = NumberSequence.new(0.28)
+	petals.Rate = 4
 	petals.Lifetime = NumberRange.new(6, 9)
 	petals.Speed = NumberRange.new(0.5, 1.5)
 	petals.SpreadAngle = Vector2.new(180, 180)
@@ -233,7 +273,7 @@ local function shrub(parent: Instance, position: Vector3)
 		parent,
 		Vector3.new(rng:NextNumber(3, 5), rng:NextNumber(2, 3), rng:NextNumber(3, 5)),
 		CFrame.new(position + Vector3.new(0, 1, 0)),
-		rgb(70, 110, 64),
+		pick({ rgb(60, 200, 110), rgb(90, 220, 90), rgb(40, 180, 130) }),
 		M.Grass,
 		false
 	)
@@ -311,7 +351,7 @@ local function streetLamp(parent: Instance, base: Vector3, facing: number)
 		14,
 		0.5,
 		CFrame.new(base + Vector3.new(0, 7, 0)) * CFrame.Angles(0, 0, math.pi / 2),
-		rgb(70, 72, 76),
+		rgb(60, 50, 100),
 		M.Metal
 	)
 	local head = decor(
@@ -319,7 +359,7 @@ local function streetLamp(parent: Instance, base: Vector3, facing: number)
 			parent,
 			Vector3.new(2.6, 0.5, 1),
 			CFrame.new(base + Vector3.new(0, 14, 0)) * CFrame.Angles(0, facing, 0) * CFrame.new(1, 0, 0),
-			rgb(70, 72, 76),
+			rgb(60, 50, 100),
 			M.Metal,
 			false
 		)
@@ -329,22 +369,22 @@ local function streetLamp(parent: Instance, base: Vector3, facing: number)
 			parent,
 			Vector3.new(1.8, 0.2, 0.7),
 			head.CFrame * CFrame.new(0.3, -0.3, 0),
-			rgb(255, 226, 180),
+			rgb(255, 236, 170),
 			M.Neon,
 			false
 		)
 	)
 	local light = Instance.new("SpotLight")
 	light.Face = Enum.NormalId.Bottom
-	light.Angle = 100
-	light.Range = 28
-	light.Brightness = 1.6
-	light.Color = rgb(255, 214, 170)
+	light.Angle = 110
+	light.Range = 32
+	light.Brightness = 2.6
+	light.Color = rgb(255, 200, 150)
 	light.Parent = bulb
 end
 
 local function vendingMachine(parent: Instance, cframe: CFrame)
-	local colors = { rgb(220, 50, 50), rgb(40, 120, 200), rgb(240, 240, 236), rgb(60, 150, 90) }
+	local colors = { rgb(255, 50, 80), rgb(0, 150, 255), rgb(255, 200, 0), rgb(40, 210, 130), rgb(170, 80, 255) }
 	local body = part(parent, Vector3.new(3.2, 6, 2.4), cframe * CFrame.new(0, 3, 0), pick(colors), M.SmoothPlastic)
 	local panel = decor(
 		part(
@@ -367,9 +407,9 @@ local function vendingMachine(parent: Instance, cframe: CFrame)
 		)
 	)
 	local light = Instance.new("PointLight")
-	light.Range = 10
-	light.Brightness = 1.2
-	light.Color = rgb(220, 235, 255)
+	light.Range = 12
+	light.Brightness = 2
+	light.Color = rgb(200, 240, 255)
 	light.Parent = panel
 end
 
@@ -379,7 +419,7 @@ local function trafficMirror(parent: Instance, base: Vector3)
 		9,
 		0.35,
 		CFrame.new(base + Vector3.new(0, 4.5, 0)) * CFrame.Angles(0, 0, math.pi / 2),
-		rgb(230, 120, 40),
+		rgb(255, 110, 30),
 		M.Metal
 	)
 	local mirror = decor(
@@ -388,11 +428,95 @@ local function trafficMirror(parent: Instance, base: Vector3)
 			0.2,
 			2.6,
 			CFrame.new(base + Vector3.new(0, 9.6, 0)) * CFrame.Angles(0, math.pi / 4, 0),
-			rgb(230, 120, 40),
+			rgb(255, 110, 30),
 			M.Metal
 		)
 	)
 	local _ = mirror
+end
+
+-- Lanterne en papier rouge, lumineuse (chōchin).
+local function lantern(parent: Instance, position: Vector3, color: Color3?)
+	local body =
+		decor(part(parent, Vector3.new(1.6, 2.2, 1.6), CFrame.new(position), color or COLORS.Lantern, M.Neon, false))
+	body.Shape = Enum.PartType.Cylinder
+	body.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.pi / 2)
+	body.Size = Vector3.new(2.2, 1.8, 1.8)
+	body.CastShadow = false
+	for _, dy in { -1.2, 1.2 } do
+		local cap = decor(part(parent, Vector3.new(0.3, 1.2, 1.2), CFrame.new(position + Vector3.new(0, dy, 0)), INK))
+		cap.Shape = Enum.PartType.Cylinder
+		cap.CFrame = CFrame.new(position + Vector3.new(0, dy, 0)) * CFrame.Angles(0, 0, math.pi / 2)
+		cap.CastShadow = false
+	end
+	-- Une lanterne sur deux éclaire réellement (budget de lumières).
+	if rng:NextNumber() < 0.45 then
+		local light = Instance.new("PointLight")
+		light.Color = color or COLORS.LanternGlow
+		light.Range = 10
+		light.Brightness = 1.8
+		light.Shadows = false
+		light.Parent = body
+	end
+end
+
+-- Guirlande de lanternes entre deux points (fil + lanternes régulières).
+local function lanternString(parent: Instance, from: Vector3, to: Vector3, spacing: number)
+	local length = (to - from).Magnitude
+	local wire = decor(
+		part(parent, Vector3.new(0.12, 0.12, length), CFrame.lookAt((from + to) / 2, to), INK, M.SmoothPlastic, false)
+	)
+	wire.CastShadow = false
+	local count = math.max(1, math.floor(length / spacing))
+	for i = 1, count do
+		local t = (i - 0.5) / count
+		local sag = math.sin(t * math.pi) * 1.2
+		lantern(parent, from:Lerp(to, t) - Vector3.new(0, 1.6 + sag, 0), if i % 3 == 0 then pick(NEONS) else nil)
+	end
+end
+
+-- Bannière verticale (nobori) sur mât, couleur vive et texte.
+local function nobori(parent: Instance, base: Vector3, color: Color3, text: string, yaw: number)
+	cylinder(
+		parent,
+		12,
+		0.3,
+		CFrame.new(base + Vector3.new(0, 6, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+		COLORS.Curb,
+		M.Metal
+	)
+	local cloth = decor(
+		part(
+			parent,
+			Vector3.new(2.4, 8, 0.15),
+			CFrame.new(base + Vector3.new(0, 7, 0)) * CFrame.Angles(0, yaw, 0) * CFrame.new(1.4, 0, 0),
+			color,
+			M.Fabric,
+			false
+		)
+	)
+	cloth.CastShadow = false
+	local gui = Instance.new("SurfaceGui")
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 24
+	gui.LightInfluence = 0
+	gui.Parent = cloth
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Text = table.concat(string.split(text, ""), "\n")
+	label.TextScaled = true
+	label.FontFace = Font.fromEnum(Enum.Font.Bangers)
+	label.TextColor3 = rgb(255, 255, 255)
+	label.Parent = gui
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = INK
+	stroke.Thickness = 2
+	stroke.Parent = label
+	local back = gui:Clone()
+	back.Face = Enum.NormalId.Back
+	back.Parent = cloth
 end
 
 -- Bâtiments -----------------------------------------------------------------------------------------
@@ -451,6 +575,28 @@ local function house(parent: Instance, origin: CFrame, width: number, depth: num
 		)
 	)
 	part(model, Vector3.new(width, 3.5, 0.8), origin * CFrame.new(0, 1.75, -depth / 2 - 4), COLORS.Concrete, M.Concrete)
+	-- Liseré coloré sous le toit et au ras du sol.
+	local trim = pick(ROOFS)
+	decor(
+		part(
+			model,
+			Vector3.new(width + 0.4, 0.8, depth + 0.4),
+			origin * CFrame.new(0, height - 0.4, 0),
+			trim,
+			M.SmoothPlastic,
+			false
+		)
+	)
+	decor(
+		part(
+			model,
+			Vector3.new(width + 0.3, 1.2, depth + 0.3),
+			origin * CFrame.new(0, 0.6, 0),
+			Theme_darken(wall),
+			M.SmoothPlastic,
+			false
+		)
+	)
 	model.Parent = parent
 end
 
@@ -461,7 +607,28 @@ local function apartment(parent: Instance, origin: CFrame, width: number, depth:
 	local floorHeight = 9
 	local height = floors * floorHeight
 	local wall = pick(APARTMENT_WALLS)
+	local railColor = pick(AWNINGS)
 	part(model, Vector3.new(width, height, depth), origin * CFrame.new(0, height / 2, 0), wall, M.Concrete)
+	-- Grande enseigne néon verticale sur certains immeubles.
+	if rng:NextNumber() < 0.35 and height > 40 then
+		local signColor = pick(NEONS)
+		local vertical = decor(
+			part(
+				model,
+				Vector3.new(3, math.min(24, height - 12), 1),
+				origin * CFrame.new(width / 2 - 2, height - 14, -depth / 2 - 3.6),
+				signColor,
+				M.Neon,
+				false
+			)
+		)
+		vertical.CastShadow = false
+		local glow = Instance.new("PointLight")
+		glow.Color = signColor
+		glow.Range = 18
+		glow.Brightness = 2
+		glow.Parent = vertical
+	end
 	for floor = 0, floors - 1 do
 		local y = floor * floorHeight
 		-- Dalle de balcon + garde-corps sur toute la façade.
@@ -481,7 +648,7 @@ local function apartment(parent: Instance, origin: CFrame, width: number, depth:
 					model,
 					Vector3.new(width + 0.4, 3, 0.3),
 					origin * CFrame.new(0, y + 2, -depth / 2 - 2.9),
-					rgb(206, 210, 214),
+					railColor,
 					M.Concrete,
 					false
 				)
@@ -540,15 +707,15 @@ local function shop(parent: Instance, origin: CFrame, width: number, depth: numb
 			model,
 			Vector3.new(width - 4, 6.5, 0.3),
 			origin * CFrame.new(0, 4, -depth / 2 - 0.1),
-			rgb(255, 232, 200),
+			rgb(255, 236, 190),
 			M.Neon,
 			false
 		)
 	)
 	local light = Instance.new("PointLight")
-	light.Range = 16
-	light.Brightness = 1.2
-	light.Color = rgb(255, 220, 180)
+	light.Range = 18
+	light.Brightness = 1.8
+	light.Color = rgb(255, 210, 170)
 	light.Parent = glass
 	-- Auvent et enseigne.
 	local awning = pick(AWNINGS)
@@ -564,12 +731,23 @@ local function shop(parent: Instance, origin: CFrame, width: number, depth: numb
 			model,
 			Vector3.new(width - 2, 2.6, 0.4),
 			origin * CFrame.new(0, 10.6, -depth / 2 - 0.3),
-			rgb(30, 30, 36),
+			INK,
 			M.SmoothPlastic,
 			false
 		)
 	)
-	sign(board, Enum.NormalId.Front, pick(SHOP_NAMES), rgb(255, 244, 230), rgb(30, 30, 36), 24)
+	local neon = pick(NEONS)
+	sign(board, Enum.NormalId.Front, pick(SHOP_NAMES), neon, INK, 24, Enum.Font.Bangers)
+	local boardGlow = Instance.new("SurfaceLight")
+	boardGlow.Face = Enum.NormalId.Front
+	boardGlow.Color = neon
+	boardGlow.Range = 12
+	boardGlow.Brightness = 1.5
+	boardGlow.Parent = board
+	-- Lanternes sous l'auvent.
+	for _, x in { -width / 2 + 2, width / 2 - 2 } do
+		lantern(model, (origin * CFrame.new(x, 7.2, -depth / 2 - 3.4)).Position)
+	end
 	for floor = 1, floors - 1 do
 		local columns = math.max(1, math.floor(width / 9))
 		for column = 1, columns do
@@ -582,7 +760,8 @@ end
 
 -- Tour lointaine (silhouette d'horizon, sans collision ni ombre).
 local function tower(parent: Instance, position: Vector3, width: number, height: number)
-	local color = pick({ rgb(150, 140, 150), rgb(130, 126, 140), rgb(170, 160, 160), rgb(120, 118, 130) })
+	-- Silhouettes violettes et bleutées, fondues dans la brume rose.
+	local color = pick({ rgb(150, 110, 200), rgb(120, 110, 210), rgb(190, 130, 200), rgb(100, 120, 200) })
 	local body = decor(
 		part(
 			parent,
@@ -602,7 +781,7 @@ local function tower(parent: Instance, position: Vector3, width: number, height:
 					parent,
 					Vector3.new(width + 0.2, 1.6, width + 0.2),
 					CFrame.new(position + Vector3.new(0, y, 0)),
-					rgb(255, 210, 160),
+					pick({ rgb(255, 210, 120), rgb(255, 120, 200), rgb(90, 230, 255) }),
 					M.Neon,
 					false
 				)
@@ -628,7 +807,7 @@ local function schoolBuilding(parent: Instance, origin: CFrame)
 				model,
 				Vector3.new(length + 0.6, 1.2, 0.8),
 				origin * CFrame.new(0, y + floorHeight - 0.6, depth / 2 + 0.3),
-				COLORS.SchoolTrim,
+				if floor % 2 == 0 then COLORS.SchoolTrim else COLORS.SchoolAccent,
 				M.Concrete,
 				false
 			)
@@ -708,7 +887,7 @@ local function schoolBuilding(parent: Instance, origin: CFrame)
 				model,
 				Vector3.new(0.3, 4, 0.3),
 				origin * CFrame.new(x, height + 2, depth / 2 - 0.5),
-				rgb(160, 170, 170),
+				COLORS.SchoolAccent,
 				M.Metal,
 				false
 			)
@@ -719,7 +898,7 @@ local function schoolBuilding(parent: Instance, origin: CFrame)
 			model,
 			Vector3.new(length, 0.3, 0.3),
 			origin * CFrame.new(0, height + 4, depth / 2 - 0.5),
-			rgb(160, 170, 170),
+			COLORS.SchoolAccent,
 			M.Metal,
 			false
 		)
@@ -735,7 +914,15 @@ local function schoolBuilding(parent: Instance, origin: CFrame)
 			false
 		)
 	)
-	sign(board, Enum.NormalId.Back, "LYCÉE SEIRYŌ", rgb(40, 50, 70), COLORS.SchoolWall, 16)
+	sign(board, Enum.NormalId.Back, "LYCÉE SEIRYŌ", rgb(255, 255, 255), COLORS.SchoolAccent, 16, Enum.Font.Bangers)
+	-- Toit coloré de la tour de l'horloge.
+	wedge(
+		model,
+		Vector3.new(24, 8, 11),
+		origin * CFrame.new(0, height + 24, -5.5) * CFrame.Angles(0, math.pi, 0),
+		rgb(232, 52, 64)
+	)
+	wedge(model, Vector3.new(24, 8, 11), origin * CFrame.new(0, height + 24, 5.5), rgb(232, 52, 64))
 	model.Parent = parent
 end
 
@@ -747,22 +934,33 @@ local function gym(parent: Instance, origin: CFrame)
 		model,
 		Vector3.new(width, height, depth),
 		origin * CFrame.new(0, height / 2, 0),
-		rgb(214, 210, 200),
+		rgb(190, 226, 255),
 		M.Concrete
+	)
+	-- Bande diagonale aux couleurs du club.
+	decor(
+		part(
+			model,
+			Vector3.new(0.4, 4, depth),
+			origin * CFrame.new(width / 2 + 0.2, 8, 0),
+			rgb(255, 60, 120),
+			M.SmoothPlastic,
+			false
+		)
 	)
 	-- Toit à deux pans métallique.
 	wedge(
 		model,
 		Vector3.new(width / 2 + 1, 8, depth + 2),
 		origin * CFrame.new(-width / 4, height + 4, 0) * CFrame.Angles(0, -math.pi / 2, 0),
-		rgb(74, 96, 120),
+		rgb(0, 168, 170),
 		M.Metal
 	)
 	wedge(
 		model,
 		Vector3.new(width / 2 + 1, 8, depth + 2),
 		origin * CFrame.new(width / 4, height + 4, 0) * CFrame.Angles(0, math.pi / 2, 0),
-		rgb(74, 96, 120),
+		rgb(0, 168, 170),
 		M.Metal
 	)
 	for z = -depth / 2 + 8, depth / 2 - 8, 12 do
@@ -784,16 +982,9 @@ local function gym(parent: Instance, origin: CFrame)
 	light.Color = rgb(255, 214, 170)
 	light.Parent = doors
 	local board = decor(
-		part(
-			model,
-			Vector3.new(0.5, 5, 36),
-			origin * CFrame.new(width / 2 + 0.3, 15, 0),
-			rgb(36, 40, 52),
-			M.SmoothPlastic,
-			false
-		)
+		part(model, Vector3.new(0.5, 5, 36), origin * CFrame.new(width / 2 + 0.3, 15, 0), INK, M.SmoothPlastic, false)
 	)
-	sign(board, Enum.NormalId.Right, "GYMNASE · HANDBALL", rgb(255, 255, 255), rgb(36, 40, 52), 18)
+	sign(board, Enum.NormalId.Right, "GYMNASE · HANDBALL", rgb(255, 220, 40), INK, 18, Enum.Font.Bangers)
 	model.Parent = parent
 end
 
@@ -805,14 +996,14 @@ local function outdoorCourt(parent: Instance, center: Vector3)
 		model,
 		Vector3.new(length + 8, 0.3, width + 8),
 		CFrame.new(center + Vector3.new(0, 0.15, 0)),
-		rgb(70, 112, 150),
+		rgb(40, 150, 255),
 		M.Concrete
 	)
 	part(
 		model,
 		Vector3.new(length, 0.32, width),
 		CFrame.new(center + Vector3.new(0, 0.16, 0)),
-		rgb(196, 94, 72),
+		rgb(255, 120, 60),
 		M.Concrete
 	)
 	local lineY = 0.34
@@ -879,7 +1070,7 @@ local function outdoorCourt(parent: Instance, center: Vector3)
 				model,
 				Vector3.new(length + 12, 10, 0.2),
 				CFrame.new(center + Vector3.new(0, 5, z)),
-				rgb(90, 110, 100),
+				rgb(0, 200, 170),
 				M.DiamondPlate,
 				false
 			)
@@ -895,7 +1086,7 @@ local function campusWall(parent: Instance, minX: number, maxX: number, minZ: nu
 		local mid = (a + b) / 2
 		local cf = CFrame.lookAt(mid, b)
 		part(parent, Vector3.new(1.4, 6, length), cf + Vector3.new(0, 3, 0), COLORS.Concrete, M.Concrete)
-		decor(part(parent, Vector3.new(2, 0.6, length), cf + Vector3.new(0, 6.3, 0), rgb(110, 100, 96), M.Slate, false))
+		decor(part(parent, Vector3.new(2, 0.6, length), cf + Vector3.new(0, 6.3, 0), rgb(232, 52, 64), M.Slate, false))
 	end
 	segment(Vector3.new(minX, 0, minZ), Vector3.new(maxX, 0, minZ))
 	segment(Vector3.new(minX, 0, minZ), Vector3.new(minX, 0, maxZ))
@@ -911,12 +1102,12 @@ local function campusWall(parent: Instance, minX: number, maxX: number, minZ: nu
 			parent,
 			Vector3.new(0.3, 2.4, 8),
 			CFrame.new(gateHalf + 1.9, 6, maxZ) * CFrame.Angles(0, math.pi / 2, 0),
-			rgb(46, 52, 64),
+			COLORS.SchoolAccent,
 			M.Metal,
 			false
 		)
 	)
-	sign(plate, Enum.NormalId.Right, "LYCÉE SEIRYŌ", rgb(240, 236, 224), rgb(46, 52, 64), 30)
+	sign(plate, Enum.NormalId.Right, "LYCÉE SEIRYŌ", rgb(255, 255, 255), COLORS.SchoolAccent, 30, Enum.Font.Bangers)
 end
 
 -- Rues -------------------------------------------------------------------------------------------------
@@ -939,7 +1130,7 @@ local function road(parent: Instance, from: Vector3, to: Vector3, width: number)
 				parent,
 				Vector3.new(0.5, 0.9, length),
 				cf * CFrame.new(side * (width / 2 + 0.25), 0.45, 0),
-				rgb(196, 192, 186),
+				COLORS.Curb,
 				M.Concrete,
 				false
 			)
@@ -980,7 +1171,7 @@ local function build(): Model
 	world.Name = "QuartierSeiryo"
 
 	-- Sol.
-	part(world, Vector3.new(1600, 4, 1600), CFrame.new(0, -2, 0), rgb(88, 92, 86), M.Ground)
+	part(world, Vector3.new(1600, 4, 1600), CFrame.new(0, -2, 0), rgb(120, 190, 120), M.Ground)
 
 	-- Campus.
 	local campus = Instance.new("Model")
@@ -994,8 +1185,8 @@ local function build(): Model
 		COLORS.Grass,
 		M.Grass
 	)
-	part(campus, Vector3.new(110, 0.35, 150), CFrame.new(0, 0.18, 40), rgb(206, 196, 180), M.Pavement)
-	part(campus, Vector3.new(30, 0.36, 40), CFrame.new(0, 0.19, 120), rgb(206, 196, 180), M.Pavement)
+	part(campus, Vector3.new(110, 0.35, 150), CFrame.new(0, 0.18, 40), COLORS.Plaza, M.Pavement)
+	part(campus, Vector3.new(30, 0.36, 40), CFrame.new(0, 0.19, 120), COLORS.Plaza, M.Pavement)
 	schoolBuilding(campus, CFrame.new(0, 0, -155) * CFrame.Angles(0, 0, 0))
 	gym(campus, CFrame.new(-105, 0, -40))
 	outdoorCourt(campus, Vector3.new(95, 0, -10))
@@ -1015,7 +1206,7 @@ local function build(): Model
 	for _, x in { -30, 30 } do
 		part(campus, Vector3.new(8, 0.6, 2.4), CFrame.new(x, 1.8, 70), COLORS.Wood, M.Wood)
 		for _, dx in { -3, 3 } do
-			part(campus, Vector3.new(0.6, 1.8, 2), CFrame.new(x + dx, 0.9, 70), rgb(70, 72, 76), M.Metal)
+			part(campus, Vector3.new(0.6, 1.8, 2), CFrame.new(x + dx, 0.9, 70), rgb(60, 50, 100), M.Metal)
 		end
 	end
 	vendingMachine(campus, CFrame.new(-56, 0.3, -118) * CFrame.Angles(0, 0, 0))
@@ -1025,13 +1216,54 @@ local function build(): Model
 		streetLamp(campus, Vector3.new(x, 0.3, 100), if x < 0 then 0 else math.pi)
 	end
 
+	-- Place du point d'apparition : rosace colorée et anneau lumineux.
+	local rosette = decor(
+		part(
+			campus,
+			Vector3.new(0.4, 30, 30),
+			CFrame.new(0, 0.2, 70) * CFrame.Angles(0, 0, math.pi / 2),
+			rgb(255, 150, 190)
+		)
+	)
+	rosette.Shape = Enum.PartType.Cylinder
+	local inner = decor(
+		part(
+			campus,
+			Vector3.new(0.42, 22, 22),
+			CFrame.new(0, 0.21, 70) * CFrame.Angles(0, 0, math.pi / 2),
+			rgb(120, 170, 255)
+		)
+	)
+	inner.Shape = Enum.PartType.Cylinder
+	local glowRing = decor(
+		part(
+			campus,
+			Vector3.new(0.44, 16, 16),
+			CFrame.new(0, 0.22, 70) * CFrame.Angles(0, 0, math.pi / 2),
+			rgb(255, 230, 120),
+			M.Neon
+		)
+	)
+	glowRing.Shape = Enum.PartType.Cylinder
+	glowRing.CastShadow = false
+	-- Guirlandes de lanternes au-dessus de l'allée centrale.
+	for z = 0, 110, 22 do
+		lanternString(campus, Vector3.new(-40, 15, z), Vector3.new(40, 15, z), 8)
+	end
+	-- Bannières le long de l'allée.
+	local slogans = { "SEIRYO", "HANDBALL", "VICTOIRE", "LEGENDS", "FIGHT" }
+	for i, z in { 10, 34, 58, 82, 106 } do
+		nobori(campus, Vector3.new(-32, 0.3, z), NEONS[(i - 1) % #NEONS + 1], slogans[i], 0)
+		nobori(campus, Vector3.new(32, 0.3, z + 10), NEONS[i % #NEONS + 1], slogans[#slogans - i + 1], math.pi)
+	end
+
 	-- Point d'apparition : face au lycée.
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Apparition"
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(12, 0.4, 12)
 	spawn.CFrame = CFrame.new(0, 0.4, 70) * CFrame.Angles(0, math.pi, 0)
-	spawn.Color = rgb(206, 196, 180)
+	spawn.Color = COLORS.Plaza
 	spawn.Material = M.Pavement
 	spawn.Duration = 0
 	spawn.Neutral = true
@@ -1086,6 +1318,15 @@ local function build(): Model
 	end
 	for x = westX - 140, eastX + 140, 60 do
 		streetLamp(streets, Vector3.new(x + 20, 0.8, southZ - roadWidth / 2 - 3), math.pi / 2)
+	end
+	-- Guirlandes de lanternes au-dessus de la rue commerçante.
+	for x = westX - 140, eastX + 140, 60 do
+		lanternString(
+			streets,
+			Vector3.new(x, 18, southZ - roadWidth / 2 - 2),
+			Vector3.new(x + 30, 18, southZ + roadWidth / 2 + 2),
+			7
+		)
 	end
 	trafficMirror(streets, Vector3.new(eastX - roadWidth / 2 - 3, 0.8, southZ - roadWidth / 2 - 3))
 	trafficMirror(streets, Vector3.new(westX + roadWidth / 2 + 3, 0.8, southZ - roadWidth / 2 - 3))
@@ -1248,10 +1489,11 @@ local function nametag(player: Player, character: Model)
 	local label = Instance.new("TextLabel")
 	label.BackgroundTransparency = 1
 	label.Size = UDim2.new(1, 0, 0, 20)
-	label.FontFace = Font.fromEnum(Enum.Font.BuilderSansBold)
-	label.TextSize = 16
+	label.FontFace = Font.fromEnum(Enum.Font.BuilderSansExtraBold)
+	label.TextSize = 17
 	label.TextColor3 = rgb(255, 255, 255)
-	label.TextStrokeTransparency = 0.6
+	label.TextStrokeColor3 = INK
+	label.TextStrokeTransparency = 0
 	label.Text = (if tag then `[{tag}] ` else "") .. player.DisplayName
 	label.Parent = gui
 	local level = Instance.new("TextLabel")
@@ -1260,8 +1502,9 @@ local function nametag(player: Player, character: Model)
 	level.Size = UDim2.new(1, 0, 0, 16)
 	level.FontFace = Font.fromEnum(Enum.Font.BuilderSansBold)
 	level.TextSize = 13
-	level.TextColor3 = rgb(255, 170, 110)
-	level.TextStrokeTransparency = 0.7
+	level.TextColor3 = rgb(255, 220, 40)
+	level.TextStrokeColor3 = INK
+	level.TextStrokeTransparency = 0
 	level.Text = `NIVEAU {if profile then profile.Level else 1}`
 	level.Parent = gui
 	local humanoid = character:FindFirstChildOfClass("Humanoid")

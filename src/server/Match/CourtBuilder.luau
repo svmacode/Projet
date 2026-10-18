@@ -2,6 +2,8 @@
 -- Construit le gymnase du lycée Seiryō autour d'un terrain de handball
 -- aux dimensions du mode : parquet, tracés officiels, buts rayés rouge et
 -- blanc avec filets, gradins, bancs, banderoles, panneau d'affichage.
+-- Direction artistique d'animé de sport : couleurs franches, surfaces
+-- lisses, gradins multicolores, fanions, néons et lumière forte.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -21,12 +23,21 @@ local CourtBuilder = {}
 local LINE_Y = 0.035
 local LINE_W = 0.32
 local WHITE = Color3.fromRGB(250, 250, 245)
-local PARQUET = Color3.fromRGB(214, 150, 84)
-local PARQUET_DARK = Color3.fromRGB(176, 108, 52)
-local ZONE_FILL = Color3.fromRGB(64, 128, 214)
-local WALL = Color3.fromRGB(236, 232, 220)
-local WALL_LOW = Color3.fromRGB(40, 70, 140)
-local RUNOFF = Color3.fromRGB(46, 160, 110)
+local PARQUET = Color3.fromRGB(246, 160, 78)
+local PARQUET_DARK = Color3.fromRGB(222, 124, 50)
+local ZONE_FILL = Color3.fromRGB(30, 120, 255)
+local WALL = Color3.fromRGB(196, 226, 255)
+local WALL_LOW = Color3.fromRGB(120, 60, 230)
+local RUNOFF = Color3.fromRGB(20, 196, 140)
+local INK = Color3.fromRGB(24, 14, 40)
+local VIVID = {
+	Color3.fromRGB(255, 52, 76),
+	Color3.fromRGB(255, 200, 0),
+	Color3.fromRGB(0, 200, 255),
+	Color3.fromRGB(150, 80, 255),
+	Color3.fromRGB(255, 80, 170),
+	Color3.fromRGB(40, 140, 255),
+}
 
 local function newPart(
 	parent: Instance,
@@ -157,7 +168,7 @@ local function stripedBar(
 			"Poteau",
 			Vector3.new(thickness, thickness, segmentLength),
 			cf,
-			if i % 2 == 0 then Color3.fromRGB(226, 32, 52) else WHITE
+			if i % 2 == 0 then Color3.fromRGB(255, 52, 76) else WHITE
 		)
 		part.CanCollide = true
 	end
@@ -228,7 +239,7 @@ local function surfaceText(
 	text: string,
 	color: Color3,
 	stroke: Color3,
-	_font: Enum.Font
+	font: Enum.Font
 ): TextLabel
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = face
@@ -241,11 +252,15 @@ local function surfaceText(
 	label.Size = UDim2.fromScale(1, 1)
 	label.Text = text
 	label.TextScaled = true
-	label.FontFace = Font.fromEnum(Enum.Font.BuilderSansExtraBold)
+	label.FontFace = Font.fromEnum(font)
 	label.TextColor3 = color
 	label.TextStrokeColor3 = stroke
 	label.TextStrokeTransparency = 1
 	label.Parent = gui
+	local outline = Instance.new("UIStroke")
+	outline.Color = INK
+	outline.Thickness = 2
+	outline.Parent = label
 	return label
 end
 
@@ -310,7 +325,7 @@ local function sakuraBanner(
 	local banner =
 		newPart(model, "Banderole", Vector3.new(18, 4, 0.3), origin * CFrame.lookAt(position, position + facing), color)
 	decor(banner)
-	surfaceText(banner, Enum.NormalId.Front, text, WHITE, Color3.fromRGB(20, 20, 24), Enum.Font.Bangers)
+	surfaceText(banner, Enum.NormalId.Front, text, WHITE, INK, Enum.Font.Bangers)
 end
 
 function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): Built
@@ -337,7 +352,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		Vector3.new(L, 2, W),
 		origin * CFrame.new(0, -1, 0),
 		PARQUET,
-		Enum.Material.WoodPlanks
+		Enum.Material.SmoothPlastic
 	)
 	floor.CanCollide = true
 	local runoffFloor = newPart(
@@ -359,7 +374,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 				Vector3.new(L, 0.02, 0.2),
 				origin * CFrame.new(0, 0.005, z),
 				PARQUET_DARK,
-				Enum.Material.WoodPlanks
+				Enum.Material.SmoothPlastic
 			)
 			decor(strip)
 		end
@@ -433,10 +448,19 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		"LogoCentre",
 		Vector3.new(0.03, 5.6, 5.6),
 		origin * CFrame.new(0, 0.02, 0) * CFrame.Angles(0, 0, math.pi / 2),
-		Color3.fromRGB(226, 32, 52)
+		Color3.fromRGB(255, 52, 76)
 	)
 	centerLogo.Shape = Enum.PartType.Cylinder
 	decor(centerLogo)
+	local centerRing = newPart(
+		lines,
+		"AnneauCentre",
+		Vector3.new(0.025, 8, 8),
+		origin * CFrame.new(0, 0.018, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(255, 200, 0)
+	)
+	centerRing.Shape = Enum.PartType.Cylinder
+	decor(centerRing)
 
 	-- Murs du gymnase.
 	local wallThickness = 2
@@ -461,7 +485,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		"Plafond",
 		Vector3.new(hallLength, 2, hallWidth),
 		origin * CFrame.new(0, hallHeight, 0),
-		Color3.fromRGB(70, 74, 90)
+		Color3.fromRGB(60, 40, 120)
 	)
 	ceiling.CanCollide = true
 
@@ -474,7 +498,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 				"Fenetre",
 				Vector3.new(hallLength / 10, 7, 0.4),
 				origin * CFrame.new(x, hallHeight - 9, zSign * (hallWidth / 2 - 1.1)),
-				Color3.fromRGB(190, 230, 255),
+				Color3.fromRGB(255, 200, 150),
 				Enum.Material.Neon
 			)
 			decor(window)
@@ -484,7 +508,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 			"Poutre",
 			Vector3.new(1.4, 1.6, hallWidth),
 			origin * CFrame.new(x, hallHeight - 2, 0),
-			Color3.fromRGB(40, 44, 60)
+			Color3.fromRGB(255, 52, 120)
 		)
 		decor(beam)
 		local lamp = newPart(
@@ -501,8 +525,8 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 			light.Face = Enum.NormalId.Bottom
 			light.Angle = 120
 			light.Range = 60
-			light.Brightness = 2.2
-			light.Color = Color3.fromRGB(255, 248, 230)
+			light.Brightness = 3.2
+			light.Color = Color3.fromRGB(255, 244, 236)
 			light.Shadows = true
 			light.Parent = lamp
 		end
@@ -519,10 +543,10 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 			"Gradin",
 			Vector3.new(L * 0.9, 1.6 + y, depth),
 			origin * CFrame.new(0, (1.6 + y) / 2, z),
-			Color3.fromRGB(90, 96, 120)
+			Color3.fromRGB(70, 50, 130)
 		)
 		step.CanCollide = true
-		local seatColor = if row % 2 == 0 then Color3.fromRGB(226, 32, 52) else Color3.fromRGB(30, 110, 245)
+		local seatColor = VIVID[row % #VIVID + 1]
 		local seat = newPart(
 			model,
 			"Siege",
@@ -538,8 +562,8 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 	local benchSpots: { [string]: Vector3 } = {}
 	for _, info in
 		{
-			{ Team = "Rouge", X = -hl * 0.35, Color = Color3.fromRGB(226, 32, 52) },
-			{ Team = "Bleu", X = hl * 0.35, Color = Color3.fromRGB(30, 110, 245) },
+			{ Team = "Rouge", X = -hl * 0.35, Color = Color3.fromRGB(255, 52, 76) },
+			{ Team = "Bleu", X = hl * 0.35, Color = Color3.fromRGB(40, 140, 255) },
 		}
 	do
 		local bench =
@@ -572,7 +596,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		Vector3.new(-hl * 0.5, 20, -hallWidth / 2 + 1.3),
 		Vector3.new(0, 0, 1),
 		"LYCÉE SEIRYŌ",
-		Color3.fromRGB(30, 110, 245)
+		Color3.fromRGB(0, 190, 230)
 	)
 	sakuraBanner(
 		model,
@@ -580,7 +604,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		Vector3.new(hl * 0.5, 20, -hallWidth / 2 + 1.3),
 		Vector3.new(0, 0, 1),
 		"HANDBALL CLUB",
-		Color3.fromRGB(226, 32, 52)
+		Color3.fromRGB(255, 52, 76)
 	)
 	sakuraBanner(
 		model,
@@ -588,8 +612,38 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		Vector3.new(0, 26, hallWidth / 2 - 1.3),
 		Vector3.new(0, 0, -1),
 		"HANDBALL LEGENDS",
-		Color3.fromRGB(20, 20, 24)
+		Color3.fromRGB(255, 52, 120)
 	)
+	-- Néons le long des plinthes et fanions multicolores sous le plafond.
+	for _, zSign in { -1, 1 } do
+		local strip = newPart(
+			model,
+			"Neon",
+			Vector3.new(hallLength - 4, 0.4, 0.3),
+			origin * CFrame.new(0, 6.3, zSign * (hallWidth / 2 - 1.2)),
+			if zSign < 0 then Color3.fromRGB(0, 220, 255) else Color3.fromRGB(255, 60, 160),
+			Enum.Material.Neon
+		)
+		decor(strip)
+		strip.CastShadow = false
+		local flagCount = math.floor(hallLength / 5)
+		for i = 0, flagCount - 1 do
+			local x = -hallLength / 2 + 2.5 + i * 5
+			local sag = math.sin((i / math.max(1, flagCount - 1)) * math.pi) * 2
+			local flag = Instance.new("WedgePart")
+			flag.Name = "Fanion"
+			flag.Anchored = true
+			flag.Size = Vector3.new(0.1, 2.2, 2.6)
+			flag.Color = VIVID[i % #VIVID + 1]
+			flag.Material = Enum.Material.SmoothPlastic
+			flag.CFrame = origin
+				* CFrame.new(x, hallHeight - 6 - sag, zSign * (hallWidth / 2 - 6))
+				* CFrame.Angles(math.pi, math.pi / 2, 0)
+			flag.CastShadow = false
+			decor(flag)
+			flag.Parent = model
+		end
+	end
 	local scoreboard = buildScoreboard(model, origin, Vector3.new(-hallLength / 2 + 1.6, 22, 0), Vector3.new(1, 0, 0))
 	local mirrorBoard = buildScoreboard(model, origin, Vector3.new(hallLength / 2 - 1.6, 22, 0), Vector3.new(-1, 0, 0))
 

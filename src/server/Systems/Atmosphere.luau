@@ -1,10 +1,16 @@
 --!strict
--- Ambiance « coucher de soleil » : lumière dorée, ciel rosé, brume d'horizon
--- qui fond les lointains, léger bloom et rayons du soleil.
+-- Ambiance « coucher de soleil d'animé » : ciel rose-orangé qui vire au
+-- violet, lumière dorée rasante, couleurs très saturées, bloom marqué et
+-- rayons du soleil. Sur un serveur de match, la lumière est un peu plus
+-- haute et plus franche pour que le gymnase reste lumineux et coloré.
 
 local Lighting = game:GetService("Lighting")
 
+local ServerRole = require(script.Parent.Parent.Lib.ServerRole)
+
 local Atmosphere = {}
+
+local rgb = Color3.fromRGB
 
 local function ensure<T>(className: string, name: string): T
 	local existing = Lighting:FindFirstChild(name)
@@ -18,46 +24,52 @@ local function ensure<T>(className: string, name: string): T
 end
 
 function Atmosphere.init()
-	Lighting.ClockTime = 17.55
+	local isMatch = ServerRole.Role == "Match"
+
+	Lighting.ClockTime = if isMatch then 16.9 else 17.6
 	Lighting.GeographicLatitude = 35
-	Lighting.Brightness = 2.6
-	Lighting.ExposureCompensation = 0.15
-	Lighting.Ambient = Color3.fromRGB(78, 62, 84)
-	Lighting.OutdoorAmbient = Color3.fromRGB(150, 116, 128)
-	Lighting.ColorShift_Top = Color3.fromRGB(255, 196, 150)
-	Lighting.ColorShift_Bottom = Color3.fromRGB(96, 70, 120)
+	Lighting.Brightness = if isMatch then 3.2 else 3
+	Lighting.ExposureCompensation = if isMatch then 0.25 else 0.2
+	-- Ombres teintées violet (jamais grises) : signature des décors d'animé.
+	Lighting.Ambient = if isMatch then rgb(120, 100, 150) else rgb(104, 72, 132)
+	Lighting.OutdoorAmbient = if isMatch then rgb(190, 160, 200) else rgb(186, 120, 168)
+	Lighting.ColorShift_Top = rgb(255, 170, 120)
+	Lighting.ColorShift_Bottom = rgb(130, 70, 200)
 	Lighting.EnvironmentDiffuseScale = 1
-	Lighting.EnvironmentSpecularScale = 1
-	Lighting.ShadowSoftness = 0.12
+	Lighting.EnvironmentSpecularScale = 0.6
+	Lighting.ShadowSoftness = 0.05 -- ombres nettes, façon cel-shading
 	Lighting.GlobalShadows = true
 
 	local sky = ensure("Sky", "Ciel") :: Sky
-	sky.SunAngularSize = 14
-	sky.MoonAngularSize = 8
-	sky.StarCount = 1500
+	sky.SunAngularSize = 18
+	sky.MoonAngularSize = 9
+	sky.StarCount = 2500
+	sky.CelestialBodiesShown = true
 
+	-- Brume rose-violet : fond les lointains dans le dégradé du ciel.
 	local atmosphere = ensure("Atmosphere", "Brume") :: Atmosphere
-	atmosphere.Density = 0.34
-	atmosphere.Offset = 0.12
-	atmosphere.Color = Color3.fromRGB(255, 196, 168)
-	atmosphere.Decay = Color3.fromRGB(122, 84, 140)
-	atmosphere.Glare = 0.55
-	atmosphere.Haze = 1.9
+	atmosphere.Density = if isMatch then 0.28 else 0.36
+	atmosphere.Offset = 0.18
+	atmosphere.Color = rgb(255, 150, 170)
+	atmosphere.Decay = rgb(120, 60, 190)
+	atmosphere.Glare = 0.9
+	atmosphere.Haze = 2.2
 
 	local bloom = ensure("BloomEffect", "Eclat") :: BloomEffect
-	bloom.Intensity = 0.55
-	bloom.Size = 26
-	bloom.Threshold = 1.35
+	bloom.Intensity = 0.9
+	bloom.Size = 30
+	bloom.Threshold = 1.1
 
 	local rays = ensure("SunRaysEffect", "Rayons") :: SunRaysEffect
-	rays.Intensity = 0.07
-	rays.Spread = 0.75
+	rays.Intensity = 0.12
+	rays.Spread = 0.8
 
+	-- Étalonnage : couleurs poussées et contraste franc.
 	local grade = ensure("ColorCorrectionEffect", "Etalonnage") :: ColorCorrectionEffect
-	grade.Brightness = 0.02
-	grade.Contrast = 0.1
-	grade.Saturation = 0.12
-	grade.TintColor = Color3.fromRGB(255, 244, 236)
+	grade.Brightness = 0.03
+	grade.Contrast = 0.22
+	grade.Saturation = 0.42
+	grade.TintColor = rgb(255, 240, 248)
 end
 
 return Atmosphere

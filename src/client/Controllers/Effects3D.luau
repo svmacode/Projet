@@ -1,6 +1,7 @@
 --!strict
 -- Effets visuels 3D du match : ondes d'impact, poussière, éclats, auras de
 -- pouvoir, explosion au but, tremblement et zoom de caméra.
+-- Palette d'animé : couleurs d'équipe vives, éclats jaunes, roses et cyan.
 -- Textures de particules : uniquement celles intégrées à Roblox.
 
 local Debris = game:GetService("Debris")
@@ -23,9 +24,15 @@ local SMOKE = "rbxasset://textures/particles/smoke_main.dds"
 local SPARKLE = "rbxasset://textures/particles/sparkles_main.dds"
 
 local TEAM_COLORS = {
-	Rouge = Color3.fromRGB(232, 58, 68),
-	Bleu = Color3.fromRGB(58, 126, 255),
+	Rouge = Color3.fromRGB(255, 52, 76),
+	Bleu = Color3.fromRGB(40, 140, 255),
 }
+
+local YELLOW = Color3.fromRGB(255, 220, 40)
+local PINK = Color3.fromRGB(255, 60, 160)
+local CYAN = Color3.fromRGB(0, 220, 255)
+local VIOLET = Color3.fromRGB(160, 100, 255)
+local CONFETTI = { YELLOW, PINK, CYAN, VIOLET, Color3.fromRGB(140, 255, 90) }
 
 local folder: Folder
 local shakeStrength = 0
@@ -71,6 +78,18 @@ local function burst(position: Vector3, color: Color3, count: number, options: {
 	emitter.Enabled = false
 	emitter.Parent = attachment
 	emitter:Emit(count)
+end
+
+local function sparkles(position: Vector3, color: Color3, count: number, speed: number?, size: number?)
+	burst(position, color, count, {
+		Texture = SPARKLE,
+		Light = 1,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, size or 0.5), NumberSequenceKeypoint.new(1, 0) }),
+		Lifetime = NumberRange.new(0.35, 0.7),
+		Speed = NumberRange.new((speed or 14) * 0.5, speed or 14),
+		Acceleration = Vector3.new(0, -10, 0),
+		Drag = 3,
+	})
 end
 
 -- Onde circulaire qui s'étend puis disparaît.
@@ -154,9 +173,9 @@ local function onShot(data: any)
 	local hand = (root.CFrame * CFrame.new(1.35, 0.6, -1.4)).Position
 	local strong = data.Charge > 0.75 or data.Powered
 	local color = if data.Fire
-		then Color3.fromRGB(255, 140, 50)
-		elseif data.Powered then Color3.fromRGB(150, 220, 255)
-		else Color3.fromRGB(255, 255, 255)
+		then Color3.fromRGB(255, 130, 30)
+		elseif data.Powered then CYAN
+		else TEAM_COLORS[data.Team] or YELLOW
 	ring(
 		CFrame.lookAt(hand, hand + root.CFrame.LookVector) * CFrame.Angles(0, math.pi / 2, 0),
 		color,
@@ -175,7 +194,11 @@ local function onShot(data: any)
 			0.4
 		)
 	end
-	burst(hand, Color3.fromRGB(235, 230, 220), if strong then 10 else 5, { Speed = NumberRange.new(6, 14) })
+	burst(hand, Color3.fromRGB(255, 240, 250), if strong then 10 else 5, { Speed = NumberRange.new(6, 14) })
+	sparkles(hand, if strong then YELLOW else color, if strong then 24 else 10, if strong then 22 else 14)
+	if strong then
+		sparkles(hand, PINK, 12, 18, 0.4)
+	end
 	if isMine(data.Model) then
 		Effects3D.punch(if strong then -8 else -4, 0.35)
 		Effects3D.shake(if strong then 0.5 else 0.2, 0.2)
@@ -190,11 +213,12 @@ local function onDash(model: Model?)
 	local feet = root.Position - Vector3.new(0, 2.8, 0)
 	burst(
 		feet,
-		Color3.fromRGB(210, 200, 185),
+		Color3.fromRGB(220, 200, 255),
 		8,
 		{ Speed = NumberRange.new(2, 6), Spread = Vector2.new(70, 70), Size = NumberSequence.new(0.6, 2) }
 	)
-	groundRing(root.Position, Color3.fromRGB(255, 255, 255), 7)
+	groundRing(root.Position, CYAN, 7)
+	sparkles(feet, CYAN, 8, 10, 0.35)
 	if isMine(model) then
 		Effects3D.punch(7, 0.35)
 	end
@@ -205,8 +229,10 @@ local function onContact(data: any)
 	if not victim then
 		return
 	end
-	flash(victim.Position + Vector3.new(0, 0.6, 0), Color3.fromRGB(255, 240, 220), 4, 0.25)
-	burst(victim.Position, Color3.fromRGB(230, 225, 215), 6, { Speed = NumberRange.new(5, 10) })
+	flash(victim.Position + Vector3.new(0, 0.6, 0), YELLOW, 4, 0.25)
+	burst(victim.Position, Color3.fromRGB(255, 230, 245), 6, { Speed = NumberRange.new(5, 10) })
+	sparkles(victim.Position + Vector3.new(0, 1, 0), YELLOW, 14, 16, 0.6)
+	sparkles(victim.Position + Vector3.new(0, 1, 0), PINK, 8, 12, 0.45)
 	if isMine(data.To) or isMine(data.From) then
 		Effects3D.shake(0.6, 0.25)
 	end
@@ -236,6 +262,18 @@ local function onGoal(data: any)
 		Acceleration = Vector3.new(0, -30, 0),
 		Drag = 2,
 	})
+	for index, confetti in CONFETTI do
+		task.delay(index * 0.04, burst, position, confetti, 26, {
+			Texture = SPARKLE,
+			Light = 1,
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0.1) }),
+			Lifetime = NumberRange.new(1, 2),
+			Speed = NumberRange.new(14, 34),
+			Acceleration = Vector3.new(0, -18, 0),
+			Drag = 1.5,
+		})
+	end
+	ring(CFrame.new(position) * CFrame.Angles(0, 0, math.pi / 2), YELLOW, 2, 30, 0.9)
 	burst(position, Color3.fromRGB(255, 255, 255), 50, {
 		Texture = SPARKLE,
 		Light = 1,
@@ -318,7 +356,7 @@ local function onBlink(data: any)
 	beam.CanTouch = false
 	beam.CastShadow = false
 	beam.Material = Enum.Material.Neon
-	beam.Color = Color3.fromRGB(235, 245, 255)
+	beam.Color = CYAN
 	beam.Size = Vector3.new(0.5, 0.5, distance)
 	beam.CFrame = CFrame.lookAt((from + to) / 2, to)
 	beam.Parent = folder
@@ -328,8 +366,8 @@ local function onBlink(data: any)
 		{ Size = Vector3.new(0.05, 0.05, distance), Transparency = 1 }
 	):Play()
 	Debris:AddItem(beam, 0.4)
-	burst(from, Color3.fromRGB(220, 230, 255), 10, { Texture = SPARKLE, Light = 1, Size = NumberSequence.new(0.4, 0) })
-	burst(to, Color3.fromRGB(220, 230, 255), 10, { Texture = SPARKLE, Light = 1, Size = NumberSequence.new(0.4, 0) })
+	burst(from, VIOLET, 10, { Texture = SPARKLE, Light = 1, Size = NumberSequence.new(0.4, 0) })
+	burst(to, VIOLET, 10, { Texture = SPARKLE, Light = 1, Size = NumberSequence.new(0.4, 0) })
 end
 
 local function stars(model: Model?, duration: number)
@@ -388,15 +426,11 @@ local function onEvent(kind: string, data: any)
 		onBlink(data)
 	elseif kind == "Save" then
 		flash(BallRenderer.position(), Color3.fromRGB(255, 255, 255), 5, 0.25)
-		ring(
-			CFrame.new(BallRenderer.position()) * CFrame.Angles(0, 0, math.pi / 2),
-			Color3.fromRGB(255, 255, 255),
-			1,
-			8,
-			0.3
-		)
+		sparkles(BallRenderer.position(), CYAN, 18, 18, 0.55)
+		ring(CFrame.new(BallRenderer.position()) * CFrame.Angles(0, 0, math.pi / 2), CYAN, 1, 8, 0.3)
 	elseif kind == "Block" or kind == "WallBlock" then
-		flash(BallRenderer.position(), Color3.fromRGB(200, 230, 255), 4, 0.25)
+		flash(BallRenderer.position(), PINK, 4, 0.25)
+		sparkles(BallRenderer.position(), PINK, 12, 14, 0.5)
 	elseif kind == "Interception" or kind == "Steal" then
 		local root = rootOf(data.Model)
 		if root then

@@ -18,6 +18,7 @@ local ORDER = {
 	"MatchInput",
 	"CharacterAnimator",
 	"Effects3D",
+	"Toon",
 	"MatchHUD",
 	"MatchFX",
 	"MatchSetup",

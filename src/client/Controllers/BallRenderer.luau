@@ -23,6 +23,13 @@ local trail: Trail
 local fire: Fire
 local glow: PointLight
 
+-- Couleur de traînée : équipe du dernier porteur (palette d'animé).
+local TEAM_TRAIL = {
+	Rouge = Color3.fromRGB(255, 52, 76),
+	Bleu = Color3.fromRGB(40, 140, 255),
+}
+local lastTeam: string? = nil
+
 local simPosition = Vector3.zero
 local simVelocity = Vector3.zero
 local simAccel = Vector3.zero
@@ -54,7 +61,7 @@ local function build()
 	ball.CanTouch = false
 	ball.CastShadow = true
 	ball.Parent = model
-	for index, color in { Color3.fromRGB(232, 58, 68), Color3.fromRGB(40, 90, 210) } do
+	for index, color in { Color3.fromRGB(255, 52, 76), Color3.fromRGB(40, 140, 255) } do
 		local ring = Instance.new("Part")
 		ring.Name = "Couture"
 		ring.Shape = Enum.PartType.Cylinder
@@ -69,10 +76,10 @@ local function build()
 		rings[index] = ring
 	end
 	local a0 = Instance.new("Attachment")
-	a0.Position = Vector3.new(0, 0.45, 0)
+	a0.Position = Vector3.new(0, 0.6, 0)
 	a0.Parent = ball
 	local a1 = Instance.new("Attachment")
-	a1.Position = Vector3.new(0, -0.45, 0)
+	a1.Position = Vector3.new(0, -0.6, 0)
 	a1.Parent = ball
 	trail = Instance.new("Trail")
 	trail.Attachment0 = a0
@@ -81,7 +88,8 @@ local function build()
 	trail.LightEmission = 1
 	trail.FaceCamera = true
 	trail.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
-	trail.Transparency = NumberSequence.new(0, 1)
+	trail.Transparency = NumberSequence.new(0.05, 1)
+	trail.WidthScale = NumberSequence.new(1, 0.2)
 	trail.Enabled = false
 	trail.Parent = ball
 	fire = Instance.new("Fire")
@@ -98,7 +106,7 @@ local function build()
 	glow.Parent = ball
 	local outline = Instance.new("Highlight")
 	outline.FillTransparency = 1
-	outline.OutlineColor = Color3.fromRGB(12, 12, 16)
+	outline.OutlineColor = Color3.fromRGB(14, 8, 28)
 	outline.DepthMode = Enum.HighlightDepthMode.Occluded
 	outline.Parent = model
 end
@@ -151,14 +159,23 @@ local function onBallState(snapshot: any)
 			visualPosition = simPosition
 		end
 	end
+	local holder = snapshot.Holder
+	if typeof(holder) == "Instance" then
+		local team = holder:GetAttribute("Team")
+		lastTeam = if typeof(team) == "string" then team else nil
+	end
 	local speed = snapshot.Velocity.Magnitude
 	trail.Enabled = snapshot.State == "Flight" and speed > 45
-	trail.Color = ColorSequence.new(
-		if snapshot.Fire
-			then Color3.fromRGB(255, 140, 40)
-			elseif snapshot.Charged then Color3.fromRGB(120, 230, 255)
-			else Color3.fromRGB(255, 255, 255)
-	)
+	local tint = if snapshot.Fire
+		then Color3.fromRGB(255, 130, 30)
+		elseif snapshot.Charged then Color3.fromRGB(0, 220, 255)
+		else (lastTeam and TEAM_TRAIL[lastTeam]) or Color3.fromRGB(255, 220, 40)
+	-- Cœur blanc, bords à la couleur : traînée lumineuse façon animé.
+	trail.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+		ColorSequenceKeypoint.new(0.25, tint),
+		ColorSequenceKeypoint.new(1, tint),
+	})
 	trail.Lifetime = if snapshot.Kind == "Shot" then 0.4 else 0.2
 	fire.Enabled = snapshot.Fire == true
 	glow.Enabled = snapshot.Fire == true or snapshot.Charged == true
