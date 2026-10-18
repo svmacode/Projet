@@ -8,12 +8,23 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Archetypes = require(ReplicatedStorage.Shared.Data.Archetypes)
+local Config = require(ReplicatedStorage.Shared.Config)
 local Court = require(ReplicatedStorage.Shared.Court)
 local MatchTypes = require(script.Parent.MatchTypes)
 
 type Participant = MatchTypes.Participant
 
 local Abilities = {}
+
+-- Les valeurs des pouvoirs (Data/Archetypes) ont été réglées pour les anciens
+-- terrains, plus petits, et l'ancien dash (78 studs/s) : on les met à l'échelle
+-- ici pour garder les mêmes sensations sur les terrains « moyens ».
+local MOVE_SCALE = Config.Movement.DashSpeed / 78
+local RANGE_SCALE = 1.35
+
+local function scaled(value: number?, default: number): number
+	return (value or default) * RANGE_SCALE
+end
 
 local function now(): number
 	return Workspace:GetServerTimeNow()
@@ -36,6 +47,8 @@ function Abilities.impulse(match: any, participant: Participant, velocity: Vecto
 		return
 	end
 	if participant.Player then
+		-- Le client applique l'élan ; le contrôle de vitesse du serveur l'autorise.
+		match:allowBurst(participant, velocity.Magnitude, math.max(duration, 0.3))
 		match:fireTo(participant.Player, "MatchEvent", "Impulse", { Velocity = velocity, Duration = duration })
 		return
 	end
@@ -77,6 +90,7 @@ function Abilities.teleport(match: any, participant: Participant, worldPosition:
 	end
 	model:PivotTo(CFrame.lookAt(target, flatFacing))
 	root.AssemblyLinearVelocity = Vector3.zero
+	match:resetSpeedSample(participant)
 	match:fireAll("MatchEvent", "Blink", { Model = model, From = root.Position, To = target })
 end
 
@@ -125,9 +139,9 @@ end
 -- Vérifie les conditions de ciblage AVANT de consommer le pouvoir.
 function Abilities.canExecute(match: any, participant: Participant, power: Archetypes.Power): (boolean, string?)
 	for _, effect in power.Effects do
-		if effect.Kind == "Steal" and not enemyCarrier(match, participant, effect.Range or 15) then
+		if effect.Kind == "Steal" and not enemyCarrier(match, participant, scaled(effect.Range, 15)) then
 			return false, "Aucun porteur adverse à portée."
-		elseif effect.Kind == "BlinkToCarrier" and not enemyCarrier(match, participant, effect.Range or 40) then
+		elseif effect.Kind == "BlinkToCarrier" and not enemyCarrier(match, participant, scaled(effect.Range, 40)) then
 			return false, "Aucun porteur adverse à portée."
 		elseif effect.Kind == "ShotBuff" and participant.ShotBuff and participant.ShotBuff.ExpiresAt > now() then
 			return false, "Ton tir est déjà chargé."
@@ -145,7 +159,7 @@ function Abilities.execute(match: any, participant: Participant, power: Archetyp
 	for _, effect in power.Effects do
 		local kind = effect.Kind
 		if kind == "Dash" then
-			local velocity = flatLook(participant) * (effect.Speed or 80)
+			local velocity = flatLook(participant) * (effect.Speed or 80) * MOVE_SCALE
 			Abilities.impulse(match, participant, velocity, effect.Duration or 0.22)
 			if effect.Ram then
 				participant.RamUntil = t + (effect.Duration or 0.22) + 0.15
@@ -161,15 +175,15 @@ function Abilities.execute(match: any, participant: Participant, power: Archetyp
 			Abilities.impulse(
 				match,
 				participant,
-				direction * (effect.Speed or 70) + Vector3.new(0, 10, 0),
+				direction * (effect.Speed or 70) * MOVE_SCALE + Vector3.new(0, 10, 0),
 				effect.Duration or 0.3
 			)
 			participant.DiveUntil = t + (effect.Duration or 0.3) + 0.35
 		elseif kind == "Blink" then
-			local target = root.Position + flatLook(participant) * (effect.Distance or 24)
+			local target = root.Position + flatLook(participant) * (effect.Distance or 24) * RANGE_SCALE
 			Abilities.teleport(match, participant, legalPoint(match, participant, target), nil)
 		elseif kind == "BlinkToCarrier" then
-			local carrier = enemyCarrier(match, participant, effect.Range or 40)
+			local carrier = enemyCarrier(match, participant, scaled(effect.Range, 40))
 			if carrier and carrier.Root then
 				local carrierRoot = carrier.Root
 				local front = carrierRoot.Position + flatLook(carrier) * 4
@@ -205,7 +219,7 @@ function Abilities.execute(match: any, participant: Participant, power: Archetyp
 				ExpiresAt = t + (effect.Window or 8),
 			}
 		elseif kind == "Steal" then
-			local carrier = enemyCarrier(match, participant, effect.Range or 15)
+			local carrier = enemyCarrier(match, participant, scaled(effect.Range, 15))
 			if carrier then
 				participant.Steals += 1
 				match:stun(carrier, 0.5, nil)
@@ -220,15 +234,21 @@ function Abilities.execute(match: any, participant: Participant, power: Archetyp
 				end
 			end
 		elseif kind == "EnemySlow" then
-			for _, enemy in targetsAround(match, participant, effect.Radius) do
+			for _, enemy in
+				targetsAround(match, participant, if effect.Radius then effect.Radius * RANGE_SCALE else nil)
+			do
 				match:addEffect(enemy, "Slow", effect.Mult or 0.7, effect.Duration or 4)
 			end
 		elseif kind == "EnemyStun" then
-			for _, enemy in targetsAround(match, participant, effect.Radius) do
+			for _, enemy in
+				targetsAround(match, participant, if effect.Radius then effect.Radius * RANGE_SCALE else nil)
+			do
 				match:stun(enemy, effect.Duration or 1, nil)
 			end
 		elseif kind == "EnemyBlind" then
-			for _, enemy in targetsAround(match, participant, effect.Radius) do
+			for _, enemy in
+				targetsAround(match, participant, if effect.Radius then effect.Radius * RANGE_SCALE else nil)
+			do
 				match:blind(enemy, effect.Duration or 2)
 			end
 		elseif kind == "GoalWall" then

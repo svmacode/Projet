@@ -1,8 +1,9 @@
 --!strict
--- État côté client : profil, groupe, file d'attente, clan, match.
+-- État côté client : profil, groupe, terrain du lobby, clan, match.
 -- Le client ne fait qu'afficher : toutes les décisions sont prises par le
 -- serveur, qui pousse ses mises à jour via les remotes.
 
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Net = require(ReplicatedStorage.Shared.Net)
@@ -12,21 +13,21 @@ local State = {}
 
 State.Profile = nil :: any
 State.Party = nil :: any
-State.Queue = { State = "Idle" } :: any
 State.Clan = nil :: any
 State.Match = nil :: any
 State.Setup = nil :: any
 State.Ball = nil :: any
-State.Started = false -- le joueur a passé le menu de départ
+State.Pad = nil :: any -- terrain du lobby occupé (nil = aucun)
+State.Started = false -- l'écran de chargement est terminé
 State.ActiveScreen = nil :: string?
 
 State.ProfileChanged = Signal.new() :: Signal.Signal<any>
 State.PartyChanged = Signal.new() :: Signal.Signal<any>
-State.QueueChanged = Signal.new() :: Signal.Signal<any>
 State.ClanChanged = Signal.new() :: Signal.Signal<any>
 State.MatchChanged = Signal.new() :: Signal.Signal<any>
 State.SetupChanged = Signal.new() :: Signal.Signal<any>
 State.BallChanged = Signal.new() :: Signal.Signal<any>
+State.PadChanged = Signal.new() :: Signal.Signal<any>
 State.MatchEvent = Signal.new() :: Signal.Signal<string, any>
 State.ScreenChanged = Signal.new() :: Signal.Signal<string?>
 State.Notify = Signal.new() :: Signal.Signal<string, string>
@@ -65,6 +66,20 @@ function State.inMatch(): boolean
 	return match ~= nil and match.Phase ~= "Ended"
 end
 
+-- Participant du joueur local dans le match en cours.
+function State.me(): any
+	local match = State.Match
+	if not match then
+		return nil
+	end
+	for _, participant in match.Participants do
+		if participant.UserId == Players.LocalPlayer.UserId then
+			return participant
+		end
+	end
+	return nil
+end
+
 function State.setScreen(name: string?)
 	if State.ActiveScreen == name then
 		return
@@ -82,12 +97,9 @@ function State.start()
 		State.Party = party
 		State.PartyChanged:Fire(party)
 	end)
-	Net.event("QueueUpdated").OnClientEvent:Connect(function(status)
-		State.Queue = status or { State = "Idle" }
-		State.QueueChanged:Fire(State.Queue)
-		if status and status.Message then
-			State.Notify:Fire(status.Message, "Info")
-		end
+	Net.event("PadState").OnClientEvent:Connect(function(pad)
+		State.Pad = pad
+		State.PadChanged:Fire(pad)
 	end)
 	Net.event("ClanUpdated").OnClientEvent:Connect(function(clan)
 		State.Clan = clan

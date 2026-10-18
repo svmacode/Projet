@@ -1,9 +1,10 @@
 --!strict
--- Ouverture d'une balle ou d'un pack, façon tirage d'animé :
---   1. anticipation : la balle tremble de plus en plus, les lignes de vitesse
---      accélèrent, puis flash blanc ;
---   2. explosion dans la couleur de la rareté, rayons qui tournent ;
---   3. la carte claque à l'écran, nom de rareté géant en lettrage BD.
+-- Ouverture d'une balle ou d'un pack cosmétique :
+--   1. la balle arrive, tremble de plus en plus fort et brille ;
+--   2. elle s'ouvre dans un éclair de la couleur de la rareté, avec des
+--      rayons qui tournent lentement derrière ;
+--   3. la carte apparaît avec un rebond, la rareté s'affiche au-dessus.
+-- PackOpening.play attend que le joueur appuie sur « Continuer ».
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -29,8 +30,8 @@ local function getRoot(): Frame
 	return root :: Frame
 end
 
--- Balle dessinée (cercle dégradé cerclé d'encre + coutures + reflet),
--- réutilisée par la boutique.
+-- Balle de handball dessinée : sphère en dégradé, deux coutures, reflet.
+-- Réutilisée par l'écran Archétypes.
 function PackOpening.ball(parent: Instance, size: number, color: Color3, accent: Color3, z: number): Frame
 	local ball = Kit.new("Frame", {
 		Name = "Balle",
@@ -40,83 +41,53 @@ function PackOpening.ball(parent: Instance, size: number, color: Color3, accent:
 		ZIndex = z,
 		Parent = parent,
 	})
-	Kit.corner(ball, size)
-	Kit.border(ball, C.Ink, math.max(2, size / 40))
-	Kit.gradient(ball, Theme.lighten(color, 0.35), Theme.darken(color, 0.35), 55)
-	-- Coutures en croix légèrement courbées (deux traits inclinés + un central).
-	for index, rotation in { 32, -32, 90 } do
+	Kit.round(ball)
+	Kit.gradient(ball, Theme.lighten(color, 0.45), Theme.darken(color, 0.15), 50)
+	Kit.border(ball, C.White, math.max(2, size / 36))
+	for _, rotation in { 30, -30 } do
 		local seam = Kit.new("Frame", {
 			Name = "Couture",
 			BackgroundColor3 = accent,
 			BorderSizePixel = 0,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.new(if index == 3 then 0.98 else 0.9, 0, 0, math.max(3, size / 18)),
+			Size = UDim2.new(0.98, 0, 0, math.max(3, size / 16)),
 			Rotation = rotation,
 			ZIndex = z + 1,
 			Parent = ball,
 		})
-		Kit.corner(seam, size)
-		Kit.border(seam, C.Ink, math.max(1, size / 90))
+		Kit.round(seam)
 	end
-	-- Reflet.
-	local gloss = Kit.new("Frame", {
+	local ring = Kit.new("Frame", {
+		Name = "Anneau",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.56, 0.56),
+		ZIndex = z + 1,
+		Parent = ball,
+	})
+	Kit.round(ring)
+	Kit.border(ring, accent, math.max(2, size / 22))
+	local shine = Kit.new("Frame", {
 		Name = "Reflet",
 		BackgroundColor3 = C.White,
 		BackgroundTransparency = 0.45,
 		BorderSizePixel = 0,
-		Size = UDim2.fromScale(0.26, 0.18),
 		Position = UDim2.fromScale(0.2, 0.14),
+		Size = UDim2.fromScale(0.26, 0.16),
 		Rotation = -30,
 		ZIndex = z + 2,
 		Parent = ball,
 	})
-	Kit.corner(gloss, size)
+	Kit.round(shine)
 	return ball
 end
 
--- Rayons qui tournent autour du centre (soleil d'animé).
-local function rays(parent: Instance, color: Color3, count: number, z: number, speed: number): Frame
-	local hub = Kit.box({
-		Name = "Rayons",
-		Size = UDim2.fromOffset(10, 10),
-		Position = UDim2.fromScale(0.5, 0.5),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = z,
-		Parent = parent,
-	})
-	for index = 1, count do
-		local ray = Kit.new("Frame", {
-			BackgroundColor3 = color,
-			BorderSizePixel = 0,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(if index % 2 == 0 then 46 else 22, 1800),
-			Rotation = index * 180 / count,
-			ZIndex = z,
-			Parent = hub,
-		})
-		Kit.new("UIGradient", {
-			Rotation = 90,
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 1),
-				NumberSequenceKeypoint.new(0.5, 0.15),
-				NumberSequenceKeypoint.new(1, 1),
-			}),
-			Parent = ray,
-		})
-	end
-	Kit.tween(
-		hub,
-		TweenInfo.new(speed, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1),
-		{ Rotation = if speed > 0 then 360 else -360 }
-	)
-	return hub
-end
-
-local function flash(parent: Instance, color: Color3, z: number, duration: number)
+local function flash(parent: Instance, color: Color3, duration: number, z: number)
 	local frame = Kit.new("Frame", {
 		BackgroundColor3 = color,
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(1, 1),
 		ZIndex = z,
@@ -128,6 +99,41 @@ local function flash(parent: Instance, color: Color3, z: number, duration: numbe
 	end)
 end
 
+-- Rayons de lumière qui tournent derrière la carte.
+local function rays(parent: Instance, color: Color3, count: number, z: number): Frame
+	local holder = Kit.box({
+		Size = UDim2.fromOffset(1400, 1400),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		ZIndex = z,
+		Parent = parent,
+	})
+	for index = 1, count do
+		local ray = Kit.new("Frame", {
+			BackgroundColor3 = C.White,
+			BorderSizePixel = 0,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0, 70, 1, 0),
+			Rotation = (index / count) * 180,
+			ZIndex = z,
+			Parent = holder,
+		})
+		Kit.new("UIGradient", {
+			Color = ColorSequence.new(Theme.lighten(color, 0.6), color),
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.5, 0.45),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Rotation = 90,
+			Parent = ray,
+		})
+	end
+	Kit.tween(holder, TweenInfo.new(24, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), { Rotation = 360 })
+	return holder
+end
+
 function PackOpening.play(result: any, ballColor: Color3?, ballAccent: Color3?)
 	local parent = getRoot()
 	local info = Rarities.get(result.Rarity)
@@ -135,104 +141,67 @@ function PackOpening.play(result: any, ballColor: Color3?, ballAccent: Color3?)
 	local tier = if info then info.Rank else 1
 
 	local overlay = Kit.new("Frame", {
-		BackgroundColor3 = C.Background,
-		BorderSizePixel = 0,
+		BackgroundTransparency = 1,
 		Size = UDim2.fromScale(1, 1),
 		ZIndex = 100,
 		Parent = parent,
 	})
-	local backdrop = Kit.backdrop(overlay, C.Violet, 100)
+	local back = Kit.backdrop(overlay, C.Sky, 100)
 	local stage = Kit.box({
 		Size = UDim2.fromOffset(600, 600),
-		Position = UDim2.fromScale(0.5, 0.48),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 101,
-		Parent = overlay,
-	})
-
-	-- 1. Anticipation.
-	local ballSize = 220
-	local ball = PackOpening.ball(stage, ballSize, ballColor or C.Accent, ballAccent or C.White, 104)
-	ball.AnchorPoint = Vector2.new(0.5, 0.5)
-	ball.Position = UDim2.fromScale(0.5, 0.5)
-	local scale = Kit.new("UIScale", { Parent = ball })
-	Kit.slam(ball, 0.2)
-	Kit.playSound(Theme.Sounds.Reveal, 0.5)
-	local fast: Frame? = nil
-	local duration = 1.1 + tier * 0.15
-	local stop = os.clock() + duration
-	while os.clock() < stop and overlay.Parent do
-		local progress = 1 - (stop - os.clock()) / duration
-		local amount = 2 + progress * (5 + tier * 2.5)
-		ball.Rotation = math.sin(os.clock() * (30 + progress * 40)) * amount
-		ball.Position = UDim2.new(0.5, math.random(-amount, amount) * 0.7, 0.5, math.random(-amount, amount) * 0.3)
-		scale.Scale = 1 + progress * 0.18
-		-- Les lignes de vitesse accélèrent à mi-parcours.
-		if progress > 0.45 and not fast then
-			fast = Kit.speedLines({
-				Parent = overlay,
-				Color = rarityColor,
-				Count = 18 + tier * 4,
-				Transparency = 0.55,
-				Speed = 0.35,
-				ZIndex = 102,
-			})
-		end
-		task.wait(1 / 60)
-	end
-
-	-- 2. Explosion.
-	flash(overlay, C.White, 130, 0.35)
-	ball:Destroy()
-	if fast then
-		fast:Destroy()
-	end
-	backdrop:Destroy()
-	Kit.backdrop(overlay, rarityColor, 100)
-	local burst = Kit.new("Frame", {
-		BackgroundColor3 = rarityColor,
-		BorderSizePixel = 0,
-		Size = UDim2.fromOffset(200, 200),
-		Position = UDim2.fromScale(0.5, 0.5),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 101,
-		Parent = stage,
-	})
-	Kit.corner(burst, 1000)
-	Kit.tween(
-		burst,
-		TweenInfo.new(0.5, Enum.EasingStyle.Quint),
-		{ Size = UDim2.fromOffset(1500, 1500), BackgroundTransparency = 1 }
-	)
-	local ring = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(60, 60),
 		Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		ZIndex = 102,
-		Parent = stage,
-	})
-	Kit.corner(ring, 1000)
-	local ringStroke = Kit.border(ring, C.White, 14)
-	Kit.tween(ring, TweenInfo.new(0.6, Enum.EasingStyle.Quint), { Size = UDim2.fromOffset(1100, 1100) })
-	Kit.tween(ringStroke, TweenInfo.new(0.6, Enum.EasingStyle.Quint), { Transparency = 1, Thickness = 2 })
-	rays(stage, rarityColor, 10, 101, 9)
-	if tier >= 4 then
-		rays(stage, C.White, 6, 101, -14)
-	end
-	Kit.speedLines({
 		Parent = overlay,
-		Color = C.White,
-		Count = 10 + tier * 2,
-		Transparency = 0.7,
-		Speed = 0.6,
-		ZIndex = 101,
 	})
 
-	-- 3. Carte.
-	local cardHolder = Kit.box({
-		Size = UDim2.fromOffset(260, 350),
+	-- 1. Anticipation : la balle tombe, puis tremble de plus en plus.
+	local ballSize = 220
+	local ball = PackOpening.ball(stage, ballSize, ballColor or C.Accent, ballAccent or C.White, 104)
+	ball.AnchorPoint = Vector2.new(0.5, 0.5)
+	ball.Position = UDim2.fromScale(0.5, -0.4)
+	Kit.tween(ball, Theme.Motion.Bounce, { Position = UDim2.fromScale(0.5, 0.5) })
+	Kit.playSound(Theme.Sounds.Reveal, 0.5)
+	local glow = Kit.new("Frame", {
+		BackgroundColor3 = C.White,
+		BackgroundTransparency = 0.7,
+		BorderSizePixel = 0,
+		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(ballSize, ballSize),
+		ZIndex = 103,
+		Parent = stage,
+	})
+	Kit.round(glow)
+	task.wait(0.5)
+	Kit.tween(glow, TweenInfo.new(1.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Size = UDim2.fromOffset(ballSize * 1.9, ballSize * 1.9),
+		BackgroundTransparency = 0.4,
+	})
+	local shakeEnd = os.clock() + 1.3
+	while os.clock() < shakeEnd and overlay.Parent do
+		local progress = 1 - (shakeEnd - os.clock()) / 1.3
+		local power = 2 + progress * 12
+		ball.Position = UDim2.new(0.5, math.random(-power, power), 0.5, math.random(-power, power))
+		ball.Rotation = math.random(-power, power)
+		task.wait(0.03)
+	end
+	if not overlay.Parent then
+		return
+	end
+
+	-- 2. Ouverture.
+	ball:Destroy()
+	glow:Destroy()
+	flash(overlay, C.White, 0.5, 120)
+	back:Destroy()
+	local revealBack = Kit.backdrop(overlay, rarityColor, 100)
+	rays(revealBack, rarityColor, 6 + tier * 2, 100)
+
+	-- 3. Carte et rareté.
+	local cardHolder = Kit.box({
+		Size = UDim2.fromOffset(250, 340),
+		Position = UDim2.fromScale(0.5, 0.52),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		ZIndex = 110,
 		Parent = stage,
@@ -251,78 +220,75 @@ function PackOpening.play(result: any, ballColor: Color3?, ballAccent: Color3?)
 			title = item.Name
 		end
 	end
-	cardHolder.Rotation = -8
-	Kit.slam(cardHolder, 2.6)
-	Kit.tween(cardHolder, Theme.Motion.Slam, { Rotation = -2 })
-	task.delay(0.18, function()
-		Kit.shake(stage, 4 + tier * 2, 0.3)
-	end)
+	Kit.slam(cardHolder, 0.3)
+	if tier >= 4 then
+		task.delay(0.15, function()
+			Kit.shake(stage, 2 + tier, 0.3)
+		end)
+	end
 
 	local rarityTitle = Kit.title({
 		Text = string.upper(if info then info.Name else result.Rarity),
-		TextSize = 96 + tier * 4,
+		TextSize = 64 + tier * 6,
 		Color = C.White,
-		ShadowColor = rarityColor,
+		StrokeColor = Theme.darken(rarityColor, 0.4),
 		AlignX = Enum.TextXAlignment.Center,
-		Size = UDim2.fromOffset(900, 120),
-		Position = UDim2.new(0.5, 0, 0.5, -270),
+		Size = UDim2.fromOffset(1000, 110),
+		Position = UDim2.new(0.5, 0, 0.5, -280),
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Rotation = -4,
 		ZIndex = 112,
 		Parent = overlay,
 	})
-	task.delay(0.1, function()
-		Kit.slam(rarityTitle.Instance, 2)
+	task.delay(0.08, function()
+		Kit.slam(rarityTitle.Instance, 1.6)
 	end)
 
-	local status = if result.Duplicate then `Déjà possédé · +{result.Refund} Hand Coins` else "NOUVEAU !"
+	local card = Kit.surface({
+		Transparency = 0.02,
+		BorderColor = C.White,
+		BorderThickness = 3,
+		Radius = 20,
+		Size = UDim2.fromOffset(520, 80),
+		Position = UDim2.new(0.5, 0, 0.5, 240),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		ZIndex = 112,
+		Parent = overlay,
+	})
+	Kit.label({
+		Text = title,
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.H2,
+		Color = C.Text,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, -20, 0, 34),
+		Position = UDim2.fromOffset(10, 10),
+		ZIndex = 113,
+		Parent = card,
+	})
+	local status = if result.Duplicate then `Déjà possédé · +{result.Refund} Hand Coins` else "Nouveau !"
 	if result.Pity then
 		status ..= "  ·  garantie activée"
 	end
-	local plate = Kit.plate({
-		Color = C.Ink,
-		BorderColor = rarityColor,
-		Size = UDim2.fromOffset(520, 72),
-		Position = UDim2.new(0.5, 0, 0.5, 236),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Rotation = 2,
-		ShadowColor = rarityColor,
-		ZIndex = 112,
-		Parent = overlay,
-	})
-	Kit.label({
-		Text = string.upper(title),
-		Font = Theme.Fonts.Hero,
-		TextSize = 34,
-		Color = C.White,
-		Stroke = 2,
-		AlignX = Enum.TextXAlignment.Center,
-		Size = UDim2.new(1, -20, 0, 38),
-		Position = UDim2.fromOffset(10, 4),
-		ZIndex = 113,
-		Parent = plate,
-	})
 	Kit.label({
 		Text = status,
-		Font = Theme.Fonts.Display,
+		Font = Theme.Fonts.Bold,
 		TextSize = Theme.Text.Body,
-		Color = if result.Duplicate then C.Accent else C.Lime,
+		Color = if result.Duplicate then C.AccentDark else C.Success,
 		AlignX = Enum.TextXAlignment.Center,
 		Size = UDim2.new(1, -20, 0, 22),
-		Position = UDim2.fromOffset(10, 42),
+		Position = UDim2.fromOffset(10, 46),
 		ZIndex = 113,
-		Parent = plate,
+		Parent = card,
 	})
-	Kit.reveal(plate, 0.25)
+	Kit.reveal(card, 0.25)
 
 	local closed = false
 	local continueButton = Kit.button({
 		Text = "CONTINUER",
 		Variant = "Primary",
-		Font = Theme.Fonts.Display,
-		TextSize = Theme.Text.H3 + 2,
+		TextSize = Theme.Text.H3,
 		Size = UDim2.fromOffset(240, 56),
-		Position = UDim2.new(0.5, 0, 1, -70),
+		Position = UDim2.new(0.5, 0, 1, -64),
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		ZIndex = 114,
 		Parent = overlay,

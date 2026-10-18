@@ -1,26 +1,31 @@
 --!strict
--- Commandes du match (PC, manette, mobile) et caméra verrouillée.
+-- Commandes du match (PC, manette, mobile).
 --
---   PC       : Clic gauche maintenu = tir chargé · E = passe · Shift = dash
---              R = dribble · F = interception / contact · 1 2 3 = pouvoirs
+--   PC       : Clic gauche maintenu = tir au timing · E = passe · Shift = dash
+--              F = interception / contact · 1 2 3 = pouvoirs
 --              Ctrl = verrouiller / libérer la caméra
---   Manette  : R2 tir · X passe · B dash · L1 dribble · Y contact · croix = pouvoirs
+--   Manette  : R2 tir · X passe · B dash · Y contact · croix = pouvoirs
 --   Mobile   : boutons à droite de l'écran (créés par MatchHUD)
 --
--- Le client ENVOIE des demandes : le serveur décide (ballon, fautes, pouvoirs).
--- Seul le dash est appliqué immédiatement en local pour la réactivité.
+-- Tir au timing (Shared/ShotTiming) : tant que TIR est maintenu, un curseur
+-- fait des allers-retours sur la jauge ; on relâche dans la zone parfaite.
+-- Le client envoie « ShotCharge » puis « ShotRelease » + direction visée ;
+-- c'est le SERVEUR qui note le tir. Pendant la charge, l'attribut
+-- « ShotChargeStart » (heure serveur) est posé sur le LocalPlayer pour le HUD.
+--
+-- Seul le dash est appliqué immédiatement en local pour la réactivité ; le
+-- serveur valide son délai et contrôle la vitesse.
 
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
-local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
-local BallMath = require(ReplicatedStorage.Shared.BallMath)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Net = require(ReplicatedStorage.Shared.Net)
+local ShotTiming = require(ReplicatedStorage.Shared.ShotTiming)
 local Signal = require(ReplicatedStorage.Shared.Util.Signal)
 local State = require(script.Parent.State)
 
@@ -28,15 +33,19 @@ local LocalPlayer = Players.LocalPlayer
 
 local MatchInput = {}
 
+-- Position actuelle du curseur de timing (0..1) pendant une charge, sinon nil.
 MatchInput.Charge = nil :: number?
 MatchInput.CameraLocked = true
 MatchInput.DashReadyAt = 0
 MatchInput.ActionFeedback = Signal.new() :: Signal.Signal<string>
+-- Note reçue du serveur pour MON dernier tir (« Perfect » | « Good » | « Weak »).
+MatchInput.ShotGraded = Signal.new() :: Signal.Signal<string>
 
 local actionRemote: RemoteEvent
-local chargeStart: number? = nil
-local previewDots: { Part } = {}
+local chargeStart: number? = nil -- heure serveur
 local bound = false
+local aimParams = RaycastParams.new()
+aimParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local function myEntry(): any
 	local match = State.Match
@@ -65,6 +74,10 @@ function MatchInput.isHolding(): boolean
 	return isHolding()
 end
 
+function MatchInput.isCharging(): boolean
+	return chargeStart ~= nil
+end
+
 local function character(): (Model?, Humanoid?, BasePart?)
 	local char = LocalPlayer.Character
 	if not char then
@@ -75,13 +88,11 @@ local function character(): (Model?, Humanoid?, BasePart?)
 	return char, humanoid, if root and root:IsA("BasePart") then root else nil
 end
 
--- Point visé par le centre de l'écran.
+-- Point visé par le centre de l'écran (les personnages et le ballon sont ignorés).
 local function aimPoint(): Vector3
 	local camera = Workspace.CurrentCamera :: Camera
 	local viewport = camera.ViewportSize
 	local ray = camera:ViewportPointToRay(viewport.X / 2, viewport.Y / 2)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
 	local ignore: { Instance } = {}
 	for _, player in Players:GetPlayers() do
 		if player.Character then
@@ -92,8 +103,8 @@ local function aimPoint(): Vector3
 	if localBall then
 		table.insert(ignore, localBall)
 	end
-	params.FilterDescendantsInstances = ignore
-	local hit = Workspace:Raycast(ray.Origin, ray.Direction * 400, params)
+	aimParams.FilterDescendantsInstances = ignore
+	local hit = Workspace:Raycast(ray.Origin, ray.Direction * 400, aimParams)
 	return if hit then hit.Position else ray.Origin + ray.Direction * 400
 end
 
@@ -117,60 +128,12 @@ local function aimDirection(): Vector3
 	return (Workspace.CurrentCamera :: Camera).CFrame.LookVector
 end
 
+function MatchInput.aimDirection(): Vector3
+	return aimDirection()
+end
+
 local function send(action: string, a: any?, b: any?)
 	actionRemote:FireServer(action, a, b)
-end
-
--- Aperçu de trajectoire ----------------------------------------------------------------------
-
-local function ensurePreview()
-	if #previewDots > 0 then
-		return
-	end
-	for i = 1, 22 do
-		local dot = Instance.new("Part")
-		dot.Name = "Visee"
-		dot.Shape = Enum.PartType.Ball
-		dot.Size = Vector3.one * (0.32 - i * 0.008)
-		dot.Material = Enum.Material.Neon
-		dot.Color = Color3.fromRGB(255, 255, 255)
-		dot.Anchored = true
-		dot.CanCollide = false
-		dot.CanQuery = false
-		dot.CanTouch = false
-		dot.CastShadow = false
-		table.insert(previewDots, dot)
-	end
-end
-
-local function hidePreview()
-	for _, dot in previewDots do
-		dot.Parent = nil
-	end
-end
-
-local function updatePreview(charge: number)
-	ensurePreview()
-	local hand = handPosition()
-	if not hand then
-		hidePreview()
-		return
-	end
-	local direction = (aimDirection() + Vector3.new(0, 0.04, 0)).Unit
-	local speed = Config.Ball.ShotMinSpeed + (Config.Ball.ShotMaxSpeed - Config.Ball.ShotMinSpeed) * charge
-	local velocity = direction * speed
-	local floorY = if State.Match then (State.Match.CourtCFrame :: CFrame).Position.Y else 0
-	for index, dot in previewDots do
-		local t = index * 0.035
-		local position = BallMath.positionAt(hand, velocity, Vector3.zero, t)
-		if position.Y < floorY then
-			dot.Parent = nil
-		else
-			dot.CFrame = CFrame.new(position)
-			dot.Color = Color3.fromRGB(255, 255 - math.floor(charge * 120), 255 - math.floor(charge * 200))
-			dot.Parent = Workspace
-		end
-	end
 end
 
 -- Actions ---------------------------------------------------------------------------------------
@@ -180,24 +143,33 @@ local function canPlay(): boolean
 	return match ~= nil and (match.Phase == "Live" or match.Phase == "SetPiece") and myEntry() ~= nil
 end
 
+local function setCharge(start: number?)
+	chargeStart = start
+	LocalPlayer:SetAttribute("ShotChargeStart", start)
+	if not start then
+		MatchInput.Charge = nil
+	end
+end
+
 local function startCharge()
-	if not canPlay() or not isHolding() then
+	if chargeStart or not canPlay() or not isHolding() then
 		return
 	end
-	chargeStart = os.clock()
+	setCharge(Workspace:GetServerTimeNow())
+	send("ShotCharge")
+	MatchInput.ActionFeedback:Fire("ShotCharge")
 end
 
 local function releaseCharge()
 	if not chargeStart then
 		return
 	end
-	local charge = math.clamp((os.clock() - chargeStart) / Config.Ball.ShotChargeTime, 0, 1)
-	chargeStart = nil
-	MatchInput.Charge = nil
-	hidePreview()
+	setCharge(nil)
 	if isHolding() then
-		send("Shoot", aimDirection(), charge)
+		send("ShotRelease", aimDirection())
 		MatchInput.ActionFeedback:Fire("Shoot")
+	else
+		send("ShotRelease", nil)
 	end
 end
 
@@ -205,12 +177,17 @@ local function pass()
 	if not canPlay() or not isHolding() then
 		return
 	end
+	if chargeStart then
+		-- Une passe annule la charge de tir.
+		setCharge(nil)
+		send("ShotRelease", nil)
+	end
 	-- Coéquipier le plus proche du viseur.
 	local camera = Workspace.CurrentCamera :: Camera
 	local center = camera.ViewportSize / 2
 	local mine = myEntry()
 	local best: Model? = nil
-	local bestDistance = 320
+	local bestDistance = 340
 	if State.Match and mine then
 		for _, participant in State.Match.Participants do
 			local model = participant.Model
@@ -279,7 +256,11 @@ local function dash()
 		direction = Vector3.new(look.X, 0, look.Z)
 	end
 	direction = Vector3.new(direction.X, 0, direction.Z).Unit
-	applyImpulse(direction * Config.Movement.DashSpeed, Config.Movement.DashDuration)
+	-- Dash horizontal net : on conserve la vitesse verticale (dash en l'air possible).
+	applyImpulse(
+		direction * Config.Movement.DashSpeed + Vector3.new(0, math.max(0, root.AssemblyLinearVelocity.Y * 0.3), 0),
+		Config.Movement.DashDuration
+	)
 	send("Dash", direction)
 	MatchInput.ActionFeedback:Fire("Dash")
 end
@@ -299,11 +280,6 @@ function MatchInput.perform(action: string)
 		pass()
 	elseif action == "Dash" then
 		dash()
-	elseif action == "Dribble" then
-		if canPlay() then
-			send("Dribble")
-			MatchInput.ActionFeedback:Fire("Dribble")
-		end
 	elseif action == "Contact" then
 		if canPlay() then
 			send("Contact")
@@ -321,7 +297,6 @@ end
 local BINDINGS: { { Name: string, Inputs: { Enum.KeyCode | Enum.UserInputType } } } = {
 	{ Name = "Pass", Inputs = { Enum.KeyCode.E, Enum.KeyCode.ButtonX } },
 	{ Name = "Dash", Inputs = { Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonB } },
-	{ Name = "Dribble", Inputs = { Enum.KeyCode.R, Enum.KeyCode.ButtonL1 } },
 	{ Name = "Contact", Inputs = { Enum.KeyCode.F, Enum.KeyCode.ButtonY } },
 	{ Name = "Power1", Inputs = { Enum.KeyCode.One, Enum.KeyCode.DPadLeft } },
 	{ Name = "Power2", Inputs = { Enum.KeyCode.Two, Enum.KeyCode.DPadUp } },
@@ -344,7 +319,7 @@ local function bind()
 	ContextActionService:BindAction("HL_Shoot", function(_, inputState)
 		if inputState == Enum.UserInputState.Begin then
 			startCharge()
-		elseif inputState == Enum.UserInputState.End then
+		elseif inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
 			releaseCharge()
 		end
 		return Enum.ContextActionResult.Pass
@@ -368,39 +343,7 @@ local function unbind()
 	end
 	ContextActionService:UnbindAction("HL_Shoot")
 	ContextActionService:UnbindAction("HL_CameraLock")
-	chargeStart = nil
-	MatchInput.Charge = nil
-	hidePreview()
-end
-
--- Caméra verrouillée (style « shift lock ») ----------------------------------------------------------
-
-local function updateCamera()
-	local _, humanoid, root = character()
-	local inMatch = State.inMatch() and myEntry() ~= nil
-	local overlayOpen = State.ActiveScreen ~= nil
-	local touch = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-	local lock = inMatch and MatchInput.CameraLocked and not overlayOpen and not touch
-	if lock and humanoid and root then
-		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-		UserInputService.MouseIconEnabled = false
-		humanoid.AutoRotate = false
-		humanoid.CameraOffset = Vector3.new(1.75, 0.5, 0)
-		local look = (Workspace.CurrentCamera :: Camera).CFrame.LookVector
-		local flat = Vector3.new(look.X, 0, look.Z)
-		if flat.Magnitude > 0.01 and humanoid.WalkSpeed > 0 then
-			root.CFrame = CFrame.lookAt(root.Position, root.Position + flat)
-		end
-	else
-		if UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
-			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-		end
-		UserInputService.MouseIconEnabled = true
-		if humanoid then
-			humanoid.AutoRotate = true
-			humanoid.CameraOffset = if inMatch and not overlayOpen then Vector3.new(1.2, 0.4, 0) else Vector3.zero
-		end
-	end
+	setCharge(nil)
 end
 
 function MatchInput.start()
@@ -409,6 +352,10 @@ function MatchInput.start()
 	Net.event("MatchEvent").OnClientEvent:Connect(function(kind, data)
 		if kind == "Impulse" and typeof(data) == "table" and typeof(data.Velocity) == "Vector3" then
 			applyImpulse(data.Velocity, tonumber(data.Duration) or 0)
+		elseif kind == "ShotGrade" and typeof(data) == "table" and data.UserId == LocalPlayer.UserId then
+			if typeof(data.Grade) == "string" then
+				MatchInput.ShotGraded:Fire(data.Grade)
+			end
 		end
 	end)
 
@@ -432,18 +379,17 @@ function MatchInput.start()
 		end
 	end)
 
-	RunService:BindToRenderStep("HL_Camera", Enum.RenderPriority.Camera.Value + 1, function()
-		updateCamera()
-		if chargeStart then
-			local charge = math.clamp((os.clock() - chargeStart) / Config.Ball.ShotChargeTime, 0, 1)
-			MatchInput.Charge = charge
-			updatePreview(charge)
-			if not isHolding() then
-				chargeStart = nil
-				MatchInput.Charge = nil
-				hidePreview()
-			end
+	-- Curseur de timing (lu par le HUD et les animations).
+	RunService.RenderStepped:Connect(function()
+		local start = chargeStart
+		if not start then
+			return
 		end
+		if not isHolding() then
+			setCharge(nil)
+			return
+		end
+		MatchInput.Charge = ShotTiming.phase(Workspace:GetServerTimeNow() - start)
 	end)
 end
 

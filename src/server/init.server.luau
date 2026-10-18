@@ -20,6 +20,7 @@ local ORDER = {
 	"Matches",
 	"Matchmaking",
 	"Lobby",
+	"Pads",
 }
 
 local systems: { [string]: any } = {}

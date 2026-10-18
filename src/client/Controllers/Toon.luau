@@ -12,10 +12,10 @@ local Workspace = game:GetService("Workspace")
 
 local Toon = {}
 
-local BUDGET = 28
+local BUDGET = 20 -- chaque Highlight a un coût de rendu : on reste sobre
 local REFRESH = 0.5
-local MAX_DISTANCE = 160
-local INK = Color3.fromRGB(14, 8, 28)
+local MAX_DISTANCE = 140
+local INK = Color3.fromRGB(30, 22, 26)
 
 local outlines: { [Model]: Highlight } = {}
 
@@ -52,7 +52,7 @@ local function attach(model: Model)
 	highlight.Name = "ContourEncre"
 	highlight.FillTransparency = 1
 	highlight.OutlineColor = INK
-	highlight.OutlineTransparency = 0
+	highlight.OutlineTransparency = 0.15
 	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
 	highlight.Adornee = model
 	highlight.Parent = model

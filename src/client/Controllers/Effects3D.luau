@@ -13,7 +13,7 @@ local Workspace = game:GetService("Workspace")
 
 local Archetypes = require(ReplicatedStorage.Shared.Data.Archetypes)
 local BallRenderer = require(script.Parent.BallRenderer)
-local MatchInput = require(script.Parent.MatchInput)
+local CameraController = require(script.Parent.CameraController)
 local State = require(script.Parent.State)
 
 local LocalPlayer = Players.LocalPlayer
@@ -37,7 +37,6 @@ local CONFETTI = { YELLOW, PINK, CYAN, VIOLET, Color3.fromRGB(140, 255, 90) }
 local folder: Folder
 local shakeStrength = 0
 local shakeUntil = 0
-local baseFov = 70
 
 -- Primitives --------------------------------------------------------------------------------------
 
@@ -153,10 +152,9 @@ function Effects3D.shake(strength: number, duration: number)
 	shakeUntil = math.max(shakeUntil, os.clock() + duration)
 end
 
-function Effects3D.punch(amount: number, duration: number)
-	local camera = Workspace.CurrentCamera :: Camera
-	camera.FieldOfView = baseFov + amount
-	TweenService:Create(camera, TweenInfo.new(duration, Enum.EasingStyle.Quint), { FieldOfView = baseFov }):Play()
+-- Coup de champ de vision : délégué à la caméra du match (qui gère le FOV).
+function Effects3D.punch(amount: number, _duration: number)
+	CameraController.punch(amount)
 end
 
 local function isMine(model: Model?): boolean
@@ -171,9 +169,11 @@ local function onShot(data: any)
 		return
 	end
 	local hand = (root.CFrame * CFrame.new(1.35, 0.6, -1.4)).Position
-	local strong = data.Charge > 0.75 or data.Powered
-	local color = if data.Fire
-		then Color3.fromRGB(255, 130, 30)
+	local perfect = data.Perfect == true
+	local strong = perfect or data.Grade == "Good" or data.Powered
+	local color = if perfect
+		then Color3.fromRGB(255, 196, 40)
+		elseif data.Fire then Color3.fromRGB(255, 130, 30)
 		elseif data.Powered then CYAN
 		else TEAM_COLORS[data.Team] or YELLOW
 	ring(
@@ -199,9 +199,29 @@ local function onShot(data: any)
 	if strong then
 		sparkles(hand, PINK, 12, 18, 0.4)
 	end
+	if perfect then
+		-- Tir parfait : onde au sol, gerbe de flammes et double anneau doré.
+		groundRing(root.Position, YELLOW, 14)
+		burst(hand, Color3.fromRGB(255, 140, 30), 18, {
+			Light = 1,
+			Speed = NumberRange.new(10, 22),
+			Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(1, 3.2) }),
+			Lifetime = NumberRange.new(0.3, 0.6),
+		})
+		flash(hand, Color3.fromRGB(255, 230, 140), 6, 0.2)
+		task.delay(
+			0.12,
+			ring,
+			CFrame.lookAt(hand, hand + root.CFrame.LookVector) * CFrame.Angles(0, math.pi / 2, 0),
+			Color3.fromRGB(255, 120, 30),
+			2,
+			14,
+			0.45
+		)
+	end
 	if isMine(data.Model) then
-		Effects3D.punch(if strong then -8 else -4, 0.35)
-		Effects3D.shake(if strong then 0.5 else 0.2, 0.2)
+		Effects3D.punch(if perfect then 0 elseif strong then -6 else -3, 0.35)
+		Effects3D.shake(if perfect then 0.9 elseif strong then 0.5 else 0.2, 0.2)
 	end
 end
 
@@ -460,11 +480,6 @@ function Effects3D.start()
 		local result = table.pack(pcall(onEvent, kind, data))
 		if not result[1] then
 			warn(`[Effects3D] {kind} : {result[2]}`)
-		end
-	end)
-	MatchInput.ActionFeedback:Connect(function(action)
-		if action == "Dash" then
-			Effects3D.punch(6, 0.3)
 		end
 	end)
 	-- Tremblement de caméra appliqué après la mise à jour de la caméra.

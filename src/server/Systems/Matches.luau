@@ -122,7 +122,6 @@ function Matches.startLocal(config: MatchConfig, players: { Player })
 		usedSlots[slot] = nil
 		for _, player in players do
 			if player.Parent == Players then
-				Remote.fire(player, "QueueUpdated", { State = "Idle" })
 				Remote.fire(player, "MatchEvent", "Leave", {})
 				player:LoadCharacterAsync()
 			end

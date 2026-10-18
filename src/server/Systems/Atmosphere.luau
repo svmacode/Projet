@@ -1,8 +1,9 @@
 --!strict
--- Ambiance « coucher de soleil d'animé » : ciel rose-orangé qui vire au
--- violet, lumière dorée rasante, couleurs très saturées, bloom marqué et
--- rayons du soleil. Sur un serveur de match, la lumière est un peu plus
--- haute et plus franche pour que le gymnase reste lumineux et coloré.
+-- Ambiance du lobby : fin d'après-midi dans un décor d'animé de sport.
+-- Soleil bas et doré, ciel orangé qui passe au bleu-violet en hauteur,
+-- brume chaude qui fond l'horizon, ombres douces légèrement bleutées.
+-- Couleurs naturelles : on relève à peine la saturation, sans la pousser.
+-- Sur un serveur de match (gymnase), la lumière est plus haute et neutre.
 
 local Lighting = game:GetService("Lighting")
 
@@ -26,50 +27,48 @@ end
 function Atmosphere.init()
 	local isMatch = ServerRole.Role == "Match"
 
-	Lighting.ClockTime = if isMatch then 16.9 else 17.6
+	Lighting.ClockTime = if isMatch then 14.5 else 17.35
 	Lighting.GeographicLatitude = 35
-	Lighting.Brightness = if isMatch then 3.2 else 3
-	Lighting.ExposureCompensation = if isMatch then 0.25 else 0.2
-	-- Ombres teintées violet (jamais grises) : signature des décors d'animé.
-	Lighting.Ambient = if isMatch then rgb(120, 100, 150) else rgb(104, 72, 132)
-	Lighting.OutdoorAmbient = if isMatch then rgb(190, 160, 200) else rgb(186, 120, 168)
-	Lighting.ColorShift_Top = rgb(255, 170, 120)
-	Lighting.ColorShift_Bottom = rgb(130, 70, 200)
+	Lighting.Brightness = if isMatch then 2.6 else 2.4
+	Lighting.ExposureCompensation = if isMatch then 0.1 else 0.15
+	Lighting.Ambient = if isMatch then rgb(110, 108, 116) else rgb(92, 84, 104)
+	Lighting.OutdoorAmbient = if isMatch then rgb(150, 150, 156) else rgb(146, 128, 140)
+	Lighting.ColorShift_Top = if isMatch then rgb(255, 246, 232) else rgb(255, 196, 140)
+	Lighting.ColorShift_Bottom = rgb(90, 100, 140)
 	Lighting.EnvironmentDiffuseScale = 1
-	Lighting.EnvironmentSpecularScale = 0.6
-	Lighting.ShadowSoftness = 0.05 -- ombres nettes, façon cel-shading
+	Lighting.EnvironmentSpecularScale = 1
+	Lighting.ShadowSoftness = 0.3
 	Lighting.GlobalShadows = true
 
 	local sky = ensure("Sky", "Ciel") :: Sky
-	sky.SunAngularSize = 18
-	sky.MoonAngularSize = 9
-	sky.StarCount = 2500
+	sky.SunAngularSize = 14
+	sky.MoonAngularSize = 8
+	sky.StarCount = 1500
 	sky.CelestialBodiesShown = true
 
-	-- Brume rose-violet : fond les lointains dans le dégradé du ciel.
+	-- Brume chaude : l'horizon se fond dans le dégradé orangé du ciel.
 	local atmosphere = ensure("Atmosphere", "Brume") :: Atmosphere
-	atmosphere.Density = if isMatch then 0.28 else 0.36
-	atmosphere.Offset = 0.18
-	atmosphere.Color = rgb(255, 150, 170)
-	atmosphere.Decay = rgb(120, 60, 190)
-	atmosphere.Glare = 0.9
-	atmosphere.Haze = 2.2
+	atmosphere.Density = if isMatch then 0.2 else 0.34
+	atmosphere.Offset = 0.22
+	atmosphere.Color = rgb(255, 196, 160)
+	atmosphere.Decay = rgb(112, 104, 150)
+	atmosphere.Glare = if isMatch then 0.2 else 0.55
+	atmosphere.Haze = if isMatch then 0.8 else 1.7
 
 	local bloom = ensure("BloomEffect", "Eclat") :: BloomEffect
-	bloom.Intensity = 0.9
-	bloom.Size = 30
-	bloom.Threshold = 1.1
+	bloom.Intensity = 0.45
+	bloom.Size = 24
+	bloom.Threshold = 1.4
 
 	local rays = ensure("SunRaysEffect", "Rayons") :: SunRaysEffect
-	rays.Intensity = 0.12
-	rays.Spread = 0.8
+	rays.Intensity = if isMatch then 0.02 else 0.08
+	rays.Spread = 0.6
 
-	-- Étalonnage : couleurs poussées et contraste franc.
 	local grade = ensure("ColorCorrectionEffect", "Etalonnage") :: ColorCorrectionEffect
-	grade.Brightness = 0.03
-	grade.Contrast = 0.22
-	grade.Saturation = 0.42
-	grade.TintColor = rgb(255, 240, 248)
+	grade.Brightness = 0.02
+	grade.Contrast = 0.08
+	grade.Saturation = if isMatch then 0.08 else 0.14
+	grade.TintColor = if isMatch then rgb(255, 255, 255) else rgb(255, 246, 238)
 end
 
 return Atmosphere

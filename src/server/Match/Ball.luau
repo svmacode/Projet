@@ -34,11 +34,8 @@ export type Ball = {
 	Mods: ShotMods?,
 	HomingTarget: Vector3?,
 	LastTouch: Participant?,
-	Dribbling: boolean,
-	DribbleUsed: boolean,
 	HoldStart: number,
-	CarryDistance: number,
-	LastCarryPosition: Vector3?,
+	Perfect: boolean, -- tir parfait (timing) en vol
 	Locked: boolean,
 	CastParams: RaycastParams,
 	LastBroadcast: number,
@@ -66,11 +63,8 @@ function Ball.new(match: any): Ball
 		Mods = nil,
 		HomingTarget = nil,
 		LastTouch = nil,
-		Dribbling = false,
-		DribbleUsed = false,
 		HoldStart = 0,
-		CarryDistance = 0,
-		LastCarryPosition = nil,
+		Perfect = false,
 		Locked = false,
 		CastParams = params,
 		LastBroadcast = 0,
@@ -91,7 +85,7 @@ function Ball.handPosition(participant: Participant): Vector3?
 end
 
 function Ball.snapshot(self: any): any
-	local fire = self.Mods ~= nil and self.Mods.Fire and self.State == "Flight"
+	local fire = (self.Mods ~= nil and self.Mods.Fire or self.Perfect) and self.State == "Flight"
 	return {
 		State = self.State,
 		Holder = if self.Holder then self.Holder.Model else nil,
@@ -102,8 +96,8 @@ function Ball.snapshot(self: any): any
 		ServerTime = now(),
 		Fire = fire,
 		Charged = self.Mods ~= nil and self.State == "Flight",
+		Perfect = self.Perfect and self.State == "Flight",
 		Kind = self.Kind,
-		Dribbling = self.Dribbling,
 		HoldStart = self.HoldStart,
 		Locked = self.Locked,
 	}
@@ -124,11 +118,8 @@ function Ball.give(self: any, participant: Participant, locked: boolean?)
 	self.Mods = nil
 	self.HomingTarget = nil
 	self.PassTarget = nil
-	self.Dribbling = false
-	self.DribbleUsed = false
+	self.Perfect = false
 	self.HoldStart = now()
-	self.CarryDistance = 0
-	self.LastCarryPosition = if participant.Root then participant.Root.Position else nil
 	self.Locked = locked == true
 	self.LastTouch = participant
 	local hand = Ball.handPosition(participant)
@@ -158,7 +149,7 @@ function Ball.release(
 	self.PassTarget = passTarget
 	self.PassOrigin = origin
 	self.Mods = mods
-	self.Dribbling = false
+	self.Perfect = false
 	self.Locked = false
 	self.LastTouch = thrower or self.LastTouch
 	self:broadcast()
@@ -285,7 +276,7 @@ function Ball.checkContacts(self: any)
 	end
 	if bestRole == "Keeper" then
 		local mods = self.Mods
-		local mustParry = (mods ~= nil and mods.Fire) or speed > Config.Ball.KeeperCatchMaxSpeed
+		local mustParry = (mods ~= nil and mods.Fire) or self.Perfect or speed > Config.Ball.KeeperCatchMaxSpeed
 		if mods and mods.StunKeeper > 0 then
 			match:stun(winner, mods.StunKeeper, "Foudroyé !")
 		end
@@ -402,11 +393,13 @@ function Ball.update(self: any, dt: number)
 		if hitFloor and self.Kind ~= "Loose" then
 			self.Kind = "Loose"
 			self.Mods = nil
+			self.Perfect = false
 			self.Accel = Vector3.zero
 		elseif hit and hit.Name == "MurDePouvoir" then
 			match:onWallBlock(hit, self)
 			self.Kind = "Loose"
 			self.Mods = nil
+			self.Perfect = false
 			self.Accel = Vector3.zero
 		elseif self.Mods and self.Mods.Curve > 0 then
 			self.Accel = Vector3.zero
@@ -420,7 +413,8 @@ function Ball.update(self: any, dt: number)
 
 	self:checkContacts()
 
-	if self.State == "Flight" and os.clock() - self.LastBroadcast > 0.25 then
+	-- Le client prédit la trajectoire : quelques mises à jour par seconde suffisent.
+	if self.State == "Flight" and os.clock() - self.LastBroadcast > 0.2 then
 		self:broadcast()
 	end
 end

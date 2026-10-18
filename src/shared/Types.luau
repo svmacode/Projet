@@ -90,9 +90,6 @@ export type ParticipantSnapshot = {
 	Goals: number,
 	Assists: number,
 	Saves: number,
-	YellowCard: boolean,
-	SuspendedUntil: number,
-	RedCard: boolean,
 	Energy: number,
 	Ultimate: number,
 	Power1ReadyAt: number,
@@ -112,7 +109,6 @@ export type MatchSnapshot = {
 	Score: { [string]: number },
 	AttackSide: { [string]: number }, -- but attaqué par chaque équipe (-1 / 1)
 	Possession: string?,
-	PassiveWarning: boolean,
 	CourtCFrame: CFrame,
 	Participants: { ParticipantSnapshot },
 	Message: string?,
@@ -126,7 +122,7 @@ export type BallSnapshot = {
 	Accel: Vector3,
 	ServerTime: number,
 	Fire: boolean,
-	Dribbling: boolean,
+	Perfect: boolean?,
 	Phantom: boolean,
 }
 

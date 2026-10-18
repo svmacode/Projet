@@ -5,15 +5,18 @@
 -- -> mi-temps (changement de côté) -> 2e mi-temps -> but en or si égalité
 -- (hors entraînement) -> fin.
 --
--- Règles appliquées (inspirées des règles officielles IHF) :
---   * 3 secondes max avec le ballon, 3 pas (distance), reprise de dribble interdite
---   * zone réservée au gardien ; gardien qui sort de sa zone avec le ballon
+-- Règles (simplifiées, rythme arcade) :
+--   * 3 secondes max avec le ballon
+--   * zone réservée au gardien : attaquant qui y entre avec le ballon = perte de
+--     balle (renvoi du gardien) ; défenseur qui défend dans sa zone = jet franc
+--   * contacts : légal de face sur le porteur ; par derrière ou sur un joueur
+--     sans ballon = jet franc pour l'adversaire à l'endroit de la faute
+--   * sorties : remise en jeu en touche, renvoi du gardien sur la ligne de but
 --   * engagement au centre après chaque but, par l'équipe qui a encaissé
---   * jets francs (repoussés aux 9 m), touches, corners, renvois du gardien
---   * jet de 7 m sur occasion manifeste ou défense dans la zone
---   * contacts : légal de face sur le porteur, faute par derrière ou sans ballon
---   * progression disciplinaire : avertissement, exclusions temporaires, rouge
---   * jeu passif : geste d'avertissement puis perte de balle
+--   * 2 mi-temps de 2 min 30, but en or de 60 s en cas d'égalité, puis match nul
+--
+-- Tir au timing (Shared/ShotTiming) : le serveur note le tir à partir de ses
+-- propres horodatages de réception (« ShotCharge » puis « ShotRelease »).
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -26,6 +29,7 @@ local BallMath = require(ReplicatedStorage.Shared.BallMath)
 local Config = require(ReplicatedStorage.Shared.Config)
 local Court = require(ReplicatedStorage.Shared.Court)
 local Net = require(ReplicatedStorage.Shared.Net)
+local ShotTiming = require(ReplicatedStorage.Shared.ShotTiming)
 local Abilities = require(script.Parent.Abilities)
 local Ball = require(script.Parent.Ball)
 local Bots = require(script.Parent.Bots)
@@ -70,9 +74,7 @@ local SET_PIECE_LABELS = {
 	ThrowOff = "ENGAGEMENT",
 	FreeThrow = "JET FRANC",
 	ThrowIn = "TOUCHE",
-	Corner = "CORNER",
 	GoalThrow = "RENVOI",
-	Penalty = "JET DE 7 MÈTRES",
 }
 
 local function now(): number
@@ -111,7 +113,6 @@ function Match.new(
 	self.SetPiece = nil :: SetPiece?
 	self.PossessionTeam = nil :: string?
 	self.PossessionStart = 0
-	self.PassiveWarning = false
 	self.LastPasser = nil :: Participant?
 	self.LastPassTime = 0
 	self.Blind = {} :: { [Participant]: number }
@@ -168,10 +169,6 @@ local function newParticipant(id: string, name: string, team: string): Participa
 		Steals = 0,
 		ShotsOnTarget = 0,
 		Fouls = 0,
-		Yellow = false,
-		Suspensions = 0,
-		SuspendedUntil = 0,
-		Red = false,
 		Energy = 0,
 		Ultimate = 0,
 		Power1ReadyAt = 0,
@@ -185,6 +182,12 @@ local function newParticipant(id: string, name: string, team: string): Participa
 		ZoneTouchUntil = 0,
 		Effects = {},
 		ShotBuff = nil,
+		ShotChargeAt = nil,
+		LastSamplePosition = nil,
+		LastSampleTime = 0,
+		DashUntil = 0,
+		BurstSpeed = 0,
+		SpeedStrikes = 0,
 		LastSpeedApplied = -1,
 		LastJumpApplied = -1,
 		Ready = false,
@@ -267,10 +270,7 @@ function Match:defendSideOf(team: string): number
 end
 
 function Match:isActive(participant: Participant): boolean
-	return participant.Connected
-		and participant.Root ~= nil
-		and participant.Root.Parent ~= nil
-		and participant.SuspendedUntil <= now()
+	return participant.Connected and participant.Root ~= nil and participant.Root.Parent ~= nil
 end
 
 function Match:isStunned(participant: Participant): boolean
@@ -402,7 +402,7 @@ end
 
 function Match:gainUltimate(participant: Participant, reason: string)
 	local amount = Config.Powers.UltimateGains[reason]
-	if amount and not participant.Red then
+	if amount then
 		participant.Ultimate = math.min(Config.Powers.UltimateMax, participant.Ultimate + amount)
 	end
 end
@@ -459,6 +459,61 @@ function Match:placeAt(participant: Participant, localPosition: Vector3, lookAtL
 	end
 	model:PivotTo(CFrame.lookAt(world, Vector3.new(target.X, world.Y, target.Z)))
 	root.AssemblyLinearVelocity = Vector3.zero
+	self:resetSpeedSample(participant)
+end
+
+-- Contrôle de vitesse -----------------------------------------------------------------------------
+-- Le client simule son personnage : le serveur échantillonne sa position et
+-- ramène en arrière un joueur qui va nettement plus vite que permis
+-- (vitesse de course, dash ou élan de pouvoir validés par le serveur).
+
+function Match:resetSpeedSample(participant: Participant)
+	participant.LastSamplePosition = if participant.Root then participant.Root.Position else nil
+	participant.LastSampleTime = now()
+	participant.SpeedStrikes = 0
+end
+
+function Match:allowBurst(participant: Participant, speed: number, duration: number)
+	participant.DashUntil = math.max(participant.DashUntil, now() + duration + 0.35)
+	participant.BurstSpeed = math.max(if participant.DashUntil > now() then participant.BurstSpeed else 0, speed)
+end
+
+function Match:checkSpeed(participant: Participant)
+	local root = participant.Root
+	local humanoid = participant.Humanoid
+	if participant.IsBot or not root or not humanoid then
+		return
+	end
+	local t = now()
+	local elapsed = t - participant.LastSampleTime
+	if elapsed < 0.3 then
+		return
+	end
+	local last = participant.LastSamplePosition
+	local position = root.Position
+	participant.LastSamplePosition = position
+	participant.LastSampleTime = t
+	if not last then
+		return
+	end
+	local flat = Vector3.new(position.X - last.X, 0, position.Z - last.Z)
+	local speed = flat.Magnitude / elapsed
+	local allowed = humanoid.WalkSpeed + Config.Movement.SpeedTolerance
+	if participant.DashUntil > t then
+		allowed = math.max(allowed, participant.BurstSpeed + Config.Movement.SpeedTolerance)
+	end
+	if speed <= allowed then
+		participant.SpeedStrikes = math.max(0, participant.SpeedStrikes - 1)
+		return
+	end
+	participant.SpeedStrikes += 1
+	if participant.SpeedStrikes >= 2 and participant.Model then
+		-- Retour à la dernière position plausible.
+		participant.Model:PivotTo(CFrame.new(last) * root.CFrame.Rotation)
+		root.AssemblyLinearVelocity = Vector3.zero
+		participant.LastSamplePosition = last
+		participant.SpeedStrikes = 0
+	end
 end
 
 function Match:bindCharacter(participant: Participant, character: Model)
@@ -754,9 +809,6 @@ function Match:applyMovement(participant: Participant)
 	else
 		speed = if participant.Poste == "Gardien" then Config.Movement.KeeperWalkSpeed else Config.Movement.WalkSpeed
 		speed *= self:effectValue(participant, "Haste", 1) * self:effectValue(participant, "Slow", 1)
-		if self.Ball.Holder == participant and self.Ball.Dribbling then
-			speed *= Config.Rules.DribbleSpeedMultiplier
-		end
 	end
 	speed = math.floor(speed * 10 + 0.5) / 10
 	if speed ~= participant.LastSpeedApplied then
@@ -807,8 +859,9 @@ function Match:awardSetPiece(kind: string, team: string, localSpot: Vector3, rea
 	local attackSide = self:attackSideOf(team)
 	local spot = Vector3.new(localSpot.X, 0, localSpot.Z)
 	if kind == "FreeThrow" then
-		spot = Court.pushOutside(dims, spot, attackSide, dims.FreeThrowRadius)
-		spot = Court.pushOutside(dims, spot, -attackSide, dims.GoalAreaRadius + 1)
+		-- Jet franc à l'endroit de la faute, mais jamais dans une zone.
+		spot = Court.pushOutside(dims, spot, attackSide, dims.GoalAreaRadius + 2)
+		spot = Court.pushOutside(dims, spot, -attackSide, dims.GoalAreaRadius + 2)
 	elseif kind == "ThrowIn" then
 		spot = Vector3.new(
 			math.clamp(spot.X, -dims.Length / 2 + 2, dims.Length / 2 - 2),
@@ -817,13 +870,8 @@ function Match:awardSetPiece(kind: string, team: string, localSpot: Vector3, rea
 		)
 		spot = Court.pushOutside(dims, spot, attackSide, dims.GoalAreaRadius + 1)
 		spot = Court.pushOutside(dims, spot, -attackSide, dims.GoalAreaRadius + 1)
-	elseif kind == "Corner" then
-		local zSign = if spot.Z >= 0 then 1 else -1
-		spot = Vector3.new(attackSide * (dims.Length / 2 - 0.8), 0, zSign * (dims.Width / 2 - 0.8))
 	elseif kind == "GoalThrow" then
 		spot = Court.keeperSpot(dims, -attackSide)
-	elseif kind == "Penalty" then
-		spot = Court.penaltySpot(dims, attackSide)
 	end
 
 	local thrower = self:chooseThrower(team, spot, kind == "GoalThrow")
@@ -840,20 +888,7 @@ function Match:awardSetPiece(kind: string, team: string, localSpot: Vector3, rea
 			local localPos = self:localOf(participant)
 			if localPos then
 				local flat = Vector3.new(localPos.X, 0, localPos.Z)
-				if kind == "Penalty" then
-					if participant.Poste == "Gardien" and participant.Team ~= team then
-						self:placeAt(
-							participant,
-							Court.keeperSpot(dims, attackSide) + Vector3.new(attackSide * 1.5, 0, 0),
-							spot
-						)
-					else
-						local pushed = Court.pushOutside(dims, flat, attackSide, dims.FreeThrowRadius + 1)
-						if (pushed - flat).Magnitude > 0.1 then
-							self:placeAt(participant, pushed, spot)
-						end
-					end
-				elseif participant.Team ~= team and (flat - spot).Magnitude < minDistance then
+				if participant.Team ~= team and (flat - spot).Magnitude < minDistance then
 					local away = (flat - spot)
 					local direction = if away.Magnitude > 0.1 then away.Unit else Vector3.new(-attackSide, 0, 0)
 					local target = spot + direction * (minDistance + 0.5)
@@ -888,7 +923,6 @@ function Match:whistle()
 	if setPiece then
 		self.Ball.Locked = false
 		self.Ball.HoldStart = now()
-		self.Ball.CarryDistance = 0
 		if setPiece.Kind == "GoalThrow" then
 			self.SetPiece = nil
 		end
@@ -902,7 +936,6 @@ function Match:setPossession(team: string)
 	if self.PossessionTeam ~= team then
 		self.PossessionTeam = team
 		self.PossessionStart = now()
-		self.PassiveWarning = false
 		self.LastPasser = nil
 	end
 end
@@ -950,63 +983,22 @@ function Match:violation(offender: Participant, label: string, kind: string?, sp
 	self:awardSetPiece(kind or "FreeThrow", otherTeam(offender.Team), spot, label)
 end
 
-function Match:suspend(participant: Participant)
-	participant.Suspensions += 1
-	local red = participant.Suspensions >= Config.Rules.SuspensionsBeforeRed
-	participant.Red = participant.Red or red
-	if participant.Red then
-		participant.Ultimate = 0
-	end
-	participant.SuspendedUntil = now() + (if red then Config.Rules.RedCardTime else Config.Rules.SuspensionTime)
-	if self.Ball.Holder == participant then
-		self.Ball:drop()
-	end
-	local bench = self.Court.BenchSpots[participant.Team]
-	if bench then
-		self:placeAt(participant, bench + Vector3.new(0, 0, 3), Vector3.zero)
-	end
-	self:event(if red then "RedCard" else "Suspension", {
-		Model = participant.Model,
-		Name = participant.Name,
-		Team = participant.Team,
-		Duration = participant.SuspendedUntil - now(),
-	})
-end
-
-function Match:discipline(offender: Participant)
-	offender.Fouls += 1
-	local rules = Config.Rules
-	if not offender.Yellow and offender.Fouls >= rules.FoulsBeforeYellow then
-		offender.Yellow = true
-		self:event("YellowCard", { Model = offender.Model, Name = offender.Name, Team = offender.Team })
-	elseif offender.Yellow and offender.Fouls >= rules.FoulsBeforeSuspension + offender.Suspensions * 2 then
-		self:suspend(offender)
-	end
-end
-
-function Match:isClearChance(victim: Participant): boolean
-	if self.Ball.Holder ~= victim then
-		return false
-	end
-	local localPos = self:localOf(victim)
-	if not localPos then
-		return false
-	end
-	local dims: Court.Dimensions = self.Court.Dims
-	local side = self:attackSideOf(victim.Team)
-	return Court.distanceToGoal(dims, localPos, side) < dims.FreeThrowRadius + 3
-end
-
 function Match:commitFoul(offender: Participant, victim: Participant, label: string)
-	local clearChance = self:isClearChance(victim)
 	local spot = self:localOf(victim) or Vector3.zero
-	self:discipline(offender)
+	offender.Fouls += 1
 	self:event("Foul", { Label = label, Offender = offender.Model, Victim = victim.Model, Team = offender.Team })
 	if self.Phase ~= "Live" and self.Phase ~= "SetPiece" then
 		return
 	end
 	self.Phase = "Live"
-	self:awardSetPiece(if clearChance then "Penalty" else "FreeThrow", victim.Team, spot, label)
+	self:awardSetPiece("FreeThrow", victim.Team, spot, label)
+end
+
+-- Défense dans sa propre zone : jet franc pour l'attaque, juste devant la zone.
+function Match:zoneDefense(defender: Participant, attackingTeam: string)
+	local spot = self:localOf(defender) or Vector3.zero
+	self:event("Violation", { Label = "DÉFENSE DANS LA ZONE", Model = defender.Model, Team = defender.Team })
+	self:awardSetPiece("FreeThrow", attackingTeam, spot, "Défense dans la zone")
 end
 
 -- Événements du ballon ------------------------------------------------------------------------------
@@ -1023,15 +1015,14 @@ function Match:onCaught(participant: Participant, kind: string, from: Participan
 	if self.SetPiece and self.SetPiece.Thrower ~= participant then
 		self.SetPiece = nil
 	end
-	-- Défendre en posant le pied dans sa zone : jet de 7 mètres.
+	-- Défendre en posant le pied dans sa zone : jet franc.
 	if
 		kind ~= "Catch"
 		and from
 		and from.Team ~= participant.Team
 		and (self:inOwnZone(participant) or participant.ZoneTouchUntil > now())
 	then
-		self:event("Violation", { Label = "DÉFENSE DANS LA ZONE", Model = participant.Model, Team = participant.Team })
-		self:awardSetPiece("Penalty", from.Team, Vector3.zero, "Défense dans la zone")
+		self:zoneDefense(participant, from.Team)
 		return
 	end
 	if kind == "Catch" and from and from.Team == participant.Team then
@@ -1070,8 +1061,7 @@ end
 
 function Match:onBlock(blocker: Participant, shooter: Participant?)
 	if shooter and shooter.Team ~= blocker.Team and self:inOwnZone(blocker) then
-		self:event("Violation", { Label = "DÉFENSE DANS LA ZONE", Model = blocker.Model, Team = blocker.Team })
-		self:awardSetPiece("Penalty", shooter.Team, Vector3.zero, "Défense dans la zone")
+		self:zoneDefense(blocker, shooter.Team)
 		return
 	end
 	self:gainEnergy(blocker, "Block")
@@ -1144,13 +1134,9 @@ function Match:onOut(kind: string, side: number, localPos: Vector3, ballObject: 
 		self:awardSetPiece("ThrowIn", otherTeam(lastTeam), localPos, "Sortie en touche")
 		return
 	end
-	-- Ligne de but : qui défend ce but ?
+	-- Ligne de but : toujours un renvoi pour l'équipe qui défend ce but.
 	local defendingTeam = if self:defendSideOf("Rouge") == side then "Rouge" else "Bleu"
-	if last and last.Team == defendingTeam and last.Poste ~= "Gardien" then
-		self:awardSetPiece("Corner", otherTeam(defendingTeam), localPos, "Dévié par la défense")
-	else
-		self:awardSetPiece("GoalThrow", defendingTeam, localPos, "Sortie en but")
-	end
+	self:awardSetPiece("GoalThrow", defendingTeam, localPos, "Sortie en but")
 end
 
 -- Actions des joueurs ------------------------------------------------------------------------------
@@ -1239,7 +1225,67 @@ function Match:actionPass(participant: Participant, direction: Vector3, hint: Pa
 	self:event("Pass", { Model = participant.Model, Target = if target then target.Model else nil })
 end
 
-function Match:actionShoot(participant: Participant, direction: Vector3, charge: number)
+-- Tir au timing ------------------------------------------------------------------------------------
+
+function Match:setCharging(participant: Participant, chargeAt: number?)
+	participant.ShotChargeAt = chargeAt
+	if participant.Model then
+		participant.Model:SetAttribute("ShotCharging", if chargeAt then true else nil)
+	end
+end
+
+function Match:actionShotCharge(participant: Participant)
+	if not self:canThrow(participant) or participant.ShotChargeAt then
+		return
+	end
+	self:setCharging(participant, now())
+end
+
+-- Note du tir à partir des horodatages SERVEUR. Une petite fenêtre (bornée)
+-- absorbe l'irrégularité du réseau : on garde la meilleure note de la fenêtre.
+function Match:gradeShot(participant: Participant): (ShotTiming.Grade, number)
+	local chargeAt = participant.ShotChargeAt :: number
+	local elapsed = now() - chargeAt
+	local jitter = 0
+	if participant.Player then
+		local ok, ping = pcall(function()
+			return (participant.Player :: Player):GetNetworkPing()
+		end)
+		if ok and typeof(ping) == "number" then
+			jitter = math.clamp(ping * 0.25, 0, ShotTiming.MaxPingCompensation)
+		end
+	end
+	local order = { Weak = 0, Good = 1, Perfect = 2 }
+	local bestPhase = ShotTiming.phase(elapsed)
+	local bestGrade = ShotTiming.grade(bestPhase)
+	if jitter > 0 then
+		for _, offset in { -jitter, jitter } do
+			local phase = ShotTiming.phase(elapsed + offset)
+			local grade = ShotTiming.grade(phase)
+			if order[grade] > order[bestGrade] then
+				bestGrade = grade
+				bestPhase = phase
+			end
+		end
+	end
+	return bestGrade, bestPhase
+end
+
+function Match:actionShotRelease(participant: Participant, direction: Vector3)
+	if not participant.ShotChargeAt then
+		return
+	end
+	if not self:canThrow(participant) then
+		self:setCharging(participant, nil)
+		return
+	end
+	local grade, phase = self:gradeShot(participant)
+	self:setCharging(participant, nil)
+	self:shoot(participant, direction, grade, phase)
+end
+
+-- Tir effectif (humains et bots).
+function Match:shoot(participant: Participant, direction: Vector3, grade: ShotTiming.Grade, phase: number)
 	if not self:canThrow(participant) then
 		return
 	end
@@ -1252,16 +1298,25 @@ function Match:actionShoot(participant: Participant, direction: Vector3, charge:
 		mods = nil
 	end
 	participant.ShotBuff = nil
-	local power = math.clamp(charge, 0, 1)
-	local speed = Config.Ball.ShotMinSpeed + (Config.Ball.ShotMaxSpeed - Config.Ball.ShotMinSpeed) * power
+	local effect = ShotTiming.Effects[grade] or ShotTiming.Effects.Weak
+	local speed = Config.Ball.ShotMaxSpeed * effect.Speed
 	speed *= if mods then mods.SpeedMult else 1
-	-- Léger relevé pour compenser la gravité « animé ».
-	local aim = (direction + Vector3.new(0, 0.04, 0)).Unit
+	-- Imprécision selon la note : la direction est légèrement déviée.
+	local aim = (direction + Vector3.new(0, Config.Ball.ShotLift, 0)).Unit
+	if effect.Spread > 0 then
+		local rng = Random.new()
+		local right = aim:Cross(Vector3.yAxis)
+		right = if right.Magnitude > 0.01 then right.Unit else Vector3.xAxis
+		local up = right:Cross(aim).Unit
+		aim = (aim + right * rng:NextNumber(-effect.Spread, effect.Spread) + up * rng:NextNumber(
+			-effect.Spread,
+			effect.Spread
+		) * 0.6).Unit
+	end
 	local velocity = aim * speed
+	local perfect = grade == "Perfect"
 	self.Ball:release(origin, velocity, "Shot", mods, nil)
-	-- Un tir remet à zéro le compteur de jeu passif.
-	self.PossessionStart = now()
-	self.PassiveWarning = false
+	self.Ball.Perfect = perfect
 
 	local dims: Court.Dimensions = self.Court.Dims
 	local side = self:attackSideOf(participant.Team)
@@ -1289,34 +1344,16 @@ function Match:actionShoot(participant: Participant, direction: Vector3, charge:
 	end
 	self.Ball:broadcast()
 	self:afterRelease(participant)
+	self:event("ShotGrade", { UserId = participant.UserId, Grade = grade, Phase = phase, Model = participant.Model })
 	self:event("Shot", {
 		Model = participant.Model,
-		Charge = power,
-		Fire = mods ~= nil and mods.Fire,
+		Charge = phase,
+		Grade = grade,
+		Perfect = perfect,
+		Fire = (mods ~= nil and mods.Fire) or perfect,
 		Powered = mods ~= nil,
 		Team = participant.Team,
 	})
-end
-
-function Match:actionDribble(participant: Participant)
-	local ball = self.Ball
-	if ball.Holder ~= participant or ball.Locked or self.Phase ~= "Live" or not self:canAct(participant) then
-		return
-	end
-	if ball.Dribbling then
-		ball.Dribbling = false
-		ball.DribbleUsed = true
-		ball.HoldStart = now()
-		ball.CarryDistance = 0
-		ball:broadcast()
-		return
-	end
-	if ball.DribbleUsed then
-		self:notify(participant, "Reprise de dribble interdite : passe ou tire !", "Danger")
-		return
-	end
-	ball.Dribbling = true
-	ball:broadcast()
 end
 
 function Match:actionJump(participant: Participant)
@@ -1337,6 +1374,8 @@ function Match:actionDash(participant: Participant, direction: Vector3)
 		return
 	end
 	participant.NextDashAt = now() + Config.Movement.DashCooldown - 0.15
+	-- Le client applique son dash lui-même : le contrôle de vitesse l'autorise.
+	self:allowBurst(participant, Config.Movement.DashSpeed, Config.Movement.DashDuration)
 	if participant.IsBot then
 		Abilities.impulse(
 			self,
@@ -1408,7 +1447,7 @@ function Match:actionContact(participant: Participant)
 		return
 	end
 	-- Contact réglementaire de face sur le porteur.
-	local chance = if ball.Dribbling then Config.Contact.DribbleStealChance else Config.Contact.StealChance
+	local chance = Config.Contact.StealChance
 	self:addEffect(target, "Stun", 1, Config.Contact.StunTime)
 	if math.random() < chance then
 		participant.Steals += 1
@@ -1435,7 +1474,7 @@ function Match:actionPower(participant: Participant, slot: number)
 		return
 	elseif slot == 2 and participant.Energy < Config.Powers.EnergyMax then
 		return
-	elseif slot == 3 and (participant.Ultimate < Config.Powers.UltimateMax or participant.Red) then
+	elseif slot == 3 and participant.Ultimate < Config.Powers.UltimateMax then
 		return
 	end
 	local ok, reason = Abilities.canExecute(self, participant, power)
@@ -1483,15 +1522,15 @@ function Match:handleAction(player: Player, action: string, a: any, b: any)
 			end
 		end
 		self:actionPass(participant, direction, hint)
-	elseif action == "Shoot" then
+	elseif action == "ShotCharge" then
+		self:actionShotCharge(participant)
+	elseif action == "ShotRelease" then
 		local direction = Guard.direction(a)
-		local charge = Guard.number(b, 0, 1)
-		if not direction or not charge then
+		if not direction then
+			self:setCharging(participant, nil)
 			return
 		end
-		self:actionShoot(participant, direction, charge)
-	elseif action == "Dribble" then
-		self:actionDribble(participant)
+		self:actionShotRelease(participant, direction)
 	elseif action == "Contact" then
 		self:actionContact(participant)
 	elseif action == "Dash" then
@@ -1515,69 +1554,22 @@ function Match:checkHolderRules()
 	if not holder or ball.Locked or self.Phase ~= "Live" then
 		return
 	end
-	local t = now()
-	local dims: Court.Dimensions = self.Court.Dims
-	local localPos = self:localOf(holder)
-	if not localPos then
+	-- Charge de tir abandonnée trop longtemps.
+	if holder.ShotChargeAt and now() - holder.ShotChargeAt > Config.Ball.ShotMaxHold then
+		self:setCharging(holder, nil)
+	end
+	if now() - ball.HoldStart > Config.Rules.MaxHoldTime + 0.15 then
+		self:violation(holder, "3 SECONDES")
 		return
 	end
-	local grounded = self:isGrounded(holder)
-
-	if not ball.Dribbling then
-		if t - ball.HoldStart > Config.Rules.MaxHoldTime + 0.15 then
-			self:violation(holder, "3 SECONDES")
-			return
+	-- Attaquant qui pose le pied dans la zone adverse avec le ballon : renvoi.
+	if holder.Poste ~= "Gardien" and self:isGrounded(holder) then
+		local localPos = self:localOf(holder)
+		local attackSide = self:attackSideOf(holder.Team)
+		if localPos and Court.inGoalArea(self.Court.Dims, localPos, attackSide) then
+			self:event("Violation", { Label = "ZONE !", Model = holder.Model, Team = holder.Team })
+			self:awardSetPiece("GoalThrow", otherTeam(holder.Team), localPos, "Pied dans la zone")
 		end
-		local root = holder.Root :: BasePart
-		local last = ball.LastCarryPosition
-		if grounded and last then
-			local delta = Vector3.new(root.Position.X - last.X, 0, root.Position.Z - last.Z).Magnitude
-			if delta < 10 then -- ignore les téléportations
-				ball.CarryDistance += delta
-			end
-		end
-		ball.LastCarryPosition = root.Position
-		local setPiece: SetPiece? = self.SetPiece
-		local isThrower = setPiece ~= nil and setPiece.Thrower == holder
-		if ball.CarryDistance > Config.Rules.MaxCarryDistance and not isThrower then
-			self:violation(holder, "MARCHER")
-			return
-		end
-	else
-		ball.LastCarryPosition = if holder.Root then holder.Root.Position else nil
-	end
-
-	if grounded then
-		if holder.Poste == "Gardien" then
-			local ownSide = self:defendSideOf(holder.Team)
-			if
-				not Court.inGoalArea(dims, localPos, ownSide)
-				and Court.distanceToGoal(dims, localPos, ownSide) > dims.GoalAreaRadius + 1.5
-			then
-				self:violation(holder, "GARDIEN HORS ZONE")
-				return
-			end
-		else
-			local attackSide = self:attackSideOf(holder.Team)
-			if Court.inGoalArea(dims, localPos, attackSide) then
-				self:event("Violation", { Label = "ZONE !", Model = holder.Model, Team = holder.Team })
-				self:awardSetPiece("GoalThrow", otherTeam(holder.Team), localPos, "Pied dans la zone")
-				return
-			end
-			if Court.inGoalArea(dims, localPos, -attackSide) then
-				self:violation(holder, "RETOUR EN ZONE")
-				return
-			end
-		end
-	end
-
-	-- Jeu passif.
-	local possessionTime = t - self.PossessionStart
-	if possessionTime > Config.Rules.PassivePlayWarning and not self.PassiveWarning then
-		self.PassiveWarning = true
-		self:event("PassiveWarning", { Team = holder.Team })
-	elseif self.PassiveWarning and possessionTime > Config.Rules.PassivePlayWarning + Config.Rules.PassivePlayGrace then
-		self:violation(holder, "JEU PASSIF")
 	end
 end
 
@@ -1585,31 +1577,30 @@ end
 function Match:enforceZones()
 	local dims: Court.Dimensions = self.Court.Dims
 	for _, participant in self.Participants do
-		if participant.Poste ~= "Gardien" and self:isActive(participant) and self.Ball.Holder ~= participant then
-			if self:isGrounded(participant) then
-				local localPos = self:localOf(participant)
-				if localPos then
-					for _, side in { -1, 1 } do
-						if
-							Court.distanceToGoal(dims, localPos, side) < dims.GoalAreaRadius - 1
-							and math.abs(localPos.X) <= dims.Length / 2
-						then
-							if side == self:defendSideOf(participant.Team) then
-								participant.ZoneTouchUntil = now() + 0.5
-							end
-							local pushed = Court.pushOutside(
-								dims,
-								Vector3.new(localPos.X, 0, localPos.Z),
-								side,
-								dims.GoalAreaRadius + 0.6
-							)
-							local root = participant.Root :: BasePart
-							local look = root.CFrame.LookVector
-							local world = self.Court.CFrame:PointToWorldSpace(pushed + Vector3.new(0, localPos.Y, 0));
-							(participant.Model :: Model):PivotTo(
-								CFrame.lookAt(world, world + Vector3.new(look.X, 0, look.Z))
-							)
+		if participant.Poste ~= "Gardien" and self:isActive(participant) and self:isGrounded(participant) then
+			local localPos = self:localOf(participant)
+			if localPos then
+				for _, side in { -1, 1 } do
+					if
+						Court.distanceToGoal(dims, localPos, side) < dims.GoalAreaRadius - 1
+						and math.abs(localPos.X) <= dims.Length / 2
+					then
+						if side == self:defendSideOf(participant.Team) then
+							participant.ZoneTouchUntil = now() + 0.5
 						end
+						local pushed = Court.pushOutside(
+							dims,
+							Vector3.new(localPos.X, 0, localPos.Z),
+							side,
+							dims.GoalAreaRadius + 0.6
+						)
+						local root = participant.Root :: BasePart
+						local look = root.CFrame.LookVector
+						local world = self.Court.CFrame:PointToWorldSpace(pushed + Vector3.new(0, localPos.Y, 0));
+						(participant.Model :: Model):PivotTo(
+							CFrame.lookAt(world, world + Vector3.new(look.X, 0, look.Z))
+						)
+						self:resetSpeedSample(participant)
 					end
 				end
 			end
@@ -1626,14 +1617,9 @@ function Match:updateParticipants(dt: number)
 				table.remove(participant.Effects, i)
 			end
 		end
-		-- Retour d'exclusion.
-		if participant.SuspendedUntil > 0 and participant.SuspendedUntil <= t then
-			participant.SuspendedUntil = 0
-			local bench = self.Court.BenchSpots[participant.Team]
-			if bench then
-				self:placeAt(participant, Vector3.new(bench.X, 0, self.Court.Dims.Width / 2 - 2), Vector3.zero)
-			end
-			self:event("Return", { Model = participant.Model, Name = participant.Name })
+		-- Plus de ballon : la charge de tir s'arrête.
+		if participant.ShotChargeAt and self.Ball.Holder ~= participant then
+			self:setCharging(participant, nil)
 		end
 		-- Charge (pouvoir) : renverse les adversaires touchés.
 		if participant.RamUntil > t and participant.Root then
@@ -1655,6 +1641,7 @@ function Match:updateParticipants(dt: number)
 				math.min(Config.Powers.UltimateMax, participant.Ultimate + Config.Powers.UltimatePassivePerSecond * dt)
 		end
 		self:applyMovement(participant)
+		self:checkSpeed(participant)
 		if participant.IsBot then
 			Bots.think(self, participant)
 		end
@@ -1715,9 +1702,6 @@ function Match:snapshot(): any
 			Goals = p.Goals,
 			Assists = p.Assists,
 			Saves = p.Saves,
-			YellowCard = p.Yellow,
-			SuspendedUntil = p.SuspendedUntil,
-			RedCard = p.Red,
 			Energy = p.Energy,
 			Ultimate = p.Ultimate,
 			Power1ReadyAt = p.Power1ReadyAt,
@@ -1740,7 +1724,6 @@ function Match:snapshot(): any
 		Score = table.clone(self.Score),
 		AttackSide = table.clone(self.AttackSide),
 		Possession = self.PossessionTeam,
-		PassiveWarning = self.PassiveWarning,
 		CourtCFrame = self.Court.CFrame,
 		CourtModel = self.Court.Model,
 		CourtMode = self.Config.Mode,

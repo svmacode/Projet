@@ -1,12 +1,18 @@
 --!strict
--- Construit le gymnase du lycée Seiryō autour d'un terrain de handball
--- aux dimensions du mode : parquet, tracés officiels, buts rayés rouge et
--- blanc avec filets, gradins, bancs, banderoles, panneau d'affichage.
--- Direction artistique d'animé de sport : couleurs franches, surfaces
--- lisses, gradins multicolores, fanions, néons et lumière forte.
+-- Construit le gymnase du lycée Seiryō autour d'un terrain de handball aux
+-- dimensions du mode. Direction artistique « animé de sport » façon Haikyuu :
+-- parquet clair en bois aux lignes nettes, murs crème, grandes fenêtres
+-- lumineuses, scène à rideaux rouges au fond, gradins en bois, banderoles du
+-- club, tableau d'affichage et éclairage chaud.
+--
+-- Si ServerStorage.Assets contient le modèle Assets.Models.Gym (avec une Part
+-- « Centre »), ce décor importé remplace le gymnase dessiné en code ; le sol,
+-- les lignes, les buts et le tableau restent générés ici.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 
+local Assets = require(ReplicatedStorage.Shared.Assets)
 local Court = require(ReplicatedStorage.Shared.Court)
 
 export type Built = {
@@ -15,29 +21,24 @@ export type Built = {
 	Dims: Court.Dimensions,
 	Collidables: Folder,
 	Scoreboard: { Home: TextLabel, Away: TextLabel, Clock: TextLabel, Period: TextLabel },
-	BenchSpots: { [string]: Vector3 }, -- local, par équipe
 }
 
 local CourtBuilder = {}
 
+local rgb = Color3.fromRGB
 local LINE_Y = 0.035
-local LINE_W = 0.32
-local WHITE = Color3.fromRGB(250, 250, 245)
-local PARQUET = Color3.fromRGB(246, 160, 78)
-local PARQUET_DARK = Color3.fromRGB(222, 124, 50)
-local ZONE_FILL = Color3.fromRGB(30, 120, 255)
-local WALL = Color3.fromRGB(196, 226, 255)
-local WALL_LOW = Color3.fromRGB(120, 60, 230)
-local RUNOFF = Color3.fromRGB(20, 196, 140)
-local INK = Color3.fromRGB(24, 14, 40)
-local VIVID = {
-	Color3.fromRGB(255, 52, 76),
-	Color3.fromRGB(255, 200, 0),
-	Color3.fromRGB(0, 200, 255),
-	Color3.fromRGB(150, 80, 255),
-	Color3.fromRGB(255, 80, 170),
-	Color3.fromRGB(40, 140, 255),
-}
+local LINE_W = 0.34
+local WHITE = rgb(252, 252, 248)
+local WOOD = rgb(224, 186, 136) -- parquet clair
+local WOOD_RUNOFF = rgb(196, 150, 100) -- dégagement, un ton plus foncé
+local ZONE_FILL = rgb(64, 118, 196)
+local CENTER_FILL = rgb(232, 118, 52)
+local WALL = rgb(242, 234, 216) -- crème
+local WAINSCOT = rgb(170, 118, 72) -- lambris bas en bois
+local TRIM = rgb(120, 78, 46)
+local INK = rgb(24, 20, 30)
+local CLUB_ORANGE = rgb(240, 120, 40)
+local CLUB_BLACK = rgb(28, 26, 30)
 
 local function newPart(
 	parent: Instance,
@@ -257,10 +258,6 @@ local function surfaceText(
 	label.TextStrokeColor3 = stroke
 	label.TextStrokeTransparency = 1
 	label.Parent = gui
-	local outline = Instance.new("UIStroke")
-	outline.Color = INK
-	outline.Thickness = 2
-	outline.Parent = label
 	return label
 end
 
@@ -314,18 +311,418 @@ local function buildScoreboard(model: Model, origin: CFrame, position: Vector3, 
 	return { Home = home, Away = away, Clock = clock, Period = period }
 end
 
-local function sakuraBanner(
+-- Banderole du club tendue sur un mur ou une rambarde.
+local function banner(
 	model: Model,
 	origin: CFrame,
 	position: Vector3,
 	facing: Vector3,
+	size: Vector2,
 	text: string,
-	color: Color3
+	back: Color3,
+	color: Color3,
+	font: Enum.Font
 )
-	local banner =
-		newPart(model, "Banderole", Vector3.new(18, 4, 0.3), origin * CFrame.lookAt(position, position + facing), color)
-	decor(banner)
-	surfaceText(banner, Enum.NormalId.Front, text, WHITE, INK, Enum.Font.Bangers)
+	local cloth = newPart(
+		model,
+		"Banderole",
+		Vector3.new(size.X, size.Y, 0.2),
+		origin * CFrame.lookAt(position, position + facing),
+		back,
+		Enum.Material.Fabric
+	)
+	decor(cloth)
+	surfaceText(cloth, Enum.NormalId.Front, text, color, INK, font)
+	-- Bordure fine en haut et en bas.
+	for _, y in { size.Y / 2, -size.Y / 2 } do
+		local edge = newPart(
+			model,
+			"Bordure",
+			Vector3.new(size.X, 0.25, 0.25),
+			origin * CFrame.lookAt(position, position + facing) * CFrame.new(0, y, 0),
+			color
+		)
+		decor(edge)
+	end
+end
+
+-- Gymnase importé (facultatif) ---------------------------------------------------------------
+
+local function importedGym(origin: CFrame, model: Model): boolean
+	local folder = ServerStorage:FindFirstChild("Assets")
+	local template = folder and folder:FindFirstChild(Assets.Models.Gym)
+	if not template or not template:IsA("Model") then
+		return false
+	end
+	local gym = template:Clone()
+	local centre = gym:FindFirstChild("Centre", true)
+	if centre and centre:IsA("BasePart") then
+		local offset = gym:GetPivot():ToObjectSpace(centre.CFrame)
+		gym:PivotTo(origin * offset:Inverse())
+		centre.Transparency = 1
+		centre.CanCollide = false
+	else
+		gym:PivotTo(origin)
+	end
+	gym.Parent = model
+	return true
+end
+
+-- Gymnase dessiné en code ----------------------------------------------------------------
+
+local function buildHall(
+	model: Model,
+	collidables: Folder,
+	origin: CFrame,
+	dims: Court.Dimensions,
+	runoff: number
+): (number, number, number)
+	local L, W = dims.Length, dims.Width
+	local stageDepth = 14
+	local standDepth = 20
+	local hallLength = L + runoff * 2 + stageDepth
+	local hallWidth = W + runoff * 2 + standDepth
+	local hallHeight = 44
+	-- Le hall est décalé : scène derrière le but +X, gradins côté -Z.
+	local hallCenter = Vector3.new(stageDepth / 2, 0, -standDepth / 2)
+	local function at(x: number, y: number, z: number): CFrame
+		return origin * CFrame.new(hallCenter.X + x, y, hallCenter.Z + z)
+	end
+	local wallThickness = 2
+	local hx, hz = hallLength / 2, hallWidth / 2
+
+	-- Murs crème, lambris bas en bois.
+	local function wall(size: Vector3, cframe: CFrame)
+		local part = newPart(collidables, "Mur", size, cframe, WALL)
+		part.CanCollide = true
+		local low = newPart(
+			model,
+			"Lambris",
+			Vector3.new(size.X + 0.2, 7, size.Z + 0.2),
+			cframe * CFrame.new(0, -size.Y / 2 + 3.5, 0),
+			WAINSCOT,
+			Enum.Material.Wood
+		)
+		decor(low)
+		local rail = newPart(
+			model,
+			"Moulure",
+			Vector3.new(size.X + 0.4, 0.5, size.Z + 0.4),
+			cframe * CFrame.new(0, -size.Y / 2 + 7.1, 0),
+			TRIM,
+			Enum.Material.Wood
+		)
+		decor(rail)
+	end
+	wall(Vector3.new(hallLength, hallHeight, wallThickness), at(0, hallHeight / 2, -hz))
+	wall(Vector3.new(hallLength, hallHeight, wallThickness), at(0, hallHeight / 2, hz))
+	wall(Vector3.new(wallThickness, hallHeight, hallWidth), at(-hx, hallHeight / 2, 0))
+	wall(Vector3.new(wallThickness, hallHeight, hallWidth), at(hx, hallHeight / 2, 0))
+
+	-- Plafond : charpente métallique claire et caissons.
+	local ceiling = newPart(
+		collidables,
+		"Plafond",
+		Vector3.new(hallLength, 2, hallWidth),
+		at(0, hallHeight + 1, 0),
+		rgb(214, 210, 200)
+	)
+	ceiling.CanCollide = true
+	local trussCount = math.floor(hallLength / 16)
+	for i = 0, trussCount do
+		local x = -hx + i * hallLength / trussCount
+		local truss = newPart(
+			model,
+			"Ferme",
+			Vector3.new(0.8, 2.4, hallWidth),
+			at(x, hallHeight - 1.2, 0),
+			rgb(236, 236, 230),
+			Enum.Material.Metal
+		)
+		decor(truss)
+	end
+
+	-- Rangées de lampes chaudes.
+	for i = -2, 2 do
+		for _, zFrac in { -0.25, 0.25 } do
+			local lamp = newPart(
+				model,
+				"Lampe",
+				Vector3.new(5, 0.6, 5),
+				at(i * hallLength / 6, hallHeight - 3.2, zFrac * hallWidth),
+				rgb(255, 246, 222),
+				Enum.Material.Neon
+			)
+			decor(lamp)
+			if (i + (if zFrac > 0 then 1 else 0)) % 2 == 0 then
+				local light = Instance.new("SpotLight")
+				light.Face = Enum.NormalId.Bottom
+				light.Angle = 110
+				light.Range = 60
+				light.Brightness = 2.6
+				light.Color = rgb(255, 238, 214)
+				light.Shadows = true
+				light.Parent = lamp
+			end
+		end
+	end
+
+	-- Grandes fenêtres sur les deux longs murs (vitre + montants crème).
+	local windowCount = math.max(4, math.floor(hallLength / 22))
+	for i = 0, windowCount - 1 do
+		local x = -hx + (i + 0.5) * hallLength / windowCount
+		for _, zSign in { -1, 1 } do
+			local z = zSign * (hz - 1.6)
+			local width = hallLength / windowCount - 5
+			local pane = newPart(
+				model,
+				"Vitre",
+				Vector3.new(width, 13, 0.3),
+				at(x, hallHeight - 15, z),
+				rgb(214, 236, 255),
+				Enum.Material.Glass
+			)
+			pane.Transparency = 0.25
+			decor(pane)
+			local glow = newPart(
+				model,
+				"Jour",
+				Vector3.new(width, 13, 0.2),
+				at(x, hallHeight - 15, z + zSign * 0.45),
+				rgb(255, 248, 230),
+				Enum.Material.Neon
+			)
+			glow.Transparency = 0.15
+			decor(glow)
+			local light = Instance.new("SurfaceLight")
+			light.Face = if zSign > 0 then Enum.NormalId.Front else Enum.NormalId.Back
+			light.Range = 26
+			light.Angle = 80
+			light.Brightness = 1.1
+			light.Color = rgb(255, 240, 214)
+			light.Parent = glow
+			for k = 0, 2 do
+				local mullion = newPart(
+					model,
+					"Montant",
+					Vector3.new(0.5, 13.4, 0.5),
+					at(x - width / 2 + k * width / 2, hallHeight - 15, z - zSign * 0.2),
+					WALL
+				)
+				decor(mullion)
+			end
+			local sill = newPart(
+				model,
+				"Appui",
+				Vector3.new(width + 0.6, 0.5, 0.9),
+				at(x, hallHeight - 21.7, z - zSign * 0.3),
+				WALL
+			)
+			decor(sill)
+		end
+	end
+
+	-- Scène à rideaux rouges derrière le but +X (typique des gymnases japonais).
+	local stageX = hx - stageDepth / 2 + 1
+	local stage = newPart(
+		collidables,
+		"Scene",
+		Vector3.new(stageDepth - 2, 5, hallWidth - 8),
+		at(stageX, 2.5, 0),
+		WAINSCOT,
+		Enum.Material.Wood
+	)
+	stage.CanCollide = true
+	local stageFront = newPart(
+		model,
+		"FaceScene",
+		Vector3.new(0.3, 5, hallWidth - 8),
+		at(stageX - (stageDepth - 2) / 2 - 0.15, 2.5, 0),
+		TRIM,
+		Enum.Material.Wood
+	)
+	decor(stageFront)
+	local opening = hallWidth - 14
+	-- Cadre de scène : deux piliers et un linteau (l'ouverture reste visible).
+	local frameX = stageX - stageDepth / 2 + 1.2
+	for _, zSign in { -1, 1 } do
+		local pillar =
+			newPart(model, "Pilier", Vector3.new(1.2, 22, 4), at(frameX, 16, zSign * (opening / 2 + 2)), CLUB_BLACK)
+		decor(pillar)
+	end
+	local lintel = newPart(model, "Linteau", Vector3.new(1.2, 4, opening + 8), at(frameX, 25, 0), CLUB_BLACK)
+	decor(lintel)
+	for _, zSign in { -1, 1 } do
+		local curtain = newPart(
+			model,
+			"Rideau",
+			Vector3.new(0.6, 16, opening / 2 - 4),
+			at(stageX - stageDepth / 2 + 2, 13, zSign * (opening / 4 + 2)),
+			rgb(170, 30, 40),
+			Enum.Material.Fabric
+		)
+		decor(curtain)
+	end
+	local valance = newPart(
+		model,
+		"Lambrequin",
+		Vector3.new(0.8, 3.5, opening),
+		at(stageX - stageDepth / 2 + 2.2, 23, 0),
+		rgb(150, 22, 32),
+		Enum.Material.Fabric
+	)
+	decor(valance)
+	-- Blason du lycée au-dessus de la scène.
+	local crest =
+		newPart(model, "Blason", Vector3.new(0.4, 6, 6), at(stageX - stageDepth / 2 + 0.6, 31, 0), CLUB_ORANGE)
+	crest.Shape = Enum.PartType.Cylinder
+	decor(crest)
+	local crestText = newPart(
+		model,
+		"BlasonTexte",
+		Vector3.new(4.6, 4.6, 0.1),
+		at(stageX - stageDepth / 2 + 0.35, 31, 0) * CFrame.Angles(0, math.pi / 2, 0),
+		CLUB_ORANGE
+	)
+	crestText.Transparency = 1
+	decor(crestText)
+	surfaceText(crestText, Enum.NormalId.Front, "青", CLUB_BLACK, INK, Enum.Font.BuilderSansExtraBold)
+
+	-- Gradins en bois côté -Z, avec rambarde et banderoles du club.
+	local standFront = -dims.Width / 2 - runoff + 1
+	local rows = 6
+	for row = 0, rows - 1 do
+		local depth = 3
+		local z = standFront - 1.5 - row * depth
+		local height = 1.5 + row * 1.5
+		local step = newPart(
+			model,
+			"Gradin",
+			Vector3.new(L * 0.86, height, depth),
+			origin * CFrame.new(0, height / 2, z),
+			if row % 2 == 0 then rgb(206, 160, 108) else rgb(194, 148, 98),
+			Enum.Material.Wood
+		)
+		step.CanCollide = true
+		step.CastShadow = true
+	end
+	local railY = 1.5 + 0.6
+	local railZ = standFront + 0.2
+	local rail = newPart(
+		model,
+		"Rambarde",
+		Vector3.new(L * 0.86, 0.3, 0.3),
+		origin * CFrame.new(0, railY + 3, railZ),
+		rgb(232, 232, 228),
+		Enum.Material.Metal
+	)
+	decor(rail)
+	local postCount = math.floor(L * 0.86 / 8)
+	for i = 0, postCount do
+		local post = newPart(
+			model,
+			"Barreau",
+			Vector3.new(0.25, 3, 0.25),
+			origin * CFrame.new(-L * 0.43 + i * L * 0.86 / postCount, railY + 1.5, railZ),
+			rgb(232, 232, 228),
+			Enum.Material.Metal
+		)
+		decor(post)
+	end
+	banner(
+		model,
+		origin,
+		Vector3.new(-L * 0.22, railY + 1.4, railZ + 0.3),
+		Vector3.new(0, 0, 1),
+		Vector2.new(20, 2.8),
+		"飛べ",
+		CLUB_BLACK,
+		WHITE,
+		Enum.Font.BuilderSansExtraBold
+	)
+	banner(
+		model,
+		origin,
+		Vector3.new(L * 0.22, railY + 1.4, railZ + 0.3),
+		Vector3.new(0, 0, 1),
+		Vector2.new(20, 2.8),
+		"SEIRYŌ HANDBALL",
+		CLUB_ORANGE,
+		CLUB_BLACK,
+		Enum.Font.BuilderSansExtraBold
+	)
+
+	-- Grande banderole du club sur le mur opposé aux gradins.
+	banner(
+		model,
+		origin,
+		Vector3.new(0, 17, hallCenter.Z + hz - 1.4),
+		Vector3.new(0, 0, -1),
+		Vector2.new(34, 4.5),
+		"全力  —  LYCÉE SEIRYŌ  —  全力",
+		CLUB_ORANGE,
+		WHITE,
+		Enum.Font.BuilderSansExtraBold
+	)
+
+	-- Bancs des équipes côté +Z et table de marque.
+	local benchZ = dims.Width / 2 + 5
+	for _, info in { { X = -L * 0.3, Color = rgb(206, 52, 60) }, { X = L * 0.3, Color = rgb(44, 108, 210) } } do
+		local seat = newPart(
+			model,
+			"Banc",
+			Vector3.new(14, 1.4, 2.2),
+			origin * CFrame.new(info.X, 0.7, benchZ + 1.5),
+			info.Color
+		)
+		seat.CanCollide = true
+		local legs = newPart(
+			model,
+			"Pieds",
+			Vector3.new(13.6, 0.3, 2),
+			origin * CFrame.new(info.X, 0.15, benchZ + 1.5),
+			rgb(60, 60, 64),
+			Enum.Material.Metal
+		)
+		decor(legs)
+	end
+	local scoreTable = newPart(
+		model,
+		"TableMarque",
+		Vector3.new(9, 3, 2.6),
+		origin * CFrame.new(0, 1.5, benchZ + 1),
+		rgb(236, 230, 214),
+		Enum.Material.Wood
+	)
+	scoreTable.CanCollide = true
+	local apron =
+		newPart(model, "TableFace", Vector3.new(9, 2, 0.1), origin * CFrame.new(0, 1.6, benchZ - 0.35), CLUB_ORANGE)
+	decor(apron)
+	surfaceText(apron, Enum.NormalId.Front, "SEIRYŌ", WHITE, INK, Enum.Font.BuilderSansExtraBold)
+
+	-- Chariot de ballons dans un coin.
+	local cart = newPart(
+		model,
+		"Chariot",
+		Vector3.new(3, 2.4, 2),
+		origin * CFrame.new(-dims.Length / 2 - runoff + 3, 1.4, dims.Width / 2 + runoff - 3),
+		rgb(70, 70, 76),
+		Enum.Material.Metal
+	)
+	decor(cart)
+	for i = 0, 5 do
+		local ball = newPart(
+			model,
+			"BallonDeco",
+			Vector3.one * 1.1,
+			cart.CFrame * CFrame.new((i % 3 - 1) * 0.9, 1.6, (i // 3 - 0.5) * 0.9),
+			if i % 2 == 0 then rgb(240, 240, 236) else rgb(232, 118, 52)
+		)
+		ball.Shape = Enum.PartType.Ball
+		decor(ball)
+	end
+
+	return hallLength, hallWidth, hallHeight
 end
 
 function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): Built
@@ -340,50 +737,33 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 	lines.Parent = model
 
 	local L, W = dims.Length, dims.Width
-	local runoff = 12
-	local hallLength = L + runoff * 2 + 8
-	local hallWidth = W + runoff * 2 + 30 -- de la place pour les gradins
-	local hallHeight = 42
+	local runoff = 10
+	local hl, hw = L / 2, W / 2
 
-	-- Sol : parquet du terrain + bandes de dégagement.
+	-- Sol : parquet clair du terrain + dégagement un ton plus foncé.
 	local floor = newPart(
 		collidables,
 		"Parquet",
 		Vector3.new(L, 2, W),
 		origin * CFrame.new(0, -1, 0),
-		PARQUET,
-		Enum.Material.SmoothPlastic
+		WOOD,
+		Enum.Material.WoodPlanks
 	)
 	floor.CanCollide = true
 	local runoffFloor = newPart(
 		collidables,
 		"Degagement",
-		Vector3.new(hallLength, 2, hallWidth),
+		Vector3.new(L + runoff * 2 + 40, 2, W + runoff * 2 + 40),
 		origin * CFrame.new(0, -1.02, 0),
-		RUNOFF,
-		Enum.Material.SmoothPlastic
+		WOOD_RUNOFF,
+		Enum.Material.WoodPlanks
 	)
 	runoffFloor.CanCollide = true
-	-- Lattes plus foncées pour un parquet lisible.
-	for i = 0, math.floor(W / 6) do
-		local z = -W / 2 + i * 6 + 3
-		if z < W / 2 then
-			local strip = newPart(
-				lines,
-				"Latte",
-				Vector3.new(L, 0.02, 0.2),
-				origin * CFrame.new(0, 0.005, z),
-				PARQUET_DARK,
-				Enum.Material.SmoothPlastic
-			)
-			decor(strip)
-		end
-	end
 
-	-- Zones de 6 m colorées (remplissage) : rectangle + deux cylindres. Le
-	-- dégagement derrière la ligne de but recouvre la partie qui dépasse.
+	-- Zones de 6 m peintes : rectangle + deux disques ; le surplus derrière la
+	-- ligne de but et hors des touches est recouvert par le dégagement.
 	for _, side in { -1, 1 } do
-		local goalX = side * L / 2
+		local goalX = side * hl
 		local r = dims.GoalAreaRadius
 		local rect = newPart(
 			lines,
@@ -404,30 +784,40 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 			disc.Shape = Enum.PartType.Cylinder
 			decor(disc)
 		end
-		-- Bande de dégagement derrière le but (cache le débord des disques).
 		local behind = newPart(
 			lines,
 			"DerriereBut",
-			Vector3.new(runoff + 4, 0.06, W + 2 * r),
-			origin * CFrame.new(goalX + side * (runoff + 4) / 2, 0.01, 0),
-			RUNOFF
+			Vector3.new(r + 2, 0.06, W + 2 * r + 4),
+			origin * CFrame.new(goalX + side * (r + 2) / 2, 0.02, 0),
+			WOOD_RUNOFF,
+			Enum.Material.WoodPlanks
 		)
 		decor(behind)
-		-- Les côtés du terrain au-delà de la ligne de touche.
 		for _, zSign in { -1, 1 } do
 			local sideStrip = newPart(
 				lines,
 				"Touche",
-				Vector3.new(2 * r + 2, 0.06, r),
-				origin * CFrame.new(goalX - side * (r / 2), 0.01, zSign * (W / 2 + r / 2)),
-				RUNOFF
+				Vector3.new(2 * r + 2, 0.06, r + 2),
+				origin * CFrame.new(goalX - side * (r / 2), 0.02, zSign * (hw + (r + 2) / 2)),
+				WOOD_RUNOFF,
+				Enum.Material.WoodPlanks
 			)
 			decor(sideStrip)
 		end
 	end
 
-	-- Tracés officiels.
-	local hl, hw = L / 2, W / 2
+	-- Rond central orange.
+	local centerDisc = newPart(
+		lines,
+		"RondCentral",
+		Vector3.new(0.03, 9, 9),
+		origin * CFrame.new(0, 0.014, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		CENTER_FILL
+	)
+	centerDisc.Shape = Enum.PartType.Cylinder
+	decor(centerDisc)
+
+	-- Tracés nets.
 	lineSegment(lines, origin, Vector3.new(-hl, 0, -hw), Vector3.new(hl, 0, -hw))
 	lineSegment(lines, origin, Vector3.new(-hl, 0, hw), Vector3.new(hl, 0, hw))
 	lineSegment(lines, origin, Vector3.new(-hl, 0, -hw), Vector3.new(-hl, 0, hw))
@@ -436,225 +826,22 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 	for _, side in { -1, 1 } do
 		goalAreaLine(lines, origin, dims, side, dims.GoalAreaRadius, false)
 		goalAreaLine(lines, origin, dims, side, dims.FreeThrowRadius, true)
-		local penaltyX = side * (hl - dims.PenaltyDistance)
-		lineSegment(lines, origin, Vector3.new(penaltyX, 0, -1.4), Vector3.new(penaltyX, 0, 1.4))
-		local keeperX = side * (hl - dims.KeeperLineDistance)
-		lineSegment(lines, origin, Vector3.new(keeperX, 0, -0.6), Vector3.new(keeperX, 0, 0.6))
 		buildGoal(model, origin, dims, side, collidables)
 	end
-	-- Logo central.
-	local centerLogo = newPart(
-		lines,
-		"LogoCentre",
-		Vector3.new(0.03, 5.6, 5.6),
-		origin * CFrame.new(0, 0.02, 0) * CFrame.Angles(0, 0, math.pi / 2),
-		Color3.fromRGB(255, 52, 76)
-	)
-	centerLogo.Shape = Enum.PartType.Cylinder
-	decor(centerLogo)
-	local centerRing = newPart(
-		lines,
-		"AnneauCentre",
-		Vector3.new(0.025, 8, 8),
-		origin * CFrame.new(0, 0.018, 0) * CFrame.Angles(0, 0, math.pi / 2),
-		Color3.fromRGB(255, 200, 0)
-	)
-	centerRing.Shape = Enum.PartType.Cylinder
-	decor(centerRing)
 
-	-- Murs du gymnase.
-	local wallThickness = 2
-	local function wall(size: Vector3, position: Vector3)
-		local part = newPart(collidables, "Mur", size, origin * CFrame.new(position), WALL, Enum.Material.SmoothPlastic)
-		part.CanCollide = true
-		local low = newPart(
-			model,
-			"Plinthe",
-			Vector3.new(size.X + 0.1, 6, size.Z + 0.1),
-			origin * CFrame.new(position.X, 3, position.Z),
-			WALL_LOW
-		)
-		decor(low)
-	end
-	wall(Vector3.new(hallLength, hallHeight, wallThickness), Vector3.new(0, hallHeight / 2, -hallWidth / 2))
-	wall(Vector3.new(hallLength, hallHeight, wallThickness), Vector3.new(0, hallHeight / 2, hallWidth / 2))
-	wall(Vector3.new(wallThickness, hallHeight, hallWidth), Vector3.new(-hallLength / 2, hallHeight / 2, 0))
-	wall(Vector3.new(wallThickness, hallHeight, hallWidth), Vector3.new(hallLength / 2, hallHeight / 2, 0))
-	local ceiling = newPart(
-		collidables,
-		"Plafond",
-		Vector3.new(hallLength, 2, hallWidth),
-		origin * CFrame.new(0, hallHeight, 0),
-		Color3.fromRGB(60, 40, 120)
-	)
-	ceiling.CanCollide = true
-
-	-- Fenêtres hautes (lumière du jour) et poutres.
-	for i = -3, 3 do
-		local x = i * hallLength / 8
-		for _, zSign in { -1, 1 } do
-			local window = newPart(
-				model,
-				"Fenetre",
-				Vector3.new(hallLength / 10, 7, 0.4),
-				origin * CFrame.new(x, hallHeight - 9, zSign * (hallWidth / 2 - 1.1)),
-				Color3.fromRGB(255, 200, 150),
-				Enum.Material.Neon
-			)
-			decor(window)
-		end
-		local beam = newPart(
-			model,
-			"Poutre",
-			Vector3.new(1.4, 1.6, hallWidth),
-			origin * CFrame.new(x, hallHeight - 2, 0),
-			Color3.fromRGB(255, 52, 120)
-		)
-		decor(beam)
-		local lamp = newPart(
-			model,
-			"Lampe",
-			Vector3.new(6, 0.5, 3),
-			origin * CFrame.new(x, hallHeight - 3, 0),
-			Color3.fromRGB(255, 252, 230),
-			Enum.Material.Neon
-		)
-		decor(lamp)
-		if i % 2 == 0 then
-			local light = Instance.new("SpotLight")
-			light.Face = Enum.NormalId.Bottom
-			light.Angle = 120
-			light.Range = 60
-			light.Brightness = 3.2
-			light.Color = Color3.fromRGB(255, 244, 236)
-			light.Shadows = true
-			light.Parent = lamp
-		end
+	local hallHeight = 40
+	if not importedGym(origin, model) then
+		local _length, _width, height = buildHall(model, collidables, origin, dims, runoff)
+		hallHeight = height
 	end
 
-	-- Gradins côté -Z.
-	local standZ = -hw - runoff
-	for row = 0, 5 do
-		local depth = 3
-		local z = standZ - 4 - row * depth
-		local y = row * 1.6
-		local step = newPart(
-			model,
-			"Gradin",
-			Vector3.new(L * 0.9, 1.6 + y, depth),
-			origin * CFrame.new(0, (1.6 + y) / 2, z),
-			Color3.fromRGB(70, 50, 130)
-		)
-		step.CanCollide = true
-		local seatColor = VIVID[row % #VIVID + 1]
-		local seat = newPart(
-			model,
-			"Siege",
-			Vector3.new(L * 0.9, 0.4, 1.4),
-			origin * CFrame.new(0, 1.6 + y + 0.2, z - 0.4),
-			seatColor
-		)
-		decor(seat)
-	end
-
-	-- Bancs des équipes côté +Z et zone d'exclusion.
-	local benchZ = hw + 6
-	local benchSpots: { [string]: Vector3 } = {}
-	for _, info in
-		{
-			{ Team = "Rouge", X = -hl * 0.35, Color = Color3.fromRGB(255, 52, 76) },
-			{ Team = "Bleu", X = hl * 0.35, Color = Color3.fromRGB(40, 140, 255) },
-		}
-	do
-		local bench =
-			newPart(model, "Banc", Vector3.new(14, 1.4, 2.4), origin * CFrame.new(info.X, 0.7, benchZ + 2), info.Color)
-		bench.CanCollide = true
-		local back = newPart(
-			model,
-			"Dossier",
-			Vector3.new(14, 3, 0.6),
-			origin * CFrame.new(info.X, 2.2, benchZ + 3.3),
-			info.Color
-		)
-		decor(back)
-		benchSpots[info.Team] = Vector3.new(info.X, 0, benchZ)
-	end
-	-- Table de marque au milieu.
-	local scoreTable = newPart(
-		model,
-		"TableMarque",
-		Vector3.new(8, 3, 3),
-		origin * CFrame.new(0, 1.5, benchZ + 1),
-		Color3.fromRGB(30, 30, 40)
-	)
-	scoreTable.CanCollide = true
-
-	-- Banderoles et tableau d'affichage.
-	sakuraBanner(
+	-- Tableau d'affichage au-dessus du but -X (face au terrain).
+	local scoreboard = buildScoreboard(
 		model,
 		origin,
-		Vector3.new(-hl * 0.5, 20, -hallWidth / 2 + 1.3),
-		Vector3.new(0, 0, 1),
-		"LYCÉE SEIRYŌ",
-		Color3.fromRGB(0, 190, 230)
+		Vector3.new(-hl - runoff + 1.2, math.min(24, hallHeight - 12), 0),
+		Vector3.new(1, 0, 0)
 	)
-	sakuraBanner(
-		model,
-		origin,
-		Vector3.new(hl * 0.5, 20, -hallWidth / 2 + 1.3),
-		Vector3.new(0, 0, 1),
-		"HANDBALL CLUB",
-		Color3.fromRGB(255, 52, 76)
-	)
-	sakuraBanner(
-		model,
-		origin,
-		Vector3.new(0, 26, hallWidth / 2 - 1.3),
-		Vector3.new(0, 0, -1),
-		"HANDBALL LEGENDS",
-		Color3.fromRGB(255, 52, 120)
-	)
-	-- Néons le long des plinthes et fanions multicolores sous le plafond.
-	for _, zSign in { -1, 1 } do
-		local strip = newPart(
-			model,
-			"Neon",
-			Vector3.new(hallLength - 4, 0.4, 0.3),
-			origin * CFrame.new(0, 6.3, zSign * (hallWidth / 2 - 1.2)),
-			if zSign < 0 then Color3.fromRGB(0, 220, 255) else Color3.fromRGB(255, 60, 160),
-			Enum.Material.Neon
-		)
-		decor(strip)
-		strip.CastShadow = false
-		local flagCount = math.floor(hallLength / 5)
-		for i = 0, flagCount - 1 do
-			local x = -hallLength / 2 + 2.5 + i * 5
-			local sag = math.sin((i / math.max(1, flagCount - 1)) * math.pi) * 2
-			local flag = Instance.new("WedgePart")
-			flag.Name = "Fanion"
-			flag.Anchored = true
-			flag.Size = Vector3.new(0.1, 2.2, 2.6)
-			flag.Color = VIVID[i % #VIVID + 1]
-			flag.Material = Enum.Material.SmoothPlastic
-			flag.CFrame = origin
-				* CFrame.new(x, hallHeight - 6 - sag, zSign * (hallWidth / 2 - 6))
-				* CFrame.Angles(math.pi, math.pi / 2, 0)
-			flag.CastShadow = false
-			decor(flag)
-			flag.Parent = model
-		end
-	end
-	local scoreboard = buildScoreboard(model, origin, Vector3.new(-hallLength / 2 + 1.6, 22, 0), Vector3.new(1, 0, 0))
-	local mirrorBoard = buildScoreboard(model, origin, Vector3.new(hallLength / 2 - 1.6, 22, 0), Vector3.new(-1, 0, 0))
-
-	-- Les deux tableaux affichent la même chose : on relie le second au premier.
-	for _, key in { "Home", "Away", "Clock", "Period" } do
-		local source: TextLabel = scoreboard[key]
-		local target: TextLabel = mirrorBoard[key]
-		source:GetPropertyChangedSignal("Text"):Connect(function()
-			target.Text = source.Text
-		end)
-	end
 
 	model.Parent = parent
 	return {
@@ -663,7 +850,6 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		Dims = dims,
 		Collidables = collidables,
 		Scoreboard = scoreboard,
-		BenchSpots = benchSpots,
 	}
 end
 

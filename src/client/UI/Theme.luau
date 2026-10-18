@@ -1,19 +1,19 @@
 --!strict
--- Direction artistique de Handball Legends : « anime sport ».
+-- Direction artistique de Handball Legends (inspirée de Volleyball Legends /
+-- Haikyuu) : claire, ensoleillée, propre.
 --
--- Inspirations : génériques d'animés de sport et menus de jeux de combat.
---   • Fond indigo profond en dégradé, jamais de noir plat.
---   • Couleurs saturées : jaune électrique (action principale), rose, cyan,
---     violet, vert acide. Chaque section du jeu a SA couleur.
---   • Encre : contours noirs épais, ombres dures décalées (pas de flou),
---     comme une case de manga.
---   • Plaques inclinées, lignes de vitesse, trames de points.
---   • Titres en Bangers (lettrage BD), chiffres et intertitres en Oswald,
---     texte courant en Builder Sans.
+--   • Panneaux blancs légèrement translucides, coins très arrondis, ombre douce.
+--   • Texte marine foncé, jamais de noir pur.
+--   • Accent orange (Karasuno) en dégradé sur les actions principales,
+--     bleu ciel en secondaire, rouge / bleu d'équipe vifs.
+--   • Titres en Gotham Black blancs cerclés de marine sur les fonds colorés.
+--   • Boutons « bonbon » : face en dégradé posée sur une tranche plus foncée,
+--     qui s'enfonce au clic.
 -- Tout est dessiné en code : aucune image importée.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Assets = require(ReplicatedStorage.Shared.Assets)
 local Rarities = require(ReplicatedStorage.Shared.Data.Rarities)
 
 local Theme = {}
@@ -21,104 +21,99 @@ local Theme = {}
 local rgb = Color3.fromRGB
 
 Theme.Colors = {
-	-- Fonds (indigo → violet).
-	Background = rgb(20, 12, 48),
-	BackgroundTop = rgb(44, 18, 96),
-	Surface = rgb(34, 22, 78),
-	Surface2 = rgb(48, 32, 104),
-	Surface3 = rgb(66, 46, 136),
-	Border = rgb(10, 6, 26),
-	BorderStrong = rgb(118, 92, 210),
+	-- Voile derrière les fenêtres et fonds sombres.
+	Background = rgb(16, 26, 52),
+	Overlay = rgb(16, 26, 52),
 
-	-- Encre : contours et ombres dures.
-	Ink = rgb(10, 6, 26),
+	-- Panneaux (clairs).
+	Surface = rgb(255, 255, 255),
+	Surface2 = rgb(243, 246, 251),
+	Surface3 = rgb(228, 234, 244),
+	Border = rgb(210, 218, 232),
+	BorderStrong = rgb(176, 188, 210),
 
-	Text = rgb(255, 255, 255),
-	TextMuted = rgb(200, 190, 244),
-	TextFaint = rgb(132, 118, 196),
-	TextOnAccent = rgb(20, 10, 40),
+	-- Texte.
+	Ink = rgb(20, 32, 66),
+	Text = rgb(20, 32, 66),
+	TextMuted = rgb(94, 108, 140),
+	TextFaint = rgb(148, 160, 184),
+	TextOnAccent = rgb(255, 255, 255),
 
-	-- Accent principal : jaune électrique.
-	Accent = rgb(255, 214, 10),
-	AccentHover = rgb(255, 232, 92),
-	AccentPressed = rgb(240, 180, 0),
+	-- Accent principal : orange Karasuno.
+	Accent = rgb(255, 122, 30),
+	AccentLight = rgb(255, 176, 64),
+	AccentDark = rgb(214, 82, 8),
+	AccentHover = rgb(255, 146, 60),
+	AccentPressed = rgb(232, 98, 16),
 
-	-- Palette secondaire.
-	Pink = rgb(255, 46, 126),
-	Cyan = rgb(32, 214, 255),
-	Violet = rgb(150, 96, 255),
-	Lime = rgb(170, 255, 60),
-	Orange = rgb(255, 126, 36),
+	-- Secondaire : bleu ciel.
+	Sky = rgb(46, 155, 255),
+	SkyLight = rgb(118, 198, 255),
+	SkyDark = rgb(22, 104, 212),
 
-	Success = rgb(64, 232, 128),
-	Danger = rgb(255, 54, 96),
-	Warning = rgb(255, 160, 30),
-	Info = rgb(32, 214, 255),
+	Gold = rgb(255, 196, 46),
+	Success = rgb(40, 196, 104),
+	Danger = rgb(238, 62, 76),
+	Warning = rgb(255, 170, 30),
+	Info = rgb(46, 155, 255),
 
 	White = rgb(255, 255, 255),
 	Black = rgb(0, 0, 0),
 }
 
--- Couleur signature de chaque section.
+-- Couleurs de section (petits repères, jamais en aplat géant).
 Theme.Section = {
 	Play = Theme.Colors.Accent,
-	Locker = Theme.Colors.Cyan,
-	Shop = Theme.Colors.Pink,
-	Clan = Theme.Colors.Violet,
-	Tutorial = Theme.Colors.Lime,
-	Updates = Theme.Colors.Orange,
-	Ranked = rgb(255, 196, 0),
-	Training = Theme.Colors.Lime,
+	Archetypes = Theme.Colors.Accent,
+	Locker = Theme.Colors.Sky,
+	Shop = Theme.Colors.Accent,
+	Clan = rgb(124, 92, 246),
+	Party = Theme.Colors.Sky,
+	Info = Theme.Colors.Success,
+	Tutorial = Theme.Colors.Success,
+	Updates = Theme.Colors.Warning,
+	Ranked = Theme.Colors.Gold,
+	Training = Theme.Colors.Success,
 }
 
 Theme.Team = {
-	Rouge = { Main = rgb(255, 52, 76), Dark = rgb(130, 14, 40), Name = "ROUGE" },
-	Bleu = { Main = rgb(40, 140, 255), Dark = rgb(16, 40, 130), Name = "BLEU" },
+	Rouge = { Main = rgb(240, 56, 74), Light = rgb(255, 120, 132), Dark = rgb(170, 22, 44), Name = "ROUGE" },
+	Bleu = { Main = rgb(46, 134, 255), Light = rgb(120, 182, 255), Dark = rgb(18, 76, 190), Name = "BLEU" },
 }
 
-local function font(enum: Enum.Font, weight: Enum.FontWeight?, italic: boolean?): Font
-	local base = Font.fromEnum(enum)
-	return Font.new(base.Family, weight or base.Weight, if italic then Enum.FontStyle.Italic else Enum.FontStyle.Normal)
-end
-
 Theme.Fonts = {
-	-- Lettrage BD pour les grands moments (titres, GOAL, raretés).
-	Hero = font(Enum.Font.Bangers),
-	-- Condensé sportif pour les intertitres, chiffres, scores.
-	Display = font(Enum.Font.Oswald, Enum.FontWeight.Bold),
-	DisplayItalic = font(Enum.Font.Oswald, Enum.FontWeight.Bold),
-	Number = font(Enum.Font.Oswald, Enum.FontWeight.Bold),
+	-- Titres, chiffres, boutons.
+	Hero = Font.fromEnum(Enum.Font.GothamBlack),
+	Display = Font.fromEnum(Enum.Font.GothamBlack),
+	Number = Font.fromEnum(Enum.Font.GothamBlack),
 	-- Interface.
-	Bold = font(Enum.Font.BuilderSansExtraBold),
-	Semibold = font(Enum.Font.BuilderSansBold),
-	Regular = font(Enum.Font.BuilderSansMedium),
+	Bold = Font.fromEnum(Enum.Font.BuilderSansExtraBold),
+	Semibold = Font.fromEnum(Enum.Font.BuilderSansBold),
+	Regular = Font.fromEnum(Enum.Font.BuilderSansMedium),
 }
 
 -- Échelle typographique (pixels, résolution de référence 1600×900).
 Theme.Text = {
-	Hero = 120,
-	Display = 64,
-	H1 = 40,
-	H2 = 28,
+	Hero = 96,
+	Display = 56,
+	H1 = 34,
+	H2 = 26,
 	H3 = 20,
 	Body = 17,
 	Small = 14,
 	Tiny = 12,
 }
 
-Theme.Radius = 6
-Theme.RadiusLarge = 10
+Theme.Radius = 12
+Theme.RadiusLarge = 18
 Theme.Space = 8
-Theme.Stroke = 2.5 -- épaisseur de l'encre
-Theme.ShadowOffset = 5 -- ombre dure (px)
-Theme.Tilt = -3 -- inclinaison des plaques (degrés)
 
 Theme.Motion = {
 	Fast = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-	Base = TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-	Slow = TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-	Spring = TweenInfo.new(0.38, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-	Slam = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+	Base = TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+	Slow = TweenInfo.new(0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+	Spring = TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+	Bounce = TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
 }
 
 function Theme.rarityColor(rarity: string): Color3
@@ -139,22 +134,29 @@ function Theme.darken(color: Color3, amount: number): Color3
 	return color:Lerp(Color3.new(0, 0, 0), amount)
 end
 
--- Texte lisible posé sur une couleur donnée (encre sur clair, blanc sur foncé).
+-- Texte lisible posé sur une couleur (marine sur clair, blanc sur foncé).
 function Theme.onColor(color: Color3): Color3
 	local luminance = 0.299 * color.R + 0.587 * color.G + 0.114 * color.B
-	return if luminance > 0.6 then Theme.Colors.TextOnAccent else Theme.Colors.White
+	return if luminance > 0.72 then Theme.Colors.Ink else Theme.Colors.White
 end
 
--- Sons (facultatif) : identifiants rbxassetid://… importés par le créateur.
+-- Sons : identifiants importés par le créateur dans Shared/Assets.luau.
+-- Une entrée vide = silence, sans erreur.
+local function sound(name: string): string
+	return Assets.sound(name) or ""
+end
+
 Theme.Sounds = {
-	Click = "",
-	Hover = "",
-	Whistle = "",
-	Goal = "",
-	Shot = "",
-	Pass = "",
-	Reveal = "",
-	Power = "",
+	Click = sound("Click"),
+	Hover = sound("Hover"),
+	Whistle = sound("Whistle"),
+	Goal = sound("Goal"),
+	Shot = sound("Shot"),
+	PerfectShot = sound("PerfectShot"),
+	Pass = sound("Pass"),
+	Reveal = sound("Reveal"),
+	Power = sound("Power"),
+	Ultimate = sound("Ultimate"),
 }
 
 return Theme

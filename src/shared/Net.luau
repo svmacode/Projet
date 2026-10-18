@@ -17,7 +17,6 @@ Net.Events = {
 	"Notify", -- (text, style)
 	"PartyUpdated", -- (party snapshot | nil)
 	"PartyInvite", -- (fromUserId, fromName, partyId)
-	"QueueUpdated", -- (queue status)
 	"ClanUpdated", -- (clan snapshot | nil)
 	"ClanInvite", -- (clanId, clanName, fromName)
 	"MatchSetup", -- (setup snapshot : choix de poste)
@@ -36,7 +35,6 @@ Net.Functions = {
 	"ShopAction",
 	"LockerAction",
 	"PartyAction",
-	"QueueAction",
 	"ClanAction",
 	"ProfileAction",
 	"MatchSetupAction",

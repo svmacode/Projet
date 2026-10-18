@@ -1,7 +1,8 @@
 --!strict
 -- Bots : complètent les équipes à l'entraînement et pour tester seul dans
 -- Studio. Ils utilisent EXACTEMENT les mêmes actions que les joueurs
--- (passe, tir, dribble, contact, pouvoirs), validées par le match.
+-- (passe, tir, contact, pouvoirs), validées par le match. Leur tir au timing
+-- est tiré au sort (plus souvent « bon » que « parfait »).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -275,9 +276,12 @@ local function shoot(match: any, bot: Participant)
 		return
 	end
 	local origin = root.Position + Vector3.new(0, 1, 0)
-	local speed = 120 + math.random() * 30
+	local speed = 140 + math.random() * 30
 	local velocity = BallMath.solveLob(origin, world, (world - origin).Magnitude / speed)
-	match:actionShoot(bot, velocity.Unit, 0.55 + math.random() * 0.4)
+	local roll = math.random()
+	local grade = if roll < 0.15 then "Perfect" elseif roll < 0.7 then "Good" else "Weak"
+	local phase = if grade == "Perfect" then 0.9 elseif grade == "Good" then 0.7 else 0.35
+	match:shoot(bot, velocity.Unit, grade, phase)
 end
 
 local function keeperThink(match: any, bot: Participant)
@@ -358,20 +362,15 @@ local function fieldThink(match: any, bot: Participant, state: BotState)
 			shoot(match, bot)
 			return
 		end
-		if held > 2.1 or ball.CarryDistance > Config.Rules.MaxCarryDistance - 4 then
+		if held > 1.8 then
 			local target = bestPassTarget(match, bot)
 			if target and target.Root and bot.Root then
 				match:actionPass(bot, (target.Root.Position - bot.Root.Position).Unit, target)
 				return
-			elseif not ball.DribbleUsed and not ball.Dribbling then
-				match:actionDribble(bot)
-			elseif held > 2.5 then
+			elseif held > 2.4 then
 				shoot(match, bot)
 				return
 			end
-		end
-		if ball.Dribbling and goalDistance < dims.FreeThrowRadius + 9 then
-			match:actionDribble(bot)
 		end
 		local goalLocal = Vector3.new(attackSide * (dims.Length / 2 - dims.FreeThrowRadius - 2), 0, myLocal.Z * 0.6)
 		moveTo(match, bot, goalLocal)

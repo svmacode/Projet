@@ -14,16 +14,18 @@ end)
 local ORDER = {
 	"State",
 	"Notifications",
+	"PadClient",
 	"BallRenderer",
 	"MatchInput",
+	"CameraController",
 	"CharacterAnimator",
 	"Effects3D",
 	"Toon",
 	"MatchHUD",
 	"MatchFX",
 	"MatchSetup",
-	"LobbyMenu",
-	"StartMenu",
+	"LobbyHUD",
+	"LoadingScreen",
 }
 
 local modules: { [string]: any } = {}

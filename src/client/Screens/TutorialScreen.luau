@@ -1,11 +1,8 @@
 --!strict
--- TUTORIEL (facultatif) : règles et commandes, étape par étape.
+-- TUTORIEL (onglet de la fenêtre Infos) : règles et commandes, étape par étape.
+-- Les étapes sont écrites ici pour suivre les règles simplifiées du jeu.
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local Tutorial = require(ReplicatedStorage.Shared.Data.Tutorial)
 local Kit = require(script.Parent.Parent.UI.Kit)
-local Page = require(script.Parent.Parent.UI.Page)
 local State = require(script.Parent.Parent.Controllers.State)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -13,74 +10,108 @@ local C = Theme.Colors
 
 local TutorialScreen = {}
 
-function TutorialScreen.create(parent: Instance, onClose: () -> ()): Page.Page
-	local accent = Theme.Section.Tutorial
-	local page = Page.modal(parent, "Tutoriel", Vector2.new(880, 600), onClose, accent)
-	local content = page.Content
-	local index = 1
+type Step = { Title: string, Body: string, Keys: { { string } } }
 
-	local body = Kit.box({ Size = UDim2.new(1, 0, 1, -72), ZIndex = 33, Parent = content })
-	local footer =
-		Kit.box({ Size = UDim2.new(1, 0, 0, 48), Position = UDim2.new(0, 0, 1, -48), ZIndex = 33, Parent = content })
-	local steps = Kit.box({
-		Size = UDim2.fromOffset(460, 14),
+local STEPS: { Step } = {
+	{
+		Title = "Bienvenue au lycée Seiryō",
+		Body = "Pour jouer, marche sur un terrain de la cour : 2v2, 3v3, 4v4 ou 5v5. "
+			.. "La partie démarre dès que le terrain est complet. Le classé s'ouvre au niveau 10.",
+		Keys = {},
+	},
+	{
+		Title = "Se déplacer",
+		Body = "Cours, saute et utilise le dash pour prendre de vitesse ton adversaire.",
+		Keys = { { "ZQSD / WASD", "Courir" }, { "Espace", "Sauter" }, { "Shift", "Dash" } },
+	},
+	{
+		Title = "Passer",
+		Body = "La passe part vers le coéquipier le plus proche de ta visée. Les adversaires peuvent l'intercepter.",
+		Keys = { { "E", "Passe" }, { "Souris", "Viser" } },
+	},
+	{
+		Title = "Tirer au bon moment",
+		Body = "Maintiens le clic : un curseur fait des allers-retours sur la jauge. "
+			.. "Relâche-le dans la zone dorée pour un tir PARFAIT, le plus puissant et le plus précis.",
+		Keys = { { "Clic gauche (maintenir)", "Charger le tir" }, { "Relâcher", "Tirer" } },
+	},
+	{
+		Title = "Défendre",
+		Body = "Contre les tirs, coupe les passes et va au contact du porteur de face. "
+			.. "Un contact par derrière ou sur un joueur sans ballon est une faute : jet franc pour l'adversaire.",
+		Keys = { { "F", "Contre / interception" } },
+	},
+	{
+		Title = "Les règles",
+		Body = "3 secondes maximum avec le ballon. Seul le gardien peut entrer dans sa zone des 6 mètres. "
+			.. "Deux mi-temps de 2 min 30 ; en cas d'égalité, le prochain but l'emporte.",
+		Keys = {},
+	},
+	{
+		Title = "Les pouvoirs",
+		Body = "Chaque archétype a 3 pouvoirs : le 1 se recharge en 15 s, le 2 se charge en touchant le ballon, "
+			.. "le 3 est l'ultime. Obtiens de nouveaux archétypes dans les Balles. 3 balles offertes après ta 1re partie !",
+		Keys = { { "1", "Pouvoir 1" }, { "2", "Pouvoir 2" }, { "3", "Ultime" } },
+	},
+}
+
+-- Construit l'onglet dans `parent`.
+function TutorialScreen.build(parent: Instance, z: number)
+	local index = 1
+	local body = Kit.box({ Size = UDim2.new(1, 0, 1, -72), ZIndex = z, Parent = parent })
+	local footer = Kit.box({
+		Size = UDim2.new(1, 0, 0, 56),
+		Position = UDim2.new(0, 0, 1, -56),
+		ZIndex = z,
+		Parent = parent,
+	})
+	local dots = Kit.box({
+		Size = UDim2.fromOffset(400, 12),
 		Position = UDim2.new(0, 0, 0.5, 0),
 		AnchorPoint = Vector2.new(0, 0.5),
-		ZIndex = 34,
+		ZIndex = z,
 		Parent = footer,
 	})
-	Kit.list(steps, 6, true)
+	Kit.list(dots, 8, true, nil, Enum.VerticalAlignment.Center)
 	local previous: Kit.Button
 	local nextButton: Kit.Button
 
 	local function render()
 		Kit.clear(body)
-		Kit.clear(steps)
-		local step = Tutorial[index]
-		-- Gros numéro d'étape incliné.
-		local number = Kit.plate({
-			Color = accent,
-			Size = UDim2.fromOffset(92, 92),
-			Position = UDim2.fromOffset(6, 6),
-			Rotation = -6,
-			Shadow = false,
-			ZIndex = 34,
+		Kit.clear(dots)
+		local step = STEPS[index]
+		local number = Kit.new("Frame", {
+			BackgroundColor3 = C.White,
+			BorderSizePixel = 0,
+			Size = UDim2.fromOffset(64, 64),
+			ZIndex = z + 1,
 			Parent = body,
 		})
+		Kit.round(number)
+		Kit.gradient(number, Theme.lighten(C.Success, 0.25), C.Success, 90)
 		Kit.label({
-			Text = string.format("%02d", index),
+			Text = tostring(index),
 			Font = Theme.Fonts.Number,
-			TextSize = 58,
-			Color = Theme.onColor(accent),
+			TextSize = 32,
+			Color = C.White,
+			Stroke = 1.5,
+			StrokeColor = Theme.darken(C.Success, 0.3),
 			AlignX = Enum.TextXAlignment.Center,
 			Size = UDim2.fromScale(1, 1),
-			ZIndex = 35,
+			ZIndex = z + 2,
 			Parent = number,
 		})
-		Kit.slam(number, 1.6)
+		Kit.pop(number, 0.6)
 		Kit.label({
-			Text = `ÉTAPE {index} SUR {#Tutorial}`,
+			Text = step.Title,
 			Font = Theme.Fonts.Display,
-			TextSize = Theme.Text.Small,
-			Color = accent,
-			Size = UDim2.new(1, -130, 0, 18),
-			Position = UDim2.fromOffset(124, 6),
-			ZIndex = 34,
+			TextSize = Theme.Text.H1,
+			Color = C.Text,
+			Size = UDim2.new(1, -90, 0, 44),
+			Position = UDim2.fromOffset(84, 10),
+			ZIndex = z + 1,
 			Parent = body,
 		})
-		local heading = Kit.title({
-			Text = string.upper(step.Title),
-			TextSize = 46,
-			ShadowColor = accent,
-			Size = UDim2.new(1, -130, 0, 54),
-			Position = UDim2.fromOffset(124, 28),
-			Rotation = -1,
-			ZIndex = 34,
-			Parent = body,
-		})
-		heading.Label.TextScaled = true
-		heading.Shadow.TextScaled = true
-		Kit.reveal(heading.Instance, 0.05)
 		Kit.label({
 			Text = step.Body,
 			Font = Theme.Fonts.Semibold,
@@ -88,78 +119,73 @@ function TutorialScreen.create(parent: Instance, onClose: () -> ()): Page.Page
 			Color = C.TextMuted,
 			Wrap = true,
 			AlignY = Enum.TextYAlignment.Top,
-			Size = UDim2.new(1, 0, 0, 90),
-			Position = UDim2.fromOffset(0, 112),
-			ZIndex = 34,
+			Size = UDim2.new(1, 0, 0, 110),
+			Position = UDim2.fromOffset(0, 90),
+			ZIndex = z + 1,
 			Parent = body,
 		})
-		local keys =
-			Kit.box({ Size = UDim2.new(1, 0, 0, 200), Position = UDim2.fromOffset(0, 206), ZIndex = 34, Parent = body })
-		Kit.list(keys, 8)
+		local keys = Kit.box({
+			Size = UDim2.new(1, 0, 0, 200),
+			Position = UDim2.fromOffset(0, 210),
+			ZIndex = z + 1,
+			Parent = body,
+		})
+		Kit.list(keys, 10)
 		for order, key in step.Keys do
-			local parts = string.split(key, " : ")
-			local row = Kit.surface({
-				Color = C.Surface2,
-				Size = UDim2.new(1, -6, 0, 40),
-				Order = order,
-				ZIndex = 35,
-				Parent = keys,
-			})
-			-- Touche façon capuchon de clavier.
-			local keycap = Kit.new("Frame", {
-				BackgroundColor3 = accent,
-				BorderSizePixel = 0,
-				Size = UDim2.new(0.4, 0, 1, -10),
-				Position = UDim2.fromOffset(6, 5),
-				ZIndex = 36,
+			local row = Kit.box({ Size = UDim2.new(1, 0, 0, 44), Order = order, ZIndex = z + 1, Parent = keys })
+			local cap = Kit.surface({
+				Color = C.White,
+				BorderColor = C.BorderStrong,
+				BorderThickness = 2,
+				Radius = 10,
+				Size = UDim2.fromOffset(0, 40),
+				AutoSize = Enum.AutomaticSize.X,
+				ZIndex = z + 2,
 				Parent = row,
 			})
-			Kit.corner(keycap, 4)
-			Kit.border(keycap, C.Ink, 2)
-			Kit.shade(keycap, 0.2)
-			Kit.label({
-				Text = string.upper(parts[1]),
+			local label = Kit.label({
+				Text = key[1],
 				Font = Theme.Fonts.Display,
-				Color = Theme.onColor(accent),
-				AlignX = Enum.TextXAlignment.Center,
-				Size = UDim2.fromScale(1, 1),
-				ZIndex = 37,
-				Parent = keycap,
-			})
-			Kit.label({
-				Text = parts[2] or "",
-				Font = Theme.Fonts.Semibold,
+				TextSize = Theme.Text.Small,
 				Color = C.Text,
-				Position = UDim2.new(0.45, 0, 0, 0),
-				Size = UDim2.new(0.55, -16, 1, 0),
-				ZIndex = 36,
+				Size = UDim2.fromOffset(0, 40),
+				AutoSize = Enum.AutomaticSize.X,
+				ZIndex = z + 3,
+				Parent = cap,
+			})
+			Kit.padding(label, 14, 0)
+			Kit.label({
+				Text = key[2],
+				Font = Theme.Fonts.Bold,
+				Color = C.TextMuted,
+				Size = UDim2.new(0.5, 0, 1, 0),
+				Position = UDim2.fromOffset(260, 0),
+				ZIndex = z + 2,
 				Parent = row,
 			})
 		end
-		for i = 1, #Tutorial do
-			local bar = Kit.new("Frame", {
-				BackgroundColor3 = if i <= index then accent else C.Surface3,
+		for i = 1, #STEPS do
+			local dot = Kit.new("Frame", {
+				BackgroundColor3 = if i == index then C.Success elseif i < index then C.SkyLight else C.Surface3,
 				BorderSizePixel = 0,
-				Size = UDim2.fromOffset(if i == index then 52 else 30, 10),
-				Rotation = Theme.Tilt,
+				Size = UDim2.fromOffset(if i == index then 32 else 12, 12),
 				LayoutOrder = i,
-				ZIndex = 35,
-				Parent = steps,
+				ZIndex = z + 1,
+				Parent = dots,
 			})
-			Kit.border(bar, C.Ink, 2)
+			Kit.round(dot)
 		end
 		previous.SetEnabled(index > 1)
-		nextButton.SetText(if index == #Tutorial then "TERMINER" else "SUIVANT")
+		nextButton.SetText(if index == #STEPS then "TERMINER" else "SUIVANT")
 	end
 
 	previous = Kit.button({
 		Text = "PRÉCÉDENT",
-		Variant = "Ghost",
-		Font = Theme.Fonts.Display,
-		Size = UDim2.fromOffset(140, 48),
-		Position = UDim2.new(1, -164, 0, 0),
+		Variant = "Light",
+		Size = UDim2.fromOffset(160, 50),
+		Position = UDim2.new(1, -176, 0, 0),
 		AnchorPoint = Vector2.new(1, 0),
-		ZIndex = 34,
+		ZIndex = z + 1,
 		Parent = footer,
 		OnClick = function()
 			index = math.max(1, index - 1)
@@ -168,20 +194,18 @@ function TutorialScreen.create(parent: Instance, onClose: () -> ()): Page.Page
 	})
 	nextButton = Kit.button({
 		Text = "SUIVANT",
-		Variant = "Primary",
-		Color = accent,
-		Font = Theme.Fonts.Display,
-		Size = UDim2.fromOffset(150, 48),
+		Variant = "Success",
+		Size = UDim2.fromOffset(160, 50),
 		Position = UDim2.new(1, 0, 0, 0),
 		AnchorPoint = Vector2.new(1, 0),
-		ZIndex = 34,
+		ZIndex = z + 1,
 		Parent = footer,
 		OnClick = function()
-			if index == #Tutorial then
+			if index == #STEPS then
 				State.request("ProfileAction", "CompleteTutorial")
+				State.Notify:Fire("Tutoriel terminé. Bon match !", "Success")
 				index = 1
 				render()
-				onClose()
 				return
 			end
 			index += 1
@@ -189,7 +213,6 @@ function TutorialScreen.create(parent: Instance, onClose: () -> ()): Page.Page
 		end,
 	})
 	render()
-	return page
 end
 
 return TutorialScreen

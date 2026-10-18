@@ -166,8 +166,9 @@ local function onBallState(snapshot: any)
 	end
 	local speed = snapshot.Velocity.Magnitude
 	trail.Enabled = snapshot.State == "Flight" and speed > 45
-	local tint = if snapshot.Fire
-		then Color3.fromRGB(255, 130, 30)
+	local tint = if snapshot.Perfect
+		then Color3.fromRGB(255, 196, 40)
+		elseif snapshot.Fire then Color3.fromRGB(255, 130, 30)
 		elseif snapshot.Charged then Color3.fromRGB(0, 220, 255)
 		else (lastTeam and TEAM_TRAIL[lastTeam]) or Color3.fromRGB(255, 220, 40)
 	-- Cœur blanc, bords à la couleur : traînée lumineuse façon animé.
@@ -176,7 +177,10 @@ local function onBallState(snapshot: any)
 		ColorSequenceKeypoint.new(0.25, tint),
 		ColorSequenceKeypoint.new(1, tint),
 	})
-	trail.Lifetime = if snapshot.Kind == "Shot" then 0.4 else 0.2
+	-- Tir parfait : traînée enflammée plus longue et plus large.
+	trail.Lifetime = if snapshot.Perfect then 0.6 elseif snapshot.Kind == "Shot" then 0.4 else 0.2
+	trail.WidthScale = if snapshot.Perfect then NumberSequence.new(1.6, 0.3) else NumberSequence.new(1, 0.2)
+	fire.Size = if snapshot.Perfect then 6 else 4
 	fire.Enabled = snapshot.Fire == true
 	glow.Enabled = snapshot.Fire == true or snapshot.Charged == true
 	glow.Color = if snapshot.Fire then Color3.fromRGB(255, 140, 40) else Color3.fromRGB(120, 230, 255)
@@ -190,19 +194,11 @@ local function update(dt: number)
 		return
 	end
 	model.Parent = Workspace
-	local t = os.clock()
 
 	if snapshot.State == "Held" and snapshot.Holder and snapshot.Holder.Parent then
-		local hand, root = holderHand(snapshot.Holder)
+		local hand = holderHand(snapshot.Holder)
 		if hand then
-			if snapshot.Dribbling and root then
-				local floorY = (match.CourtCFrame :: CFrame).Position.Y + RADIUS
-				local bounce = math.abs(math.sin(t * 9))
-				local side = (root.CFrame * CFrame.new(1.3, 0, -1.3)).Position
-				visualPosition = Vector3.new(side.X, floorY + bounce * (hand.Y - floorY), side.Z)
-			else
-				visualPosition = hand
-			end
+			visualPosition = hand
 			simPosition = visualPosition
 			simVelocity = Vector3.zero
 		end

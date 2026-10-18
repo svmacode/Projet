@@ -42,12 +42,7 @@ export type Participant = {
 	Steals: number,
 	ShotsOnTarget: number,
 
-	-- Discipline
 	Fouls: number,
-	Yellow: boolean,
-	Suspensions: number,
-	SuspendedUntil: number,
-	Red: boolean,
 
 	-- Pouvoirs
 	Energy: number,
@@ -65,6 +60,14 @@ export type Participant = {
 	ZoneTouchUntil: number,
 	Effects: { Effect },
 	ShotBuff: ShotMods?,
+	-- Tir au timing : heure serveur de réception de « ShotCharge » (nil = pas de charge).
+	ShotChargeAt: number?,
+	-- Contrôle de vitesse : dernière position échantillonnée par le serveur.
+	LastSamplePosition: Vector3?,
+	LastSampleTime: number,
+	DashUntil: number, -- un élan (dash, pouvoir) est autorisé jusqu'à cette heure
+	BurstSpeed: number, -- vitesse maximale de cet élan
+	SpeedStrikes: number,
 	LastSpeedApplied: number,
 	LastJumpApplied: number,
 
