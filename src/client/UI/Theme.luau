@@ -1,10 +1,16 @@
 --!strict
--- Système visuel de Handball Legends.
+-- Direction artistique de Handball Legends : « anime sport ».
 --
--- Principes : surfaces sombres pleines, une seule couleur d'accent, tailles
--- de texte fixes (jamais TextScaled pour le texte courant), coins arrondis
--- identiques partout, grille de 8 px, animations courtes et fluides.
--- Aucune image, aucune transparence d'interface.
+-- Inspirations : génériques d'animés de sport et menus de jeux de combat.
+--   • Fond indigo profond en dégradé, jamais de noir plat.
+--   • Couleurs saturées : jaune électrique (action principale), rose, cyan,
+--     violet, vert acide. Chaque section du jeu a SA couleur.
+--   • Encre : contours noirs épais, ombres dures décalées (pas de flou),
+--     comme une case de manga.
+--   • Plaques inclinées, lignes de vitesse, trames de points.
+--   • Titres en Bangers (lettrage BD), chiffres et intertitres en Oswald,
+--     texte courant en Builder Sans.
+-- Tout est dessiné en code : aucune image importée.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -15,74 +21,104 @@ local Theme = {}
 local rgb = Color3.fromRGB
 
 Theme.Colors = {
-	Background = rgb(10, 11, 15),
-	Surface = rgb(18, 20, 27),
-	Surface2 = rgb(26, 29, 38),
-	Surface3 = rgb(36, 40, 52),
-	Border = rgb(44, 49, 63),
-	BorderStrong = rgb(66, 72, 90),
+	-- Fonds (indigo → violet).
+	Background = rgb(20, 12, 48),
+	BackgroundTop = rgb(44, 18, 96),
+	Surface = rgb(34, 22, 78),
+	Surface2 = rgb(48, 32, 104),
+	Surface3 = rgb(66, 46, 136),
+	Border = rgb(10, 6, 26),
+	BorderStrong = rgb(118, 92, 210),
 
-	Text = rgb(242, 243, 246),
-	TextMuted = rgb(156, 162, 179),
-	TextFaint = rgb(98, 104, 122),
-	TextOnAccent = rgb(18, 12, 6),
+	-- Encre : contours et ombres dures.
+	Ink = rgb(10, 6, 26),
 
-	Accent = rgb(255, 122, 44),
-	AccentHover = rgb(255, 146, 82),
-	AccentPressed = rgb(230, 98, 24),
+	Text = rgb(255, 255, 255),
+	TextMuted = rgb(200, 190, 244),
+	TextFaint = rgb(132, 118, 196),
+	TextOnAccent = rgb(20, 10, 40),
 
-	Success = rgb(62, 214, 140),
-	Danger = rgb(255, 77, 87),
-	Warning = rgb(255, 196, 64),
-	Info = rgb(92, 160, 255),
+	-- Accent principal : jaune électrique.
+	Accent = rgb(255, 214, 10),
+	AccentHover = rgb(255, 232, 92),
+	AccentPressed = rgb(240, 180, 0),
+
+	-- Palette secondaire.
+	Pink = rgb(255, 46, 126),
+	Cyan = rgb(32, 214, 255),
+	Violet = rgb(150, 96, 255),
+	Lime = rgb(170, 255, 60),
+	Orange = rgb(255, 126, 36),
+
+	Success = rgb(64, 232, 128),
+	Danger = rgb(255, 54, 96),
+	Warning = rgb(255, 160, 30),
+	Info = rgb(32, 214, 255),
 
 	White = rgb(255, 255, 255),
 	Black = rgb(0, 0, 0),
 }
 
-Theme.Team = {
-	Rouge = { Main = rgb(232, 58, 68), Dark = rgb(120, 22, 30), Name = "ROUGE" },
-	Bleu = { Main = rgb(58, 126, 255), Dark = rgb(20, 46, 112), Name = "BLEU" },
+-- Couleur signature de chaque section.
+Theme.Section = {
+	Play = Theme.Colors.Accent,
+	Locker = Theme.Colors.Cyan,
+	Shop = Theme.Colors.Pink,
+	Clan = Theme.Colors.Violet,
+	Tutorial = Theme.Colors.Lime,
+	Updates = Theme.Colors.Orange,
+	Ranked = rgb(255, 196, 0),
+	Training = Theme.Colors.Lime,
 }
 
--- Builder Sans : la police des interfaces officielles de Roblox.
-local function font(enum: Enum.Font, italic: boolean?): Font
+Theme.Team = {
+	Rouge = { Main = rgb(255, 52, 76), Dark = rgb(130, 14, 40), Name = "ROUGE" },
+	Bleu = { Main = rgb(40, 140, 255), Dark = rgb(16, 40, 130), Name = "BLEU" },
+}
+
+local function font(enum: Enum.Font, weight: Enum.FontWeight?, italic: boolean?): Font
 	local base = Font.fromEnum(enum)
-	if italic then
-		return Font.new(base.Family, base.Weight, Enum.FontStyle.Italic)
-	end
-	return base
+	return Font.new(base.Family, weight or base.Weight, if italic then Enum.FontStyle.Italic else Enum.FontStyle.Normal)
 end
 
 Theme.Fonts = {
-	Display = font(Enum.Font.BuilderSansExtraBold),
-	DisplayItalic = font(Enum.Font.BuilderSansExtraBold, true),
-	Bold = font(Enum.Font.BuilderSansBold),
+	-- Lettrage BD pour les grands moments (titres, GOAL, raretés).
+	Hero = font(Enum.Font.Bangers),
+	-- Condensé sportif pour les intertitres, chiffres, scores.
+	Display = font(Enum.Font.Oswald, Enum.FontWeight.Bold),
+	DisplayItalic = font(Enum.Font.Oswald, Enum.FontWeight.Bold),
+	Number = font(Enum.Font.Oswald, Enum.FontWeight.Bold),
+	-- Interface.
+	Bold = font(Enum.Font.BuilderSansExtraBold),
 	Semibold = font(Enum.Font.BuilderSansBold),
 	Regular = font(Enum.Font.BuilderSansMedium),
 }
 
--- Échelle typographique (en pixels, résolution de référence 1600×900).
+-- Échelle typographique (pixels, résolution de référence 1600×900).
 Theme.Text = {
-	Hero = 96,
-	Display = 56,
-	H1 = 36,
-	H2 = 26,
+	Hero = 120,
+	Display = 64,
+	H1 = 40,
+	H2 = 28,
 	H3 = 20,
 	Body = 17,
 	Small = 14,
 	Tiny = 12,
 }
 
-Theme.Radius = 8
-Theme.RadiusLarge = 12
+Theme.Radius = 6
+Theme.RadiusLarge = 10
 Theme.Space = 8
+Theme.Stroke = 2.5 -- épaisseur de l'encre
+Theme.ShadowOffset = 5 -- ombre dure (px)
+Theme.Tilt = -3 -- inclinaison des plaques (degrés)
 
 Theme.Motion = {
-	Fast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-	Base = TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-	Slow = TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-	Spring = TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+	Fast = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+	Base = TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+	Slow = TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+	Spring = TweenInfo.new(0.38, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+	Slam = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
 }
 
 function Theme.rarityColor(rarity: string): Color3
@@ -101,6 +137,12 @@ end
 
 function Theme.darken(color: Color3, amount: number): Color3
 	return color:Lerp(Color3.new(0, 0, 0), amount)
+end
+
+-- Texte lisible posé sur une couleur donnée (encre sur clair, blanc sur foncé).
+function Theme.onColor(color: Color3): Color3
+	local luminance = 0.299 * color.R + 0.587 * color.G + 0.114 * color.B
+	return if luminance > 0.6 then Theme.Colors.TextOnAccent else Theme.Colors.White
 end
 
 -- Sons (facultatif) : identifiants rbxassetid://… importés par le créateur.

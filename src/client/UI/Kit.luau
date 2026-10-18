@@ -1,6 +1,8 @@
 --!strict
--- Composants d'interface. Tout est dessiné pour une résolution de référence
--- de 1600×900 puis mis à l'échelle (téléphone, tablette, PC) par un UIScale.
+-- Composants d'interface « anime sport ». Tout est dessiné pour une
+-- résolution de référence de 1600×900 puis mis à l'échelle (téléphone,
+-- tablette, PC) par un UIScale. Aucune image : uniquement des Frames,
+-- des dégradés, des contours et du texte.
 
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
@@ -44,13 +46,40 @@ function Kit.corner(parent: Instance, radius: number?): UICorner
 	return Kit.new("UICorner", { CornerRadius = UDim.new(0, radius or Theme.Radius), Parent = parent })
 end
 
+-- Contour d'encre (cadre). Par défaut : noir épais.
 function Kit.border(parent: Instance, color: Color3?, thickness: number?): UIStroke
 	return Kit.new("UIStroke", {
-		Color = color or C.Border,
-		Thickness = thickness or 1,
+		Color = color or C.Ink,
+		Thickness = thickness or Theme.Stroke,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		LineJoinMode = Enum.LineJoinMode.Miter,
 		Parent = parent,
 	})
+end
+
+-- Contour du texte (lettrage).
+function Kit.ink(label: TextLabel | TextButton, thickness: number?, color: Color3?): UIStroke
+	return Kit.new("UIStroke", {
+		Color = color or C.Ink,
+		Thickness = thickness or 2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		LineJoinMode = Enum.LineJoinMode.Round,
+		Parent = label,
+	})
+end
+
+function Kit.gradient(parent: Instance, from: Color3, to: Color3, rotation: number?): UIGradient
+	return Kit.new("UIGradient", {
+		Color = ColorSequence.new(from, to),
+		Rotation = rotation or 90,
+		Parent = parent,
+	})
+end
+
+-- Ombrage doux appliqué à une couleur unie (le dégradé multiplie la couleur).
+function Kit.shade(parent: Instance, amount: number?): UIGradient
+	local dark = 1 - (amount or 0.22)
+	return Kit.gradient(parent, Color3.new(1, 1, 1), Color3.new(dark, dark, dark), 90)
 end
 
 function Kit.padding(parent: Instance, horizontal: number, vertical: number?)
@@ -138,8 +167,9 @@ end
 
 -- Texte ------------------------------------------------------------------------------------------
 
+-- props.Stroke = épaisseur d'un contour d'encre sur le texte (facultatif).
 function Kit.label(props: Props): TextLabel
-	return Kit.new("TextLabel", {
+	local label = Kit.new("TextLabel", {
 		Name = props.Name or "Texte",
 		BackgroundTransparency = 1,
 		FontFace = props.Font or Theme.Fonts.Regular,
@@ -155,15 +185,115 @@ function Kit.label(props: Props): TextLabel
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		AutomaticSize = props.AutoSize or Enum.AutomaticSize.None,
+		Rotation = props.Rotation or 0,
 		LayoutOrder = props.Order or 0,
 		ZIndex = props.ZIndex or 1,
 		Visible = props.Visible ~= false,
 		Parent = props.Parent,
 	})
+	if props.Stroke then
+		Kit.ink(label, props.Stroke, props.StrokeColor)
+	end
+	return label
+end
+
+export type Title = {
+	Instance: Frame,
+	Label: TextLabel,
+	Shadow: TextLabel,
+	SetText: (string) -> (),
+	SetColors: (Color3, Color3) -> (),
+}
+
+-- Grand titre façon générique d'animé : lettrage BD, contour d'encre et
+-- doublure de couleur décalée derrière.
+function Kit.title(props: Props): Title
+	local size: number = props.TextSize or Theme.Text.Display
+	local offset: number = props.Offset or math.max(3, math.floor(size / 18))
+	local holder = Kit.new("Frame", {
+		Name = props.Name or "Titre",
+		BackgroundTransparency = 1,
+		Size = props.Size or UDim2.new(1, 0, 0, size + 12),
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		Rotation = props.Rotation or 0,
+		LayoutOrder = props.Order or 0,
+		ZIndex = props.ZIndex or 1,
+		Visible = props.Visible ~= false,
+		Parent = props.Parent,
+	})
+	local common = {
+		Text = props.Text or "",
+		Font = props.Font or Theme.Fonts.Hero,
+		TextSize = size,
+		AlignX = props.AlignX or Enum.TextXAlignment.Left,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = props.ZIndex or 1,
+		Parent = holder,
+	}
+	local shadowProps = table.clone(common)
+	shadowProps.Name = "Doublure"
+	shadowProps.Color = props.ShadowColor or C.Pink
+	shadowProps.Position = UDim2.fromOffset(offset, offset)
+	shadowProps.Stroke = props.Stroke or math.max(2, size / 28)
+	local shadow = Kit.label(shadowProps)
+	local mainProps = table.clone(common)
+	mainProps.Color = props.Color or C.Text
+	mainProps.Stroke = props.Stroke or math.max(2, size / 28)
+	local main = Kit.label(mainProps)
+	return {
+		Instance = holder,
+		Label = main,
+		Shadow = shadow,
+		SetText = function(text: string)
+			main.Text = text
+			shadow.Text = text
+		end,
+		SetColors = function(color: Color3, shadowColor: Color3)
+			main.TextColor3 = color
+			shadow.TextColor3 = shadowColor
+		end,
+	}
 end
 
 -- Surfaces ------------------------------------------------------------------------------------------
 
+-- Ombre dure qui suit un objet (placée en frère, juste derrière).
+-- À n'utiliser que hors UIListLayout / UIGridLayout.
+function Kit.dropShadow(object: GuiObject, offset: number?, color: Color3?): Frame
+	local distance = offset or Theme.ShadowOffset
+	local shadow = Kit.new("Frame", {
+		Name = object.Name .. "_Ombre",
+		BackgroundColor3 = color or C.Ink,
+		BorderSizePixel = 0,
+		ZIndex = math.max(0, object.ZIndex - 1),
+		Parent = object.Parent,
+	})
+	local corner = object:FindFirstChildOfClass("UICorner")
+	if corner then
+		Kit.corner(shadow, corner.CornerRadius.Offset)
+	end
+	local function sync()
+		shadow.Size = object.Size
+		shadow.AnchorPoint = object.AnchorPoint
+		shadow.Position = object.Position + UDim2.fromOffset(distance, distance)
+		shadow.Rotation = object.Rotation
+		shadow.Visible = object.Visible
+	end
+	sync()
+	for _, property in { "Size", "Position", "AnchorPoint", "Rotation", "Visible" } do
+		object:GetPropertyChangedSignal(property):Connect(sync)
+	end
+	object.AncestryChanged:Connect(function(_, parent)
+		if parent == nil then
+			shadow:Destroy()
+		end
+	end)
+	return shadow
+end
+
+-- props.Shadow = true : ombre dure (hors layouts uniquement).
+-- props.Gradient = false : couleur unie, sans ombrage.
 function Kit.surface(props: Props): Frame
 	local frame = Kit.new("Frame", {
 		Name = props.Name or "Surface",
@@ -174,6 +304,7 @@ function Kit.surface(props: Props): Frame
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		AutomaticSize = props.AutoSize or Enum.AutomaticSize.None,
 		ClipsDescendants = props.Clip == true,
+		Rotation = props.Rotation or 0,
 		LayoutOrder = props.Order or 0,
 		ZIndex = props.ZIndex or 1,
 		Visible = props.Visible ~= false,
@@ -183,9 +314,42 @@ function Kit.surface(props: Props): Frame
 		Kit.corner(frame, props.Radius)
 	end
 	if props.Border ~= false then
-		Kit.border(frame, props.BorderColor)
+		Kit.border(frame, props.BorderColor, props.BorderThickness)
+	end
+	if props.Gradient ~= false then
+		Kit.shade(frame, 0.18)
+	end
+	if props.Shadow then
+		Kit.dropShadow(frame, props.ShadowOffset, props.ShadowColor)
 	end
 	return frame
+end
+
+-- Plaque inclinée aux bords vifs (bandeaux de titres, étiquettes).
+function Kit.plate(props: Props): Frame
+	local plate = Kit.new("Frame", {
+		Name = props.Name or "Plaque",
+		BackgroundColor3 = props.Color or C.Accent,
+		BorderSizePixel = 0,
+		Size = props.Size or UDim2.fromOffset(200, 40),
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		Rotation = props.Rotation or Theme.Tilt,
+		LayoutOrder = props.Order or 0,
+		ZIndex = props.ZIndex or 1,
+		Visible = props.Visible ~= false,
+		Parent = props.Parent,
+	})
+	if props.Border ~= false then
+		Kit.border(plate, props.BorderColor, props.BorderThickness or 3)
+	end
+	if props.Gradient ~= false then
+		Kit.shade(plate, 0.2)
+	end
+	if props.Shadow ~= false and props.Parent then
+		Kit.dropShadow(plate, props.ShadowOffset, props.ShadowColor)
+	end
+	return plate
 end
 
 function Kit.box(props: Props): Frame
@@ -196,6 +360,7 @@ function Kit.box(props: Props): Frame
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		AutomaticSize = props.AutoSize or Enum.AutomaticSize.None,
+		Rotation = props.Rotation or 0,
 		LayoutOrder = props.Order or 0,
 		ZIndex = props.ZIndex or 1,
 		Visible = props.Visible ~= false,
@@ -205,9 +370,9 @@ end
 
 function Kit.divider(parent: Instance, order: number?): Frame
 	return Kit.new("Frame", {
-		BackgroundColor3 = C.Border,
+		BackgroundColor3 = C.Surface3,
 		BorderSizePixel = 0,
-		Size = UDim2.new(1, 0, 0, 1),
+		Size = UDim2.new(1, 0, 0, 2),
 		LayoutOrder = order or 0,
 		Parent = parent,
 	})
@@ -223,36 +388,175 @@ function Kit.scroll(props: Props): ScrollingFrame
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = if props.Horizontal then Enum.AutomaticSize.X else Enum.AutomaticSize.Y,
 		ScrollingDirection = if props.Horizontal then Enum.ScrollingDirection.X else Enum.ScrollingDirection.Y,
-		ScrollBarThickness = 4,
-		ScrollBarImageColor3 = C.BorderStrong,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = C.Accent,
 		ZIndex = props.ZIndex or 1,
 		Parent = props.Parent,
 	})
 	return frame
 end
 
--- Petite pastille (rareté, statut).
+-- Pastille façon autocollant (rareté, statut), légèrement inclinée.
 function Kit.pill(parent: Instance, text: string, color: Color3, order: number?, textColor: Color3?): Frame
 	local pill = Kit.new("Frame", {
 		Name = "Pastille",
 		BackgroundColor3 = color,
+		BorderSizePixel = 0,
 		Size = UDim2.fromOffset(0, 22),
 		AutomaticSize = Enum.AutomaticSize.X,
+		Rotation = -2,
 		LayoutOrder = order or 0,
 		Parent = parent,
 	})
-	Kit.corner(pill, 11)
-	Kit.padding(pill, 10, 0)
+	Kit.corner(pill, 4)
+	Kit.border(pill, C.Ink, 2)
+	Kit.padding(pill, 9, 0)
 	Kit.label({
-		Text = text,
-		Font = Theme.Fonts.Bold,
-		TextSize = Theme.Text.Tiny,
-		Color = textColor or C.Background,
+		Text = string.upper(text),
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.Tiny + 1,
+		Color = textColor or Theme.onColor(color),
 		Size = UDim2.fromOffset(0, 22),
 		AutoSize = Enum.AutomaticSize.X,
 		Parent = pill,
 	})
 	return pill
+end
+
+-- Décors -------------------------------------------------------------------------------------------
+
+-- Lignes de vitesse animées (traits qui filent à l'horizontale).
+function Kit.speedLines(props: Props): Frame
+	local container = Kit.new("Frame", {
+		Name = "LignesDeVitesse",
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		Size = props.Size or UDim2.fromScale(1, 1),
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		ZIndex = props.ZIndex or 1,
+		Parent = props.Parent,
+	})
+	local random = Random.new()
+	local count: number = props.Count or 18
+	local color: Color3 = props.Color or C.White
+	local transparency: number = props.Transparency or 0.75
+	local reverse = props.Reverse == true
+	for _ = 1, count do
+		local length = random:NextNumber(0.08, 0.32)
+		local line = Kit.new("Frame", {
+			BackgroundColor3 = color,
+			BackgroundTransparency = transparency + random:NextNumber(0, 0.2),
+			BorderSizePixel = 0,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Size = UDim2.new(length, 0, 0, random:NextInteger(2, 5)),
+			Rotation = props.Angle or 0,
+			ZIndex = props.ZIndex or 1,
+			Parent = container,
+		})
+		local y = random:NextNumber(0, 1)
+		local fromX = if reverse then 1 + length else -length
+		local toX = if reverse then -length else 1 + length
+		line.Position = UDim2.fromScale(fromX, y)
+		local duration = random:NextNumber(0.5, 1.4) * (props.Speed or 1)
+		local info = TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1, false, 0)
+		task.delay(random:NextNumber(0, 1.5), function()
+			if line.Parent then
+				TweenService:Create(line, info, { Position = UDim2.fromScale(toX, y) }):Play()
+			end
+		end)
+	end
+	return container
+end
+
+-- Trame de points façon manga : les points grossissent vers un coin.
+function Kit.halftone(props: Props): Frame
+	local columns: number = props.Columns or 14
+	local rows: number = props.Rows or 8
+	local spacing: number = props.Spacing or 16
+	local container = Kit.new("Frame", {
+		Name = "Trame",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(columns * spacing, rows * spacing),
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		Rotation = props.Rotation or 0,
+		ZIndex = props.ZIndex or 1,
+		Parent = props.Parent,
+	})
+	local color: Color3 = props.Color or C.White
+	local transparency: number = props.Transparency or 0.82
+	local flip = props.Flip == true
+	for column = 0, columns - 1 do
+		for row = 0, rows - 1 do
+			local cx = if flip then columns - 1 - column else column
+			local t = 1 - ((cx / columns) * 0.7 + (row / rows) * 0.3)
+			local size = math.floor(spacing * 0.8 * t)
+			if size >= 2 then
+				local dot = Kit.new("Frame", {
+					BackgroundColor3 = color,
+					BackgroundTransparency = transparency,
+					BorderSizePixel = 0,
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Size = UDim2.fromOffset(size, size),
+					Position = UDim2.fromOffset(column * spacing + spacing / 2, row * spacing + spacing / 2),
+					ZIndex = props.ZIndex or 1,
+					Parent = container,
+				})
+				Kit.corner(dot, size)
+			end
+		end
+	end
+	return container
+end
+
+-- Fond d'écran animé : dégradé indigo, grandes bandes diagonales de la
+-- couleur de section, trame de points et lignes de vitesse.
+function Kit.backdrop(parent: Instance, color: Color3?, zIndex: number?): Frame
+	local accent = color or C.Accent
+	local z = zIndex or 1
+	local back = Kit.new("Frame", {
+		Name = "Fond",
+		BackgroundColor3 = C.White,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = z,
+		Parent = parent,
+	})
+	Kit.gradient(back, C.BackgroundTop, C.Background, 120)
+	local stripes = {
+		{ X = 0.78, Width = 0.22, Transparency = 0.82 },
+		{ X = 0.96, Width = 0.06, Transparency = 0.6 },
+		{ X = 0.08, Width = 0.03, Transparency = 0.86 },
+	}
+	for _, stripe in stripes do
+		Kit.new("Frame", {
+			BackgroundColor3 = accent,
+			BackgroundTransparency = stripe.Transparency,
+			BorderSizePixel = 0,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(stripe.X, 0.5),
+			Size = UDim2.new(stripe.Width, 0, 2.4, 0),
+			Rotation = 18,
+			ZIndex = z,
+			Parent = back,
+		})
+	end
+	Kit.halftone({
+		Parent = back,
+		Color = accent,
+		Columns = 22,
+		Rows = 10,
+		Spacing = 18,
+		Transparency = 0.8,
+		Flip = true,
+		Position = UDim2.new(1, 0, 1, 0),
+		AnchorPoint = Vector2.new(1, 1),
+		ZIndex = z,
+	})
+	Kit.speedLines({ Parent = back, Color = C.White, Count = 14, Transparency = 0.9, ZIndex = z })
+	return back
 end
 
 -- Boutons ---------------------------------------------------------------------------------------------
@@ -266,14 +570,17 @@ export type Button = {
 	SetEnabled: (boolean) -> (),
 	SetVariant: (Variant) -> (),
 	SetSelected: (boolean) -> (),
+	SetColor: (Color3) -> (),
 }
 
-local VARIANTS: { [string]: { Back: Color3, Hover: Color3, Text: Color3, Border: Color3? } } = {
-	Primary = { Back = C.Accent, Hover = C.AccentHover, Text = C.TextOnAccent },
-	Secondary = { Back = C.Surface3, Hover = Theme.lighten(C.Surface3, 0.08), Text = C.Text, Border = C.BorderStrong },
-	Ghost = { Back = C.Surface2, Hover = C.Surface3, Text = C.TextMuted },
-	Danger = { Back = Theme.darken(C.Danger, 0.15), Hover = C.Danger, Text = C.White },
-	Success = { Back = Theme.darken(C.Success, 0.1), Hover = C.Success, Text = C.TextOnAccent },
+type Look = { Back: Color3, Text: Color3, Shadow: boolean }
+
+local VARIANTS: { [string]: Look } = {
+	Primary = { Back = C.Accent, Text = C.TextOnAccent, Shadow = true },
+	Secondary = { Back = C.Surface3, Text = C.Text, Shadow = true },
+	Ghost = { Back = C.Surface2, Text = C.TextMuted, Shadow = false },
+	Danger = { Back = C.Danger, Text = C.White, Shadow = true },
+	Success = { Back = C.Success, Text = C.TextOnAccent, Shadow = true },
 }
 
 function Kit.playSound(soundId: string, volume: number?)
@@ -283,6 +590,7 @@ function Kit.playSound(soundId: string, volume: number?)
 	local sound = Instance.new("Sound")
 	sound.SoundId = soundId
 	sound.Volume = volume or 0.5
+	sound.PlaybackSpeed = 0.95 + math.random() * 0.1
 	sound.Parent = SoundService
 	SoundService:PlayLocalSound(sound)
 	task.delay(4, function()
@@ -290,30 +598,66 @@ function Kit.playSound(soundId: string, volume: number?)
 	end)
 end
 
+-- Bouton façon manga : face colorée cerclée d'encre posée sur une ombre dure.
+-- Au survol la face se soulève ; au clic elle s'écrase sur son ombre.
+-- props.Color remplace la couleur de la variante.
 function Kit.button(props: Props): Button
 	local variant: string = props.Variant or "Secondary"
+	local custom: Color3? = props.Color
 	local enabled = true
 	local selected = false
+	local z = props.ZIndex or 1
+	local depth = if VARIANTS[variant].Shadow then 4 else 2
 	local button = Kit.new("TextButton", {
 		Name = props.Name or "Bouton",
 		AutoButtonColor = false,
-		BackgroundColor3 = VARIANTS[variant].Back,
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Text = "",
 		Size = props.Size or UDim2.fromOffset(180, 44),
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		AutomaticSize = props.AutoSize or Enum.AutomaticSize.None,
+		Rotation = props.Rotation or 0,
 		LayoutOrder = props.Order or 0,
-		ZIndex = props.ZIndex or 1,
+		ZIndex = z,
 		Parent = props.Parent,
 	})
-	Kit.corner(button, props.Radius)
-	local stroke = Kit.border(button, VARIANTS[variant].Border or VARIANTS[variant].Back)
-	local scale = Kit.new("UIScale", { Parent = button })
-	if props.AutoSize then
-		Kit.padding(button, 20, 0)
-	end
+	-- L'ombre porte la face : la face reste toujours dessinée au-dessus.
+	local shadow = Kit.new("Frame", {
+		Name = "Ombre",
+		BackgroundColor3 = C.Ink,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromOffset(depth, depth),
+		ZIndex = z,
+		Parent = button,
+	})
+	Kit.corner(shadow, props.Radius)
+	local face = Kit.new("Frame", {
+		Name = "Face",
+		BackgroundColor3 = VARIANTS[variant].Back,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromOffset(-depth, -depth),
+		ZIndex = z,
+		Parent = shadow,
+	})
+	Kit.corner(face, props.Radius)
+	local stroke = Kit.border(face, C.Ink, 2.5)
+	Kit.shade(face, 0.22)
+	-- Reflet en haut de la face.
+	local gloss = Kit.new("Frame", {
+		Name = "Reflet",
+		BackgroundColor3 = C.White,
+		BackgroundTransparency = 0.82,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, -8, 0.32, 0),
+		Position = UDim2.fromOffset(4, 3),
+		ZIndex = z,
+		Parent = face,
+	})
+	Kit.corner(gloss, 3)
 	local label = Kit.label({
 		Text = props.Text or "",
 		Font = props.Font or Theme.Fonts.Bold,
@@ -323,47 +667,72 @@ function Kit.button(props: Props): Button
 		Size = if props.AutoSize then UDim2.fromScale(0, 1) else UDim2.new(1, -24, 1, 0),
 		Position = if props.AutoSize then UDim2.new() else UDim2.fromOffset(12, 0),
 		AutoSize = if props.AutoSize then Enum.AutomaticSize.X else nil,
-		ZIndex = (props.ZIndex or 1) + 1,
-		Parent = button,
+		ZIndex = z + 1,
+		Parent = face,
 	})
+	local labelStroke = Kit.ink(label, 1.5)
+	if props.AutoSize then
+		-- Le libellé dimensionne le bouton : on le garde dans le flux du bouton.
+		label.Parent = button
+		label.ZIndex = z + 2
+		Kit.padding(label, 22, 0)
+	end
+
+	local function look(): Look
+		return VARIANTS[variant]
+	end
+
+	local function setFace(offset: number)
+		face.Position = UDim2.fromOffset(-depth + offset, -depth + offset)
+		if props.AutoSize then
+			label.Position = UDim2.fromOffset(offset, offset)
+		end
+	end
 
 	local function paint(hover: boolean)
-		local look = VARIANTS[variant]
+		local current = look()
 		if not enabled then
-			button.BackgroundColor3 = C.Surface2
+			face.BackgroundColor3 = C.Surface2
 			label.TextColor3 = C.TextFaint
-			stroke.Color = C.Surface2
+			labelStroke.Enabled = false
+			stroke.Color = C.Ink
+			gloss.Visible = false
 			return
 		end
+		gloss.Visible = true
+		local back = custom or current.Back
+		local text = if custom then Theme.onColor(custom) else current.Text
 		if selected then
-			button.BackgroundColor3 = C.Text
-			label.TextColor3 = C.Background
-			stroke.Color = C.Text
-			return
+			back = C.Accent
+			text = C.TextOnAccent
 		end
-		TweenService:Create(button, Theme.Motion.Fast, { BackgroundColor3 = if hover then look.Hover else look.Back })
-			:Play()
-		label.TextColor3 = if hover and variant == "Ghost" then C.Text else look.Text
-		stroke.Color = look.Border or look.Back
+		-- Contour du libellé seulement quand il est clair sur fond foncé.
+		labelStroke.Enabled = text ~= C.TextOnAccent
+		TweenService:Create(face, Theme.Motion.Fast, {
+			BackgroundColor3 = if hover then Theme.lighten(back, 0.14) else back,
+		}):Play()
+		label.TextColor3 = if hover and variant == "Ghost" and not selected then C.Text else text
+		stroke.Color = C.Ink
 	end
 
 	button.MouseEnter:Connect(function()
 		paint(true)
 		if enabled then
+			setFace(-1)
 			Kit.playSound(Theme.Sounds.Hover, 0.15)
 		end
 	end)
 	button.MouseLeave:Connect(function()
 		paint(false)
-		TweenService:Create(scale, Theme.Motion.Fast, { Scale = 1 }):Play()
+		setFace(0)
 	end)
 	button.MouseButton1Down:Connect(function()
 		if enabled then
-			TweenService:Create(scale, Theme.Motion.Fast, { Scale = 0.97 }):Play()
+			setFace(depth)
 		end
 	end)
 	button.MouseButton1Up:Connect(function()
-		TweenService:Create(scale, Theme.Motion.Base, { Scale = 1 }):Play()
+		setFace(0)
 	end)
 	button.Activated:Connect(function()
 		if not enabled then
@@ -385,6 +754,7 @@ function Kit.button(props: Props): Button
 		SetEnabled = function(value: boolean)
 			enabled = value
 			button.Active = value
+			setFace(0)
 			paint(false)
 		end,
 		SetVariant = function(value: Variant)
@@ -393,6 +763,10 @@ function Kit.button(props: Props): Button
 		end,
 		SetSelected = function(value: boolean)
 			selected = value
+			paint(false)
+		end,
+		SetColor = function(value: Color3)
+			custom = value
 			paint(false)
 		end,
 	}
@@ -408,9 +782,11 @@ export type Segmented = {
 
 function Kit.segmented(props: Props): Segmented
 	local options: { { Id: string, Label: string } } = props.Options
+	local accent: Color3 = props.Color or C.Accent
 	local frame = Kit.surface({
 		Name = props.Name or "Selecteur",
-		Color = C.Surface2,
+		Color = C.Background,
+		Gradient = false,
 		Size = props.Size or UDim2.fromOffset(400, 44),
 		Position = props.Position,
 		Order = props.Order,
@@ -427,26 +803,33 @@ function Kit.segmented(props: Props): Segmented
 	local function paint()
 		for id, button in buttons do
 			local isOn = id == current
-			button.BackgroundColor3 = if isOn then C.Text else C.Surface2
+			button.BackgroundColor3 = if isOn then accent else C.Background
+			button.BackgroundTransparency = if isOn then 0 else 1
+			local stroke = button:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Enabled = isOn
+			end
 			local label = button:FindFirstChild("Texte") :: TextLabel
-			label.TextColor3 = if disabled[id] then C.TextFaint elseif isOn then C.Background else C.TextMuted
+			label.TextColor3 = if disabled[id] then C.TextFaint elseif isOn then Theme.onColor(accent) else C.TextMuted
 		end
 	end
 	for index, option in options do
 		local button = Kit.new("TextButton", {
 			AutoButtonColor = false,
-			BackgroundColor3 = C.Surface2,
+			BackgroundColor3 = C.Background,
+			BorderSizePixel = 0,
 			Text = "",
 			Size = UDim2.new(width, -4 + 4 / #options, 1, 0),
 			LayoutOrder = index,
 			ZIndex = (props.ZIndex or 1) + 1,
 			Parent = row,
 		})
-		Kit.corner(button, 6)
+		Kit.corner(button, 4)
+		Kit.border(button, C.Ink, 2)
 		Kit.label({
 			Text = option.Label,
-			Font = Theme.Fonts.Bold,
-			TextSize = props.TextSize or Theme.Text.Body,
+			Font = Theme.Fonts.Display,
+			TextSize = props.TextSize or Theme.Text.Body + 1,
 			AlignX = Enum.TextXAlignment.Center,
 			Size = UDim2.fromScale(1, 1),
 			ZIndex = (props.ZIndex or 1) + 2,
@@ -458,6 +841,7 @@ function Kit.segmented(props: Props): Segmented
 			end
 			current = option.Id
 			paint()
+			Kit.pop(button, 0.88)
 			Kit.playSound(Theme.Sounds.Click, 0.3)
 			if props.OnChange then
 				props.OnChange(current)
@@ -482,13 +866,13 @@ function Kit.segmented(props: Props): Segmented
 	}
 end
 
--- Barre de progression ; renvoie la fonction de mise à jour.
+-- Barre de progression cerclée d'encre ; renvoie la fonction de mise à jour.
 function Kit.progress(props: Props): (Frame, (number) -> ())
 	local back = Kit.new("Frame", {
 		Name = props.Name or "Progression",
-		BackgroundColor3 = props.Back or C.Surface3,
+		BackgroundColor3 = props.Back or C.Ink,
 		BorderSizePixel = 0,
-		Size = props.Size or UDim2.fromOffset(200, 6),
+		Size = props.Size or UDim2.fromOffset(200, 8),
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		ClipsDescendants = true,
@@ -497,14 +881,19 @@ function Kit.progress(props: Props): (Frame, (number) -> ())
 		Parent = props.Parent,
 	})
 	Kit.corner(back, 3)
+	if props.Border ~= false then
+		Kit.border(back, C.Ink, 2)
+	end
+	local color: Color3 = props.Color or C.Accent
 	local fill = Kit.new("Frame", {
-		BackgroundColor3 = props.Color or C.Accent,
+		BackgroundColor3 = C.White,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(0, 1),
 		ZIndex = (props.ZIndex or 1) + 1,
 		Parent = back,
 	})
 	Kit.corner(fill, 3)
+	Kit.gradient(fill, Theme.lighten(color, 0.25), color, 0)
 	return back,
 		function(value: number)
 			local clamped = math.clamp(value, 0, 1)
@@ -524,17 +913,17 @@ function Kit.tween(instance: Instance, info: TweenInfo, goals: { [string]: any }
 	return tween
 end
 
--- Apparition : léger glissement vers le haut + agrandissement.
+-- Apparition : glissement latéral rapide + léger rebond, façon carton d'animé.
 function Kit.reveal(object: GuiObject, delay: number?, distance: number?)
 	local target = object.Position
-	object.Position = target + UDim2.fromOffset(0, distance or 16)
+	object.Position = target + UDim2.fromOffset(-(distance or 28), 0)
 	local scale = object:FindFirstChildOfClass("UIScale") or Kit.new("UIScale", { Parent = object })
-	scale.Scale = 0.98
+	scale.Scale = 0.96
 	object.Visible = false
 	task.delay(delay or 0, function()
 		object.Visible = true
 		Kit.tween(object, Theme.Motion.Slow, { Position = target })
-		Kit.tween(scale, Theme.Motion.Slow, { Scale = 1 })
+		Kit.tween(scale, Theme.Motion.Spring, { Scale = 1 })
 	end)
 end
 
@@ -542,6 +931,27 @@ function Kit.pop(object: GuiObject, from: number?)
 	local scale = object:FindFirstChildOfClass("UIScale") or Kit.new("UIScale", { Parent = object })
 	scale.Scale = from or 0.9
 	Kit.tween(scale, Theme.Motion.Spring, { Scale = 1 })
+end
+
+-- Arrivée « écrasée » : l'objet tombe de très gros à sa taille.
+function Kit.slam(object: GuiObject, from: number?)
+	local scale = object:FindFirstChildOfClass("UIScale") or Kit.new("UIScale", { Parent = object })
+	scale.Scale = from or 2.4
+	Kit.tween(scale, Theme.Motion.Slam, { Scale = 1 })
+end
+
+-- Secousse courte (en pixels) : réservée aux grands moments.
+function Kit.shake(object: GuiObject, strength: number?, duration: number?)
+	local origin = object.Position
+	local power = strength or 6
+	local finish = os.clock() + (duration or 0.25)
+	task.spawn(function()
+		while os.clock() < finish and object.Parent do
+			object.Position = origin + UDim2.fromOffset(math.random(-power, power), math.random(-power, power))
+			task.wait(0.03)
+		end
+		object.Position = origin
+	end)
 end
 
 return Kit
