@@ -3,8 +3,6 @@
 Jeu de handball **style animé / manga** pour Roblox, écrit entièrement en code (Luau + Rojo).
 Les vraies règles du handball, avec des pouvoirs d'animé, des archétypes à collectionner, du classé, des groupes, des clans et des cosmétiques.
 
-![Miniature](assets/miniature.png)
-
 ---
 
 ## 1. Ce qui est déjà dans le jeu
@@ -21,8 +19,8 @@ Les vraies règles du handball, avec des pouvoirs d'animé, des archétypes à c
 | **Cosmétiques** | 24 objets (8 masques, 8 paires de gants, 8 paires de chaussures) en 3D, 6 raretés, Pack Cosmétique en Hand Coins ou en Robux. 100 % esthétique. |
 | **Progression** | XP et niveaux (niveau 10 ≈ 15 matchs), une tenue débloquée tous les 10 niveaux (toujours rouge ou bleue selon l'équipe), classé à partir du niveau 10 (3v3 et plus) avec 7 rangs et des divisions. |
 | **Social** | Groupes jusqu'à 5 (inviter, exclure, chef), recherche en groupe, entraînement entre amis (avec ou sans bots), clans à 1 000 Robux (emblème, bannière, couleurs, accent de tenue, rôles Chef/Officier/Membre, 30 membres). |
-| **Menus** | Écran titre avec logo, puis lobby façon Rivals : RECHERCHE, ENTRAÎNEMENT, BOUTIQUE, CASIER, CLAN, TUTORIEL, MISES À JOUR. Panneau de groupe, profil (niveau, XP, rang), Hand Coins. |
-| **Visuel** | Interface 100 % manga : papier crème, encre noire épaisse, ombres pleines, rayons, trames de points, police Bangers. Aucune transparence, aucun carré gris. Contours noirs sur les personnages, BUUUT !!, cut-in des ultimes, onomatopées, cartons, arrêt du temps. |
+| **Menus** | Écran titre animé, puis lobby façon Rivals : JOUER (Normal, Classé, Entraînement), CASIER, BOUTIQUE, CLAN, Tutoriel, Nouveautés. Panneau de groupe, profil (niveau, XP, rang), Hand Coins. |
+| **Visuel** | Interface sobre façon gros jeux (police Builder Sans, surfaces sombres, un seul accent orange), quartier japonais au coucher du soleil, animations procédurales des personnages, effets 3D (ondes, poussière, auras, explosion au but), « GOAL » à chaque but. |
 | **Serveurs** | Lobby, puis téléportation vers un serveur de match réservé, comme Rivals. File d'attente partagée entre tous les serveurs. En Studio, le match se joue sur place, avec des bots si tu es seul. |
 | **Sécurité** | Le serveur décide de tout. Chaque remote est limitée en débit et valide ses arguments. Les données sont sauvegardées avec verrouillage de session (pas de duplication), en sauvegarde automatique et à la fermeture. Les achats Robux sont idempotents. |
 
@@ -68,7 +66,7 @@ Dans **Accueil → Paramètres du jeu** (Game Settings) :
 
 ## 5. Tester
 
-- **Seul** : bouton **Play** → COMMENCER → RECHERCHE → 3v3. Au bout de 6 secondes, des **bots** complètent les équipes. Tu peux aussi passer par ENTRAÎNEMENT avec « Bots : OUI ».
+- **Seul** : bouton **Play** → JOUER → Normal → 3v3 → Rechercher. Au bout de 6 secondes, des **bots** complètent les équipes. Tu peux aussi choisir Entraînement avec les bots activés.
 - **À plusieurs** : onglet **Test → Clients et serveurs → 2 à 8 joueurs → Démarrer**. Invite les autres fenêtres dans ton groupe et lance une recherche.
 - **En cas d'erreur** : ouvre **Affichage → Sortie (Output)** et copie-moi les lignes rouges.
 
@@ -91,9 +89,8 @@ Dans **Accueil → Paramètres du jeu** (Game Settings) :
    - Sécurité → **Activer l'accès Studio aux services API** ;
    - Autorisations → **Public** quand tu es prêt.
 3. Sur le **Creator Hub** (create.roblox.com → ton expérience) :
-   - **Icône** : `assets/icone.png` ;
-   - **Miniatures** : `assets/miniature.png`.
-4. Pour chaque mise à jour : republie depuis Studio, puis ajoute une note en haut de `src/shared/Data/PatchNotes.luau`. Elle s'affiche dans le menu MISES À JOUR, avec une pastille rouge pour les joueurs qui ne l'ont pas encore lue.
+   - **Icône** et **Miniatures** : à fournir toi-même (captures du jeu en Studio, ou visuels faits par un graphiste). Le projet n'en contient pas.
+4. Pour chaque mise à jour : republie depuis Studio, puis ajoute une note en haut de `src/shared/Data/PatchNotes.luau`. Elle s'affiche dans le menu Nouveautés, avec une pastille rouge pour les joueurs qui ne l'ont pas encore lue.
 
 > **Important :** les matchs en ligne utilisent des serveurs réservés du *même* lieu. Il n'y a rien d'autre à configurer, mais les téléportations ne fonctionnent qu'en jeu publié, pas dans Studio.
 
@@ -113,19 +110,9 @@ Copie chaque **ID** dans `src/shared/Config.luau` → `Config.Products`. Un prod
 
 > Roblox impose d'afficher les taux des objets aléatoires payants : la boutique les montre (bouton TAUX).
 
-## 8. Images
+## 8. Sons
 
-| Fichier | Usage |
-|---|---|
-| `assets/logo.png` | Logo du jeu (fond transparent). |
-| `assets/icone.png` | Icône de l'expérience (512×512). |
-| `assets/miniature.png` | Miniature de la page du jeu (1920×1080). |
-
-Pour utiliser le logo PNG dans l'écran titre à la place du logo dessiné par code : Creator Hub → **Créations → Images (Decals) → Importer** `logo.png`, récupère l'ID, puis colle `rbxassetid://ID` dans `src/client/UI/Theme.luau` → `Theme.Images.Logo`.
-
-Les sources (SVG/HTML) sont dans `assets/sources`. Pour regénérer les images : `node render.js` (nécessite Node, Playwright et la police Noto Sans JP dans `assets/fonts`).
-
-**Sons (facultatif)** : importe tes sons (Creator Hub → Audio) et colle leurs IDs dans `Theme.Sounds` (coup de sifflet, but, tir, ouverture de pack…). Sans ID, le jeu reste silencieux, sans erreur.
+Le jeu n'utilise aucune image importée : toute l'interface est construite en code. Les sons sont facultatifs : importe tes fichiers audio (Creator Hub → Audio), puis colle leurs identifiants dans `src/client/UI/Theme.luau` → `Theme.Sounds`. Sans identifiant, le jeu reste silencieux, sans erreur.
 
 ## 9. Organisation du code
 
@@ -149,9 +136,10 @@ src/
 │                            CourtBuilder (gymnase), Outfit (tenues, cosmétiques)
 └── client/                 (StarterPlayerScripts)
     ├── init.client.luau     SEUL script client
-    ├── Controllers/         State, menus, HUD, contrôles, rendu du ballon, effets
-    ├── Screens/             écrans du lobby (Recherche, Boutique, Casier…)
-    └── UI/                  thème manga, composants, cartes, logo
+    ├── Controllers/         État, écran titre, lobby, HUD, contrôles, ballon,
+    │                        animations des personnages, effets 3D
+    ├── Screens/             pages du lobby (Casier, Boutique, Clan, Tutoriel…)
+    └── UI/                  thème, composants, pages, cartes
 ```
 
 ## 10. Équilibrer et ajouter du contenu
@@ -172,6 +160,6 @@ rojo build -o test.rbxl   # le projet se construit
 ## 12. Ce qui reste à faire
 
 - Le code passe la vérification de types (luau-lsp avec les définitions Roblox), le formatage et le build Rojo. Il **n'a pas encore été lancé dans Roblox Studio** : la première session de test servira à corriger les détails (sensations, vitesses, placements).
-- **Animations** : les bots utilisent les animations R6 standard de Roblox. Des animations de tir et de plongeon sur mesure nécessitent de les créer dans l'éditeur d'animation de Studio puis de les importer.
+- **Animations** : elles sont procédurales (calculées en code). Elles ne fonctionnent qu'avec des avatars **R6** : pense au réglage du § 4.
 - **Sons** : à importer, voir § 8.
 - **Matchmaking classé** : la tolérance de niveau s'élargit avec l'attente. À ajuster selon le nombre de joueurs.

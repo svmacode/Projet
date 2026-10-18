@@ -1,7 +1,6 @@
 --!strict
--- Briques d'interface réutilisables (style manga). Tout est construit en code
--- sur une résolution de référence 1600×900, mise à l'échelle par UIScale
--- selon l'écran (téléphone, tablette, PC).
+-- Composants d'interface. Tout est dessiné pour une résolution de référence
+-- de 1600×900 puis mis à l'échelle (téléphone, tablette, PC) par un UIScale.
 
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
@@ -9,14 +8,14 @@ local Workspace = game:GetService("Workspace")
 
 local Theme = require(script.Parent.Theme)
 
-local Kit = {}
-
 local C = Theme.Colors
 local REFERENCE = Vector2.new(1600, 900)
 
+local Kit = {}
+
 type Props = { [string]: any }
 
--- Création générique ---------------------------------------------------------------------
+-- Base --------------------------------------------------------------------------------------
 
 function Kit.new(className: string, props: Props?, children: { Instance }?): any
 	local instance = Instance.new(className)
@@ -42,67 +41,66 @@ function Kit.new(className: string, props: Props?, children: { Instance }?): any
 end
 
 function Kit.corner(parent: Instance, radius: number?): UICorner
-	return Kit.new("UICorner", { CornerRadius = UDim.new(0, radius or 10), Parent = parent })
+	return Kit.new("UICorner", { CornerRadius = UDim.new(0, radius or Theme.Radius), Parent = parent })
 end
 
-function Kit.stroke(parent: Instance, thickness: number?, color: Color3?): UIStroke
+function Kit.border(parent: Instance, color: Color3?, thickness: number?): UIStroke
 	return Kit.new("UIStroke", {
-		Thickness = thickness or Theme.Stroke,
-		Color = color or C.Ink,
+		Color = color or C.Border,
+		Thickness = thickness or 1,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		LineJoinMode = Enum.LineJoinMode.Miter,
 		Parent = parent,
 	})
 end
 
-function Kit.textStroke(parent: Instance, thickness: number?, color: Color3?): UIStroke
-	return Kit.new("UIStroke", {
-		Thickness = thickness or 3,
-		Color = color or C.Ink,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
-		LineJoinMode = Enum.LineJoinMode.Round,
-		Parent = parent,
-	})
-end
-
-function Kit.padding(parent: Instance, all: number)
+function Kit.padding(parent: Instance, horizontal: number, vertical: number?)
+	local v = vertical or horizontal
 	Kit.new("UIPadding", {
-		PaddingTop = UDim.new(0, all),
-		PaddingBottom = UDim.new(0, all),
-		PaddingLeft = UDim.new(0, all),
-		PaddingRight = UDim.new(0, all),
+		PaddingLeft = UDim.new(0, horizontal),
+		PaddingRight = UDim.new(0, horizontal),
+		PaddingTop = UDim.new(0, v),
+		PaddingBottom = UDim.new(0, v),
 		Parent = parent,
 	})
 end
 
 function Kit.list(
 	parent: Instance,
-	padding: number,
+	gap: number,
 	horizontal: boolean?,
-	align: Enum.HorizontalAlignment?
+	align: Enum.HorizontalAlignment?,
+	valign: Enum.VerticalAlignment?
 ): UIListLayout
 	return Kit.new("UIListLayout", {
-		Padding = UDim.new(0, padding),
+		Padding = UDim.new(0, gap),
 		FillDirection = if horizontal then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical,
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = align or Enum.HorizontalAlignment.Left,
-		VerticalAlignment = Enum.VerticalAlignment.Top,
+		VerticalAlignment = valign or Enum.VerticalAlignment.Top,
 		Parent = parent,
 	})
 end
 
-function Kit.grid(parent: Instance, cellSize: Vector2, padding: number): UIGridLayout
+function Kit.grid(parent: Instance, cell: Vector2, gap: number): UIGridLayout
 	return Kit.new("UIGridLayout", {
-		CellSize = UDim2.fromOffset(cellSize.X, cellSize.Y),
-		CellPadding = UDim2.fromOffset(padding, padding),
+		CellSize = UDim2.fromOffset(cell.X, cell.Y),
+		CellPadding = UDim2.fromOffset(gap, gap),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = parent,
 	})
 end
 
--- Écran ------------------------------------------------------------------------------------------
+function Kit.clear(parent: Instance)
+	for _, child in parent:GetChildren() do
+		if not child:IsA("UIGridStyleLayout") and not child:IsA("UIPadding") then
+			child:Destroy()
+		end
+	end
+end
 
-function Kit.screen(name: string, displayOrder: number, parent: Instance): ScreenGui
+-- Écran mis à l'échelle ------------------------------------------------------------------------
+
+function Kit.screen(name: string, displayOrder: number, parent: Instance): (ScreenGui, Frame)
 	local gui = Kit.new("ScreenGui", {
 		Name = name,
 		ResetOnSpawn = false,
@@ -111,9 +109,8 @@ function Kit.screen(name: string, displayOrder: number, parent: Instance): Scree
 		DisplayOrder = displayOrder,
 		Parent = parent,
 	})
-	-- Mise à l'échelle commune : tout est dessiné pour 1600×900.
 	local root = Kit.new("Frame", {
-		Name = "Root",
+		Name = "Racine",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
@@ -127,158 +124,157 @@ function Kit.screen(name: string, displayOrder: number, parent: Instance): Scree
 			return
 		end
 		local viewport = camera.ViewportSize
-		local factor = math.min(viewport.X / REFERENCE.X, viewport.Y / REFERENCE.Y)
-		scale.Scale = math.clamp(factor, 0.4, 1.6)
-		-- La zone de référence suit les proportions de l'écran.
-		root.Size = UDim2.fromOffset(viewport.X / scale.Scale, viewport.Y / scale.Scale)
+		local factor = math.clamp(math.min(viewport.X / REFERENCE.X, viewport.Y / REFERENCE.Y), 0.45, 1.5)
+		scale.Scale = factor
+		root.Size = UDim2.fromOffset(viewport.X / factor, viewport.Y / factor)
 	end
 	refresh()
 	local camera = Workspace.CurrentCamera
 	if camera then
 		camera:GetPropertyChangedSignal("ViewportSize"):Connect(refresh)
 	end
-	return gui
+	return gui, root
 end
 
-function Kit.root(gui: ScreenGui): Frame
-	return gui:FindFirstChild("Root") :: Frame
-end
+-- Texte ------------------------------------------------------------------------------------------
 
--- Texte --------------------------------------------------------------------------------------------
-
-function Kit.text(props: Props): TextLabel
-	local label = Kit.new("TextLabel", {
+function Kit.label(props: Props): TextLabel
+	return Kit.new("TextLabel", {
+		Name = props.Name or "Texte",
 		BackgroundTransparency = 1,
-		Font = props.Font or Theme.Fonts.Title,
+		FontFace = props.Font or Theme.Fonts.Regular,
 		Text = props.Text or "",
-		TextColor3 = props.Color or C.Ink,
-		TextScaled = props.Scaled ~= false,
-		TextSize = props.TextSize or 24,
-		TextWrapped = true,
-		TextXAlignment = props.AlignX or Enum.TextXAlignment.Center,
+		TextColor3 = props.Color or C.Text,
+		TextSize = props.TextSize or Theme.Text.Body,
+		TextWrapped = props.Wrap == true,
+		TextTruncate = if props.Wrap then Enum.TextTruncate.None else Enum.TextTruncate.AtEnd,
+		TextXAlignment = props.AlignX or Enum.TextXAlignment.Left,
 		TextYAlignment = props.AlignY or Enum.TextYAlignment.Center,
+		RichText = props.Rich == true,
+		Size = props.Size or UDim2.new(1, 0, 0, (props.TextSize or Theme.Text.Body) + 8),
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		AutomaticSize = props.AutoSize or Enum.AutomaticSize.None,
+		LayoutOrder = props.Order or 0,
+		ZIndex = props.ZIndex or 1,
+		Visible = props.Visible ~= false,
+		Parent = props.Parent,
+	})
+end
+
+-- Surfaces ------------------------------------------------------------------------------------------
+
+function Kit.surface(props: Props): Frame
+	local frame = Kit.new("Frame", {
+		Name = props.Name or "Surface",
+		BackgroundColor3 = props.Color or C.Surface,
+		BorderSizePixel = 0,
+		Size = props.Size or UDim2.fromOffset(200, 100),
+		Position = props.Position or UDim2.new(),
+		AnchorPoint = props.AnchorPoint or Vector2.zero,
+		AutomaticSize = props.AutoSize or Enum.AutomaticSize.None,
+		ClipsDescendants = props.Clip == true,
+		LayoutOrder = props.Order or 0,
+		ZIndex = props.ZIndex or 1,
+		Visible = props.Visible ~= false,
+		Parent = props.Parent,
+	})
+	if props.Radius ~= 0 then
+		Kit.corner(frame, props.Radius)
+	end
+	if props.Border ~= false then
+		Kit.border(frame, props.BorderColor)
+	end
+	return frame
+end
+
+function Kit.box(props: Props): Frame
+	return Kit.new("Frame", {
+		Name = props.Name or "Boite",
+		BackgroundTransparency = 1,
 		Size = props.Size or UDim2.fromScale(1, 1),
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
-		Rotation = props.Rotation or 0,
-		RichText = props.Rich == true,
+		AutomaticSize = props.AutoSize or Enum.AutomaticSize.None,
 		LayoutOrder = props.Order or 0,
 		ZIndex = props.ZIndex or 1,
-		Name = props.Name or "Texte",
+		Visible = props.Visible ~= false,
 		Parent = props.Parent,
 	})
-	if props.Stroke then
-		Kit.textStroke(label, props.StrokeThickness or 3, props.Stroke)
-	end
-	if props.MaxSize then
-		Kit.new("UITextSizeConstraint", { MaxTextSize = props.MaxSize, Parent = label })
-	end
-	return label
 end
 
--- Panneaux -----------------------------------------------------------------------------------------
-
--- Panneau papier avec contour encre et ombre pleine décalée.
--- Renvoie (face, conteneur). Les enfants vont dans `face`.
-function Kit.panel(props: Props): (Frame, Frame)
-	local container = Kit.new("Frame", {
-		Name = props.Name or "Panneau",
-		BackgroundTransparency = 1,
-		Size = props.Size or UDim2.fromOffset(400, 300),
-		Position = props.Position or UDim2.new(),
-		AnchorPoint = props.AnchorPoint or Vector2.zero,
-		Rotation = props.Rotation or 0,
-		LayoutOrder = props.Order or 0,
-		ZIndex = props.ZIndex or 1,
-		Parent = props.Parent,
-	})
-	local offset = props.ShadowOffset or Theme.ShadowOffset
-	if props.Shadow ~= false then
-		local shadow = Kit.new("Frame", {
-			Name = "Ombre",
-			BackgroundColor3 = props.ShadowColor or C.Ink,
-			BorderSizePixel = 0,
-			Size = UDim2.fromScale(1, 1),
-			Position = UDim2.fromOffset(offset, offset),
-			ZIndex = (props.ZIndex or 1),
-			Parent = container,
-		})
-		if props.Corner then
-			Kit.corner(shadow, props.Corner)
-		end
-	end
-	local face = Kit.new("Frame", {
-		Name = "Face",
-		BackgroundColor3 = props.Color or C.Paper,
+function Kit.divider(parent: Instance, order: number?): Frame
+	return Kit.new("Frame", {
+		BackgroundColor3 = C.Border,
 		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 1),
-		ZIndex = (props.ZIndex or 1),
-		ClipsDescendants = props.Clip == true,
-		Parent = container,
-	})
-	if props.Corner then
-		Kit.corner(face, props.Corner)
-	end
-	if props.Stroke ~= false then
-		Kit.stroke(face, props.StrokeThickness or Theme.Stroke, props.StrokeColor)
-	end
-	if props.Gradient then
-		Kit.new("UIGradient", { Color = props.Gradient, Rotation = props.GradientRotation or 90, Parent = face })
-	end
-	return face, container
-end
-
--- Bandeau de titre incliné (style case de manga).
-function Kit.header(parent: Instance, text: string, color: Color3?, japanese: string?): Frame
-	local bar = Kit.new("Frame", {
-		Name = "Titre",
-		BackgroundColor3 = color or C.Red,
-		BorderSizePixel = 0,
-		Size = UDim2.new(1, 24, 0, 64),
-		Position = UDim2.fromOffset(-12, -22),
-		Rotation = -1.5,
-		ZIndex = 5,
+		Size = UDim2.new(1, 0, 0, 1),
+		LayoutOrder = order or 0,
 		Parent = parent,
 	})
-	Kit.stroke(bar, Theme.Stroke)
-	Kit.text({
-		Text = text,
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 3,
-		Size = UDim2.new(1, -40, 1, -10),
-		Position = UDim2.fromOffset(20, 5),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 6,
-		Parent = bar,
+end
+
+function Kit.scroll(props: Props): ScrollingFrame
+	local frame = Kit.new("ScrollingFrame", {
+		Name = props.Name or "Defilement",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = props.Size or UDim2.fromScale(1, 1),
+		Position = props.Position or UDim2.new(),
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = if props.Horizontal then Enum.AutomaticSize.X else Enum.AutomaticSize.Y,
+		ScrollingDirection = if props.Horizontal then Enum.ScrollingDirection.X else Enum.ScrollingDirection.Y,
+		ScrollBarThickness = 4,
+		ScrollBarImageColor3 = C.BorderStrong,
+		ZIndex = props.ZIndex or 1,
+		Parent = props.Parent,
 	})
-	if japanese then
-		Kit.text({
-			Text = japanese,
-			Font = Theme.Fonts.Heavy,
-			Color = C.Yellow,
-			Size = UDim2.new(0.4, 0, 0.5, 0),
-			Position = UDim2.new(0.58, 0, 0.25, 0),
-			AlignX = Enum.TextXAlignment.Right,
-			ZIndex = 6,
-			Parent = bar,
-		})
-	end
-	return bar
+	return frame
+end
+
+-- Petite pastille (rareté, statut).
+function Kit.pill(parent: Instance, text: string, color: Color3, order: number?, textColor: Color3?): Frame
+	local pill = Kit.new("Frame", {
+		Name = "Pastille",
+		BackgroundColor3 = color,
+		Size = UDim2.fromOffset(0, 22),
+		AutomaticSize = Enum.AutomaticSize.X,
+		LayoutOrder = order or 0,
+		Parent = parent,
+	})
+	Kit.corner(pill, 11)
+	Kit.padding(pill, 10, 0)
+	Kit.label({
+		Text = text,
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Tiny,
+		Color = textColor or C.Background,
+		Size = UDim2.fromOffset(0, 22),
+		AutoSize = Enum.AutomaticSize.X,
+		Parent = pill,
+	})
+	return pill
 end
 
 -- Boutons ---------------------------------------------------------------------------------------------
 
+export type Variant = "Primary" | "Secondary" | "Ghost" | "Danger" | "Success"
+
 export type Button = {
-	Container: Frame,
-	Face: TextButton,
+	Instance: TextButton,
 	Label: TextLabel,
-	SetEnabled: (boolean) -> (),
 	SetText: (string) -> (),
-	SetColor: (Color3) -> (),
+	SetEnabled: (boolean) -> (),
+	SetVariant: (Variant) -> (),
+	SetSelected: (boolean) -> (),
 }
 
-local clickSound: Sound? = nil
+local VARIANTS: { [string]: { Back: Color3, Hover: Color3, Text: Color3, Border: Color3? } } = {
+	Primary = { Back = C.Accent, Hover = C.AccentHover, Text = C.TextOnAccent },
+	Secondary = { Back = C.Surface3, Hover = Theme.lighten(C.Surface3, 0.08), Text = C.Text, Border = C.BorderStrong },
+	Ghost = { Back = C.Surface2, Hover = C.Surface3, Text = C.TextMuted },
+	Danger = { Back = Theme.darken(C.Danger, 0.15), Hover = C.Danger, Text = C.White },
+	Success = { Back = Theme.darken(C.Success, 0.1), Hover = C.Success, Text = C.TextOnAccent },
+}
 
 function Kit.playSound(soundId: string, volume: number?)
 	if soundId == "" then
@@ -286,7 +282,7 @@ function Kit.playSound(soundId: string, volume: number?)
 	end
 	local sound = Instance.new("Sound")
 	sound.SoundId = soundId
-	sound.Volume = volume or 0.6
+	sound.Volume = volume or 0.5
 	sound.Parent = SoundService
 	SoundService:PlayLocalSound(sound)
 	task.delay(4, function()
@@ -295,320 +291,232 @@ function Kit.playSound(soundId: string, volume: number?)
 end
 
 function Kit.button(props: Props): Button
-	local baseColor: Color3 = props.Color or C.Yellow
-	local textColor: Color3 = props.TextColor or C.Ink
-	local container = Kit.new("Frame", {
+	local variant: string = props.Variant or "Secondary"
+	local enabled = true
+	local selected = false
+	local button = Kit.new("TextButton", {
 		Name = props.Name or "Bouton",
-		BackgroundTransparency = 1,
-		Size = props.Size or UDim2.fromOffset(240, 64),
+		AutoButtonColor = false,
+		BackgroundColor3 = VARIANTS[variant].Back,
+		BorderSizePixel = 0,
+		Text = "",
+		Size = props.Size or UDim2.fromOffset(180, 44),
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
-		Rotation = props.Rotation or 0,
+		AutomaticSize = props.AutoSize or Enum.AutomaticSize.None,
 		LayoutOrder = props.Order or 0,
 		ZIndex = props.ZIndex or 1,
 		Parent = props.Parent,
 	})
-	local offset = props.ShadowOffset or 5
-	local shadow = Kit.new("Frame", {
-		Name = "Ombre",
-		BackgroundColor3 = C.Ink,
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 1),
-		Position = UDim2.fromOffset(offset, offset),
-		ZIndex = props.ZIndex or 1,
-		Parent = container,
-	})
-	local face = Kit.new("TextButton", {
-		Name = "Face",
-		AutoButtonColor = false,
-		BackgroundColor3 = baseColor,
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 1),
-		Text = "",
-		ZIndex = props.ZIndex or 1,
-		Parent = container,
-	})
-	if props.Corner then
-		Kit.corner(face, props.Corner)
-		Kit.corner(shadow, props.Corner)
+	Kit.corner(button, props.Radius)
+	local stroke = Kit.border(button, VARIANTS[variant].Border or VARIANTS[variant].Back)
+	local scale = Kit.new("UIScale", { Parent = button })
+	if props.AutoSize then
+		Kit.padding(button, 20, 0)
 	end
-	Kit.stroke(face, props.StrokeThickness or 3)
-	local label = Kit.text({
+	local label = Kit.label({
 		Text = props.Text or "",
-		Font = props.Font or Theme.Fonts.Title,
-		Color = textColor,
-		Stroke = props.TextStroke,
-		StrokeThickness = 2,
-		Size = UDim2.new(1, -16, 1, -10),
-		Position = UDim2.fromOffset(8, 5),
+		Font = props.Font or Theme.Fonts.Bold,
+		TextSize = props.TextSize or Theme.Text.Body,
+		Color = VARIANTS[variant].Text,
+		AlignX = props.AlignX or Enum.TextXAlignment.Center,
+		Size = if props.AutoSize then UDim2.fromScale(0, 1) else UDim2.new(1, -24, 1, 0),
+		Position = if props.AutoSize then UDim2.new() else UDim2.fromOffset(12, 0),
+		AutoSize = if props.AutoSize then Enum.AutomaticSize.X else nil,
 		ZIndex = (props.ZIndex or 1) + 1,
-		MaxSize = props.MaxTextSize,
-		Parent = face,
+		Parent = button,
 	})
-	local scale = Kit.new("UIScale", { Parent = container })
-	local enabled = true
-	local current = baseColor
 
-	face.MouseEnter:Connect(function()
-		if enabled then
-			TweenService:Create(face, Theme.Tween.Fast, { BackgroundColor3 = Theme.shade(current, 0.18) }):Play()
-			TweenService:Create(scale, Theme.Tween.Fast, { Scale = 1.04 }):Play()
+	local function paint(hover: boolean)
+		local look = VARIANTS[variant]
+		if not enabled then
+			button.BackgroundColor3 = C.Surface2
+			label.TextColor3 = C.TextFaint
+			stroke.Color = C.Surface2
+			return
 		end
-	end)
-	face.MouseLeave:Connect(function()
-		TweenService
-			:Create(
-				face,
-				Theme.Tween.Fast,
-				{ BackgroundColor3 = if enabled then current else Theme.shade(current, -0.45) }
-			)
+		if selected then
+			button.BackgroundColor3 = C.Text
+			label.TextColor3 = C.Background
+			stroke.Color = C.Text
+			return
+		end
+		TweenService:Create(button, Theme.Motion.Fast, { BackgroundColor3 = if hover then look.Hover else look.Back })
 			:Play()
-		TweenService:Create(scale, Theme.Tween.Fast, { Scale = 1 }):Play()
-		face.Position = UDim2.new()
-	end)
-	face.MouseButton1Down:Connect(function()
+		label.TextColor3 = if hover and variant == "Ghost" then C.Text else look.Text
+		stroke.Color = look.Border or look.Back
+	end
+
+	button.MouseEnter:Connect(function()
+		paint(true)
 		if enabled then
-			face.Position = UDim2.fromOffset(offset - 1, offset - 1)
+			Kit.playSound(Theme.Sounds.Hover, 0.15)
 		end
 	end)
-	face.MouseButton1Up:Connect(function()
-		face.Position = UDim2.new()
+	button.MouseLeave:Connect(function()
+		paint(false)
+		TweenService:Create(scale, Theme.Motion.Fast, { Scale = 1 }):Play()
 	end)
-	face.Activated:Connect(function()
-		face.Position = UDim2.new()
+	button.MouseButton1Down:Connect(function()
+		if enabled then
+			TweenService:Create(scale, Theme.Motion.Fast, { Scale = 0.97 }):Play()
+		end
+	end)
+	button.MouseButton1Up:Connect(function()
+		TweenService:Create(scale, Theme.Motion.Base, { Scale = 1 }):Play()
+	end)
+	button.Activated:Connect(function()
 		if not enabled then
 			return
 		end
-		Kit.playSound(Theme.Sounds.Click, 0.4)
-		scale.Scale = 0.94
-		TweenService:Create(scale, Theme.Tween.Pop, { Scale = 1 }):Play()
+		Kit.playSound(Theme.Sounds.Click, 0.35)
 		if props.OnClick then
 			task.spawn(props.OnClick)
 		end
 	end)
+	paint(false)
 
-	local button: Button = {
-		Container = container,
-		Face = face,
+	return {
+		Instance = button,
 		Label = label,
-		SetEnabled = function(value: boolean)
-			enabled = value
-			face.BackgroundColor3 = if value then current else Theme.shade(current, -0.45)
-			label.TextColor3 = if value then textColor else Theme.shade(textColor, -0.3)
-		end,
 		SetText = function(text: string)
 			label.Text = text
 		end,
-		SetColor = function(color: Color3)
-			current = color
-			face.BackgroundColor3 = if enabled then color else Theme.shade(color, -0.45)
+		SetEnabled = function(value: boolean)
+			enabled = value
+			button.Active = value
+			paint(false)
+		end,
+		SetVariant = function(value: Variant)
+			variant = value
+			paint(false)
+		end,
+		SetSelected = function(value: boolean)
+			selected = value
+			paint(false)
 		end,
 	}
-	local _ = clickSound
-	return button
 end
 
--- Décors ----------------------------------------------------------------------------------------------
+-- Sélecteur segmenté (ex. 2v2 | 3v3 | 4v4 | 5v5).
+export type Segmented = {
+	Instance: Frame,
+	Select: (string) -> (),
+	SetEnabled: (string, boolean) -> (),
+	Value: () -> string,
+}
 
--- Rayons de soleil (fond typique des cases d'action en manga).
-function Kit.sunburst(parent: Instance, colorA: Color3, colorB: Color3, rays: number, spin: boolean?): Frame
-	local holder = Kit.new("Frame", {
-		Name = "Rayons",
-		BackgroundColor3 = colorA,
-		BorderSizePixel = 0,
-		Size = UDim2.fromScale(1, 1),
-		ClipsDescendants = true,
-		ZIndex = 0,
-		Parent = parent,
+function Kit.segmented(props: Props): Segmented
+	local options: { { Id: string, Label: string } } = props.Options
+	local frame = Kit.surface({
+		Name = props.Name or "Selecteur",
+		Color = C.Surface2,
+		Size = props.Size or UDim2.fromOffset(400, 44),
+		Position = props.Position,
+		Order = props.Order,
+		ZIndex = props.ZIndex,
+		Parent = props.Parent,
 	})
-	local center = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(10, 10),
-		Parent = holder,
-	})
-	for i = 0, rays - 1 do
-		Kit.new("Frame", {
-			BackgroundColor3 = colorB,
-			BorderSizePixel = 0,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(3200, 3200 * math.tan(math.pi / rays / 2) * 2 * 0.5),
-			Rotation = i * 360 / rays,
-			ZIndex = 0,
-			Parent = center,
-		})
-	end
-	if spin then
-		task.spawn(function()
-			while holder.Parent do
-				center.Rotation = (center.Rotation + 0.08) % 360
-				task.wait(1 / 30)
-			end
-		end)
-	end
-	return holder
-end
-
--- Trame de points (halftone) dans un coin.
-function Kit.halftone(parent: Instance, color: Color3, corner: Vector2, count: number, spacing: number)
-	for row = 0, count - 1 do
-		for column = 0, count - 1 - row do
-			local size = math.max(2, (count - row - column) * 1.6)
-			local dot = Kit.new("Frame", {
-				BackgroundColor3 = color,
-				BorderSizePixel = 0,
-				Size = UDim2.fromOffset(size, size),
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.new(
-					corner.X,
-					(1 - 2 * corner.X) * (column * spacing + spacing / 2),
-					corner.Y,
-					(1 - 2 * corner.Y) * (row * spacing + spacing / 2)
-				),
-				ZIndex = 0,
-				Parent = parent,
-			})
-			Kit.corner(dot, 100)
+	Kit.padding(frame, 4)
+	local row = Kit.box({ Parent = frame, ZIndex = props.ZIndex })
+	Kit.list(row, 4, true)
+	local current = props.Value or options[1].Id
+	local buttons: { [string]: TextButton } = {}
+	local disabled: { [string]: boolean } = {}
+	local width = 1 / #options
+	local function paint()
+		for id, button in buttons do
+			local isOn = id == current
+			button.BackgroundColor3 = if isOn then C.Text else C.Surface2
+			local label = button:FindFirstChild("Texte") :: TextLabel
+			label.TextColor3 = if disabled[id] then C.TextFaint elseif isOn then C.Background else C.TextMuted
 		end
 	end
-end
-
--- Pièce « Hand Coin ».
-function Kit.coin(parent: Instance, size: number, position: UDim2?, anchor: Vector2?): Frame
-	local coin = Kit.new("Frame", {
-		Name = "HandCoin",
-		BackgroundColor3 = C.Yellow,
-		Size = UDim2.fromOffset(size, size),
-		Position = position or UDim2.new(),
-		AnchorPoint = anchor or Vector2.zero,
-		ZIndex = 3,
-		Parent = parent,
-	})
-	Kit.corner(coin, size)
-	Kit.stroke(coin, math.max(2, size / 12))
-	local inner = Kit.new("Frame", {
-		BackgroundColor3 = C.YellowDark,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromScale(0.7, 0.7),
-		ZIndex = 3,
-		Parent = coin,
-	})
-	Kit.corner(inner, size)
-	Kit.text({ Text = "H", Color = C.Paper, Stroke = C.Ink, StrokeThickness = 2, ZIndex = 4, Parent = inner })
-	return coin
-end
-
--- Balle de handball dessinée (icône des packs).
-function Kit.ball(
-	parent: Instance,
-	size: number,
-	color: Color3,
-	accent: Color3,
-	position: UDim2?,
-	anchor: Vector2?
-): Frame
-	local ball = Kit.new("Frame", {
-		Name = "Balle",
-		BackgroundColor3 = color,
-		Size = UDim2.fromOffset(size, size),
-		Position = position or UDim2.new(),
-		AnchorPoint = anchor or Vector2.zero,
-		ClipsDescendants = false,
-		ZIndex = 3,
-		Parent = parent,
-	})
-	Kit.corner(ball, size)
-	Kit.stroke(ball, math.max(3, size / 22))
-	-- Coutures.
-	for _, rotation in { 35, -35 } do
-		local seam = Kit.new("Frame", {
-			BackgroundColor3 = accent,
-			BorderSizePixel = 0,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.new(0.95, 0, 0, math.max(4, size / 14)),
-			Rotation = rotation,
-			ZIndex = 4,
-			Parent = ball,
+	for index, option in options do
+		local button = Kit.new("TextButton", {
+			AutoButtonColor = false,
+			BackgroundColor3 = C.Surface2,
+			Text = "",
+			Size = UDim2.new(width, -4 + 4 / #options, 1, 0),
+			LayoutOrder = index,
+			ZIndex = (props.ZIndex or 1) + 1,
+			Parent = row,
 		})
-		Kit.stroke(seam, 2)
+		Kit.corner(button, 6)
+		Kit.label({
+			Text = option.Label,
+			Font = Theme.Fonts.Bold,
+			TextSize = props.TextSize or Theme.Text.Body,
+			AlignX = Enum.TextXAlignment.Center,
+			Size = UDim2.fromScale(1, 1),
+			ZIndex = (props.ZIndex or 1) + 2,
+			Parent = button,
+		})
+		button.Activated:Connect(function()
+			if disabled[option.Id] or current == option.Id then
+				return
+			end
+			current = option.Id
+			paint()
+			Kit.playSound(Theme.Sounds.Click, 0.3)
+			if props.OnChange then
+				props.OnChange(current)
+			end
+		end)
+		buttons[option.Id] = button
 	end
-	local shine = Kit.new("Frame", {
-		BackgroundColor3 = C.White,
-		Size = UDim2.fromScale(0.22, 0.14),
-		Position = UDim2.fromScale(0.2, 0.16),
-		Rotation = -30,
-		ZIndex = 5,
-		Parent = ball,
-	})
-	Kit.corner(shine, size)
-	return ball
+	paint()
+	return {
+		Instance = frame,
+		Select = function(id: string)
+			current = id
+			paint()
+		end,
+		SetEnabled = function(id: string, value: boolean)
+			disabled[id] = not value
+			paint()
+		end,
+		Value = function()
+			return current
+		end,
+	}
 end
 
 -- Barre de progression ; renvoie la fonction de mise à jour.
-function Kit.progress(parent: Instance, props: Props): (Frame, (number) -> ())
+function Kit.progress(props: Props): (Frame, (number) -> ())
 	local back = Kit.new("Frame", {
-		Name = props.Name or "Barre",
-		BackgroundColor3 = props.Back or C.InkSoft,
+		Name = props.Name or "Progression",
+		BackgroundColor3 = props.Back or C.Surface3,
 		BorderSizePixel = 0,
-		Size = props.Size or UDim2.fromOffset(200, 16),
+		Size = props.Size or UDim2.fromOffset(200, 6),
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		ClipsDescendants = true,
 		LayoutOrder = props.Order or 0,
-		ZIndex = props.ZIndex or 2,
-		Parent = parent,
+		ZIndex = props.ZIndex or 1,
+		Parent = props.Parent,
 	})
-	Kit.stroke(back, props.StrokeThickness or 3)
+	Kit.corner(back, 3)
 	local fill = Kit.new("Frame", {
-		Name = "Remplissage",
-		BackgroundColor3 = props.Color or C.Yellow,
+		BackgroundColor3 = props.Color or C.Accent,
 		BorderSizePixel = 0,
 		Size = UDim2.fromScale(0, 1),
-		ZIndex = (props.ZIndex or 2) + 1,
+		ZIndex = (props.ZIndex or 1) + 1,
 		Parent = back,
 	})
-	local function set(value: number)
-		local clamped = math.clamp(value, 0, 1)
-		if props.Animate then
-			TweenService:Create(fill, Theme.Tween.Fast, { Size = UDim2.fromScale(clamped, 1) }):Play()
-		else
-			fill.Size = UDim2.fromScale(clamped, 1)
+	Kit.corner(fill, 3)
+	return back,
+		function(value: number)
+			local clamped = math.clamp(value, 0, 1)
+			if props.Animate then
+				TweenService:Create(fill, Theme.Motion.Slow, { Size = UDim2.fromScale(clamped, 1) }):Play()
+			else
+				fill.Size = UDim2.fromScale(clamped, 1)
+			end
 		end
-	end
-	return back, set
 end
 
-function Kit.rarityChip(parent: Instance, rarity: string, props: Props?): Frame
-	local p: Props = props or {}
-	local chip = Kit.new("Frame", {
-		Name = "Rarete",
-		BackgroundColor3 = Theme.rarityColor(rarity),
-		Size = p.Size or UDim2.fromOffset(130, 30),
-		Position = p.Position or UDim2.new(),
-		AnchorPoint = p.AnchorPoint or Vector2.zero,
-		Rotation = p.Rotation or -2,
-		ZIndex = p.ZIndex or 4,
-		Parent = parent,
-	})
-	Kit.stroke(chip, 3)
-	Kit.text({
-		Text = string.upper(Theme.rarityName(rarity)),
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 2,
-		Size = UDim2.new(1, -8, 1, -4),
-		Position = UDim2.fromOffset(4, 2),
-		ZIndex = (p.ZIndex or 4) + 1,
-		Parent = chip,
-	})
-	return chip
-end
-
--- Animations --------------------------------------------------------------------------------------------
+-- Animations ---------------------------------------------------------------------------------------------
 
 function Kit.tween(instance: Instance, info: TweenInfo, goals: { [string]: any }): Tween
 	local tween = TweenService:Create(instance, info, goals)
@@ -616,49 +524,24 @@ function Kit.tween(instance: Instance, info: TweenInfo, goals: { [string]: any }
 	return tween
 end
 
-function Kit.pop(guiObject: GuiObject, from: number?)
-	local scale = guiObject:FindFirstChildOfClass("UIScale") or Kit.new("UIScale", { Parent = guiObject })
-	scale.Scale = from or 0.6
-	Kit.tween(scale, Theme.Tween.Pop, { Scale = 1 })
-end
-
-function Kit.shake(guiObject: GuiObject, strength: number, duration: number)
-	local origin = guiObject.Position
-	task.spawn(function()
-		local stop = os.clock() + duration
-		while os.clock() < stop and guiObject.Parent do
-			local s = strength * (stop - os.clock()) / duration
-			guiObject.Position = origin + UDim2.fromOffset(math.random(-s, s), math.random(-s, s))
-			task.wait(1 / 60)
-		end
-		guiObject.Position = origin
+-- Apparition : léger glissement vers le haut + agrandissement.
+function Kit.reveal(object: GuiObject, delay: number?, distance: number?)
+	local target = object.Position
+	object.Position = target + UDim2.fromOffset(0, distance or 16)
+	local scale = object:FindFirstChildOfClass("UIScale") or Kit.new("UIScale", { Parent = object })
+	scale.Scale = 0.98
+	object.Visible = false
+	task.delay(delay or 0, function()
+		object.Visible = true
+		Kit.tween(object, Theme.Motion.Slow, { Position = target })
+		Kit.tween(scale, Theme.Motion.Slow, { Scale = 1 })
 	end)
 end
 
-function Kit.clear(parent: Instance)
-	for _, child in parent:GetChildren() do
-		if not child:IsA("UIListLayout") and not child:IsA("UIGridLayout") and not child:IsA("UIPadding") then
-			child:Destroy()
-		end
-	end
-end
-
--- Liste défilante (sans fond gris : papier + barre de défilement encre).
-function Kit.scroll(parent: Instance, props: Props): ScrollingFrame
-	return Kit.new("ScrollingFrame", {
-		Name = props.Name or "Liste",
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		Size = props.Size or UDim2.fromScale(1, 1),
-		Position = props.Position or UDim2.new(),
-		CanvasSize = UDim2.new(),
-		AutomaticCanvasSize = props.Horizontal and Enum.AutomaticSize.X or Enum.AutomaticSize.Y,
-		ScrollingDirection = props.Horizontal and Enum.ScrollingDirection.X or Enum.ScrollingDirection.Y,
-		ScrollBarThickness = 8,
-		ScrollBarImageColor3 = C.Ink,
-		ZIndex = props.ZIndex or 2,
-		Parent = parent,
-	})
+function Kit.pop(object: GuiObject, from: number?)
+	local scale = object:FindFirstChildOfClass("UIScale") or Kit.new("UIScale", { Parent = object })
+	scale.Scale = from or 0.9
+	Kit.tween(scale, Theme.Motion.Spring, { Scale = 1 })
 end
 
 return Kit

@@ -131,9 +131,9 @@ local function ensurePreview()
 		local dot = Instance.new("Part")
 		dot.Name = "Visee"
 		dot.Shape = Enum.PartType.Ball
-		dot.Size = Vector3.one * (0.55 - i * 0.015)
+		dot.Size = Vector3.one * (0.32 - i * 0.008)
 		dot.Material = Enum.Material.Neon
-		dot.Color = Color3.fromRGB(255, 220, 60)
+		dot.Color = Color3.fromRGB(255, 255, 255)
 		dot.Anchored = true
 		dot.CanCollide = false
 		dot.CanQuery = false
@@ -167,7 +167,7 @@ local function updatePreview(charge: number)
 			dot.Parent = nil
 		else
 			dot.CFrame = CFrame.new(position)
-			dot.Color = Color3.fromRGB(255, 220 - math.floor(charge * 160), 60)
+			dot.Color = Color3.fromRGB(255, 255 - math.floor(charge * 120), 255 - math.floor(charge * 200))
 			dot.Parent = Workspace
 		end
 	end

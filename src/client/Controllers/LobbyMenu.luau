@@ -1,12 +1,15 @@
 --!strict
--- Menu principal du lobby (inspiré de Rivals) : boutons à gauche, profil en
--- haut à gauche, Hand Coins en haut à droite, groupe en bas à droite,
--- bannière de recherche en haut au centre.
+-- Interface du lobby.
+--   Barre du haut : JOUER · CASIER · BOUTIQUE · CLAN, Tutoriel, Nouveautés,
+--                   Hand Coins, profil.
+--   Accueil (JOUER) : le quartier 3D reste visible ; panneau de lancement en
+--                   bas à gauche, groupe en bas à droite.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Court = require(ReplicatedStorage.Shared.Court)
 local PatchNotes = require(ReplicatedStorage.Shared.Data.PatchNotes)
 local Progression = require(ReplicatedStorage.Shared.Data.Progression)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
@@ -16,9 +19,7 @@ local Theme = require(script.Parent.Parent.UI.Theme)
 
 local ClanScreen = require(script.Parent.Parent.Screens.ClanScreen)
 local LockerScreen = require(script.Parent.Parent.Screens.LockerScreen)
-local SearchScreen = require(script.Parent.Parent.Screens.SearchScreen)
 local ShopScreen = require(script.Parent.Parent.Screens.ShopScreen)
-local TrainingScreen = require(script.Parent.Parent.Screens.TrainingScreen)
 local TutorialScreen = require(script.Parent.Parent.Screens.TutorialScreen)
 local UpdatesScreen = require(script.Parent.Parent.Screens.UpdatesScreen)
 
@@ -27,272 +28,542 @@ local LocalPlayer = Players.LocalPlayer
 
 local LobbyMenu = {}
 
-type NavEntry = { Id: string, Label: string, Color: Color3, TextColor: Color3, Big: boolean? }
-
-local NAV: { NavEntry } = {
-	{ Id = "Search", Label = "RECHERCHE", Color = C.Yellow, TextColor = C.Ink, Big = true },
-	{ Id = "Training", Label = "ENTRAÎNEMENT", Color = C.Blue, TextColor = C.Paper },
-	{ Id = "Shop", Label = "BOUTIQUE", Color = C.Red, TextColor = C.Paper },
-	{ Id = "Locker", Label = "CASIER", Color = C.Purple, TextColor = C.Paper },
-	{ Id = "Clan", Label = "CLAN", Color = C.Green, TextColor = C.Ink },
-	{ Id = "Tutorial", Label = "TUTORIEL", Color = C.Paper, TextColor = C.Ink },
-	{ Id = "Updates", Label = "MISES À JOUR", Color = C.Paper, TextColor = C.Ink },
-}
-
 local gui: ScreenGui
 local root: Frame
-local screens: { [string]: any } = {}
-local badges: { [string]: Frame } = {}
+local pages: { [string]: any } = {}
+local tabEntries: { [string]: { Label: TextLabel, Line: Frame } } = {}
+local currentTab = "JOUER"
+local home: Frame
+local updatesDot: Frame
+local tutorialDot: Frame
+local shopDot: Frame
 
-local function openScreen(id: string?)
-	for key, screen in screens do
-		if key ~= id then
-			screen.Close()
+local function selectTab(name: string)
+	currentTab = name
+	for key, entry in tabEntries do
+		local on = key == name
+		entry.Label.TextColor3 = if on then C.Text else C.TextMuted
+		entry.Line.Visible = on
+	end
+	for key, page in pages do
+		if key == name then
+			page.Open()
+		elseif key ~= "TUTORIEL" and key ~= "NOUVEAUTÉS" then
+			page.Close()
 		end
 	end
-	if id and screens[id] then
-		screens[id].Open()
-	end
-	State.setScreen(id)
+	home.Visible = name == "JOUER"
+	State.setScreen(if name == "JOUER" then nil else name)
 end
 
--- Profil (haut gauche) ---------------------------------------------------------------------------
+local function openModal(name: string)
+	local page = pages[name]
+	if page then
+		page.Open()
+		State.setScreen(name)
+	end
+end
 
-local function buildProfile()
-	local face, _ = Kit.panel({
-		Name = "Profil",
-		Size = UDim2.fromOffset(420, 120),
-		Position = UDim2.fromOffset(24, 24),
-		Color = C.Paper,
-		ZIndex = 5,
+local function closeModal(name: string)
+	local page = pages[name]
+	if page then
+		page.Close()
+	end
+	State.setScreen(if currentTab == "JOUER" then nil else currentTab)
+end
+
+local function dot(parent: Instance): Frame
+	local badge = Kit.new("Frame", {
+		BackgroundColor3 = C.Danger,
+		Size = UDim2.fromOffset(8, 8),
+		Position = UDim2.new(1, -2, 0, 6),
+		AnchorPoint = Vector2.new(1, 0),
+		Visible = false,
+		ZIndex = 25,
+		Parent = parent,
+	})
+	Kit.corner(badge, 4)
+	return badge
+end
+
+-- Barre du haut ------------------------------------------------------------------------------
+
+local function buildTopBar()
+	local bar = Kit.new("Frame", {
+		Name = "Barre",
+		BackgroundColor3 = C.Background,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 72),
+		ZIndex = 20,
 		Parent = root,
 	})
-	local avatar = Kit.new("ImageLabel", {
-		BackgroundColor3 = C.Yellow,
-		Size = UDim2.fromOffset(92, 92),
-		Position = UDim2.fromOffset(12, 12),
-		Image = "",
-		ZIndex = 6,
-		Parent = face,
+	Kit.new("Frame", {
+		BackgroundColor3 = C.Border,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 1),
+		Position = UDim2.new(0, 0, 1, -1),
+		ZIndex = 21,
+		Parent = bar,
 	})
-	Kit.stroke(avatar, 3)
-	task.spawn(function()
-		local ok, image = pcall(function()
-			return Players:GetUserThumbnailAsync(
-				LocalPlayer.UserId,
-				Enum.ThumbnailType.HeadShot,
-				Enum.ThumbnailSize.Size150x150
-			)
-		end)
-		if ok then
-			avatar.Image = image
+	Kit.label({
+		Text = `HANDBALL <font color="#{C.Accent:ToHex()}">LEGENDS</font>`,
+		Rich = true,
+		Font = Theme.Fonts.DisplayItalic,
+		TextSize = 24,
+		Size = UDim2.fromOffset(260, 72),
+		Position = UDim2.fromOffset(40, 0),
+		ZIndex = 21,
+		Parent = bar,
+	})
+
+	local tabs =
+		Kit.box({ Size = UDim2.fromOffset(600, 72), Position = UDim2.fromOffset(330, 0), ZIndex = 21, Parent = bar })
+	Kit.list(tabs, 36, true, nil, Enum.VerticalAlignment.Center)
+	for index, name in { "JOUER", "CASIER", "BOUTIQUE", "CLAN" } do
+		local button = Kit.new("TextButton", {
+			AutoButtonColor = false,
+			BackgroundTransparency = 1,
+			Text = "",
+			Size = UDim2.fromOffset(0, 72),
+			AutomaticSize = Enum.AutomaticSize.X,
+			LayoutOrder = index,
+			ZIndex = 21,
+			Parent = tabs,
+		})
+		local label = Kit.label({
+			Text = name,
+			Font = Theme.Fonts.Bold,
+			TextSize = Theme.Text.H3,
+			Color = C.TextMuted,
+			Size = UDim2.fromOffset(0, 72),
+			AutoSize = Enum.AutomaticSize.X,
+			ZIndex = 22,
+			Parent = button,
+		})
+		local line = Kit.new("Frame", {
+			BackgroundColor3 = C.Accent,
+			BorderSizePixel = 0,
+			Size = UDim2.new(1, 0, 0, 3),
+			Position = UDim2.new(0, 0, 1, -3),
+			Visible = false,
+			ZIndex = 22,
+			Parent = button,
+		})
+		tabEntries[name] = { Label = label, Line = line }
+		if name == "BOUTIQUE" then
+			shopDot = dot(button)
 		end
-	end)
-	Kit.text({
-		Text = LocalPlayer.DisplayName,
-		Size = UDim2.new(1, -220, 0, 40),
-		Position = UDim2.fromOffset(116, 10),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 6,
-		Parent = face,
-	})
-	local levelBadge = Kit.new("Frame", {
-		BackgroundColor3 = C.Red,
-		Size = UDim2.fromOffset(80, 80),
-		Position = UDim2.new(1, -92, 0, 10),
-		Rotation = 8,
-		ZIndex = 7,
-		Parent = face,
-	})
-	Kit.stroke(levelBadge, 4)
-	Kit.text({ Text = "NIV.", Color = C.Paper, Size = UDim2.new(1, 0, 0.35, 0), ZIndex = 8, Parent = levelBadge })
-	local levelText = Kit.text({
-		Text = "1",
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 3,
-		Size = UDim2.new(1, 0, 0.65, 0),
-		Position = UDim2.fromScale(0, 0.32),
-		ZIndex = 8,
-		Parent = levelBadge,
-	})
-	local _, setXP = Kit.progress(face, {
-		Size = UDim2.new(1, -230, 0, 18),
-		Position = UDim2.fromOffset(116, 56),
-		Color = C.Yellow,
-		ZIndex = 6,
-		Animate = true,
-	})
-	local xpText = Kit.text({
-		Text = "",
-		Font = Theme.Fonts.Heavy,
-		Color = C.Steel,
-		Size = UDim2.new(1, -230, 0, 18),
-		Position = UDim2.fromOffset(116, 80),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 6,
-		Parent = face,
-	})
-	local rankText = Kit.text({
-		Text = "",
-		Size = UDim2.new(1, -230, 0, 20),
-		Position = UDim2.fromOffset(116, 98),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 6,
-		Parent = face,
-	})
+		button.MouseEnter:Connect(function()
+			if currentTab ~= name then
+				label.TextColor3 = C.Text
+			end
+		end)
+		button.MouseLeave:Connect(function()
+			if currentTab ~= name then
+				label.TextColor3 = C.TextMuted
+			end
+		end)
+		button.Activated:Connect(function()
+			selectTab(name)
+		end)
+	end
 
-	-- Hand Coins et balles (haut droite).
-	local wallet, _ = Kit.panel({
-		Name = "Porte-monnaie",
-		Size = UDim2.fromOffset(260, 64),
-		Position = UDim2.new(1, -290, 0, 24),
-		Color = C.Ink,
-		ZIndex = 5,
-		Parent = root,
+	local right = Kit.box({
+		Size = UDim2.fromOffset(760, 72),
+		Position = UDim2.new(1, -40, 0, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		ZIndex = 21,
+		Parent = bar,
 	})
-	Kit.coin(wallet, 48, UDim2.fromOffset(8, 8)).ZIndex = 6
-	local coinsText = Kit.text({
+	local layout = Kit.list(right, 12, true, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
+	local _ = layout
+	local tutorial = Kit.button({
+		Text = "Tutoriel",
+		Variant = "Ghost",
+		AutoSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 40),
+		Order = 1,
+		ZIndex = 22,
+		Parent = right,
+		OnClick = function()
+			openModal("TUTORIEL")
+		end,
+	})
+	tutorialDot = dot(tutorial.Instance)
+	local updates = Kit.button({
+		Text = "Nouveautés",
+		Variant = "Ghost",
+		AutoSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 40),
+		Order = 2,
+		ZIndex = 22,
+		Parent = right,
+		OnClick = function()
+			openModal("NOUVEAUTÉS")
+		end,
+	})
+	updatesDot = dot(updates.Instance)
+
+	-- Hand Coins.
+	local coins = Kit.surface({
+		Color = C.Surface2,
+		Size = UDim2.fromOffset(0, 40),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = 3,
+		ZIndex = 22,
+		Parent = right,
+	})
+	Kit.padding(coins, 14, 0)
+	local coinRow =
+		Kit.box({ Size = UDim2.fromOffset(0, 40), AutoSize = Enum.AutomaticSize.X, ZIndex = 22, Parent = coins })
+	Kit.list(coinRow, 10, true, nil, Enum.VerticalAlignment.Center)
+	local coinIcon = Kit.new("Frame", {
+		BackgroundColor3 = C.Warning,
+		Size = UDim2.fromOffset(16, 16),
+		LayoutOrder = 1,
+		ZIndex = 23,
+		Parent = coinRow,
+	})
+	Kit.corner(coinIcon, 8)
+	local coinText = Kit.label({
 		Text = "0",
-		Color = C.Yellow,
-		Size = UDim2.new(1, -76, 1, -14),
-		Position = UDim2.fromOffset(66, 7),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 6,
-		Parent = wallet,
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Body,
+		Size = UDim2.fromOffset(0, 40),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = 2,
+		ZIndex = 23,
+		Parent = coinRow,
 	})
-	local ballsFace, ballsContainer = Kit.panel({
-		Name = "Balles",
-		Size = UDim2.fromOffset(160, 50),
-		Position = UDim2.new(1, -190, 0, 102),
-		Color = C.Paper,
-		ZIndex = 5,
-		Parent = root,
-	})
-	Kit.ball(ballsFace, 36, C.Yellow, C.Red, UDim2.fromOffset(8, 7)).ZIndex = 6
-	local ballsText = Kit.text({
-		Text = "× 0",
-		Size = UDim2.new(1, -60, 1, -10),
-		Position = UDim2.fromOffset(52, 5),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 6,
-		Parent = ballsFace,
-	})
-	local ballsHit = Kit.new(
-		"TextButton",
-		{ BackgroundTransparency = 1, Text = "", Size = UDim2.fromScale(1, 1), ZIndex = 9, Parent = ballsContainer }
-	)
-	ballsHit.Activated:Connect(function()
-		openScreen("Shop")
-	end)
 
-	local function refresh(profile: any)
-		if not profile then
+	-- Profil.
+	local profile = Kit.surface({
+		Color = C.Surface2,
+		Size = UDim2.fromOffset(0, 40),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = 4,
+		ZIndex = 22,
+		Parent = right,
+	})
+	Kit.padding(profile, 6, 0)
+	local profileRow =
+		Kit.box({ Size = UDim2.fromOffset(0, 40), AutoSize = Enum.AutomaticSize.X, ZIndex = 22, Parent = profile })
+	Kit.list(profileRow, 10, true, nil, Enum.VerticalAlignment.Center)
+	local levelBox = Kit.new("Frame", {
+		BackgroundColor3 = C.Accent,
+		Size = UDim2.fromOffset(30, 30),
+		LayoutOrder = 1,
+		ZIndex = 23,
+		Parent = profileRow,
+	})
+	Kit.corner(levelBox, 6)
+	local levelText = Kit.label({
+		Text = "1",
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.Body,
+		Color = C.TextOnAccent,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 24,
+		Parent = levelBox,
+	})
+	local nameText = Kit.label({
+		Text = LocalPlayer.DisplayName,
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Body,
+		Size = UDim2.fromOffset(0, 40),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = 2,
+		ZIndex = 23,
+		Parent = profileRow,
+	})
+	local _2 = nameText
+	Kit.box({ Size = UDim2.fromOffset(4, 40), Order = 3, Parent = profileRow })
+
+	local function refresh(data: any)
+		if not data then
 			return
 		end
-		levelText.Text = tostring(profile.Level)
-		local needed = Progression.xpForNextLevel(profile.Level)
-		setXP(profile.XP / needed)
-		xpText.Text = `{Format.number(profile.XP)} / {Format.number(needed)} XP`
-		if profile.Level >= Config.RankedUnlockLevel then
-			local rank = Progression.getRank(profile.RP)
-			rankText.Text = `{string.upper(rank.Name)} {Progression.getDivision(profile.RP)} · {profile.RP} RP`
-			rankText.TextColor3 = rank.Color
-		else
-			rankText.Text = `CLASSÉ AU NIVEAU {Config.RankedUnlockLevel}`
-			rankText.TextColor3 = C.Steel
-		end
-		coinsText.Text = Format.number(profile.Coins)
+		coinText.Text = Format.number(data.Coins)
+		levelText.Text = tostring(data.Level)
 		local balls = 0
-		for _, count in profile.Balls do
+		for _, count in data.Balls do
 			balls += count
 		end
-		ballsText.Text = `× {balls}`
-		badges.Tutorial.Visible = not profile.TutorialDone
+		shopDot.Visible = balls > 0 or data.CosmeticPacks > 0
+		tutorialDot.Visible = not data.TutorialDone
 		local latest = PatchNotes[1]
-		badges.Updates.Visible = latest ~= nil and profile.SeenPatch ~= latest.Version
-		badges.Shop.Visible = balls > 0 or profile.CosmeticPacks > 0
+		updatesDot.Visible = latest ~= nil and data.SeenPatch ~= latest.Version
 	end
 	State.ProfileChanged:Connect(refresh)
 	refresh(State.Profile)
 end
 
--- Navigation (gauche) ---------------------------------------------------------------------------------
+-- Panneau JOUER -----------------------------------------------------------------------------------
 
-local function buildNav()
-	local column = Kit.new("Frame", {
-		Name = "Navigation",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(360, 640),
-		Position = UDim2.fromOffset(24, 180),
+local function buildPlayPanel()
+	local card = Kit.surface({
+		Name = "Jouer",
+		Color = C.Surface,
+		Size = UDim2.fromOffset(460, 372),
+		Position = UDim2.new(0, 40, 1, -40),
+		AnchorPoint = Vector2.new(0, 1),
+		Radius = Theme.RadiusLarge,
 		ZIndex = 5,
-		Parent = root,
+		Parent = home,
 	})
-	Kit.list(column, 14)
-	for index, entry in NAV do
-		local button = Kit.button({
-			Text = entry.Label,
-			Color = entry.Color,
-			TextColor = entry.TextColor,
-			TextStroke = if entry.TextColor == C.Paper then C.Ink else nil,
-			Size = UDim2.fromOffset(if entry.Big then 340 else 300, if entry.Big then 92 else 62),
-			Rotation = if index % 2 == 0 then -1.5 else 1,
-			Order = index,
-			ZIndex = 6,
-			ShadowOffset = if entry.Big then 8 else 5,
-			Parent = column,
-			OnClick = function()
-				if State.ActiveScreen == entry.Id then
-					openScreen(nil)
-				else
-					openScreen(entry.Id)
-				end
-			end,
-		})
-		local badge = Kit.new("Frame", {
-			Name = "Pastille",
-			BackgroundColor3 = C.Red,
-			Size = UDim2.fromOffset(30, 30),
-			Position = UDim2.new(1, -14, 0, -12),
-			Visible = false,
-			ZIndex = 9,
-			Parent = button.Container,
-		})
-		Kit.corner(badge, 30)
-		Kit.stroke(badge, 3)
-		Kit.text({ Text = "!", Color = C.Paper, ZIndex = 10, Parent = badge })
-		badges[entry.Id] = badge
+	local body =
+		Kit.box({ Size = UDim2.new(1, -48, 1, -48), Position = UDim2.fromOffset(24, 24), ZIndex = 6, Parent = card })
+
+	local kind = "Normal"
+	local fillBots = true
+
+	Kit.label({
+		Text = "TYPE DE PARTIE",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Tiny,
+		Color = C.TextFaint,
+		Size = UDim2.new(1, 0, 0, 16),
+		ZIndex = 6,
+		Parent = body,
+	})
+	local kindSelector: Kit.Segmented
+	local modeSelector: Kit.Segmented
+	local info: TextLabel
+	local botsButton: Kit.Button
+	local launch: Kit.Button
+	local cancel: Kit.Button
+	local searchingLabel: TextLabel
+
+	local function refresh()
+		local profile = State.Profile
+		local level = if profile then profile.Level else 1
+		local rankedUnlocked = level >= Config.RankedUnlockLevel
+		kindSelector.SetEnabled("Classe", rankedUnlocked)
+		local mode = modeSelector.Value()
+		local modeInfo = Config.Modes[mode]
+		modeSelector.SetEnabled("2v2", kind ~= "Classe")
+		if kind == "Classe" and mode == "2v2" then
+			modeSelector.Select("3v3")
+			mode = "3v3"
+			modeInfo = Config.Modes[mode]
+		end
+		local party = State.Party
+		local partySize = if party then #party.Members else 1
+		local isLeader = party == nil or party.LeaderId == LocalPlayer.UserId
+		local dims = Court.get(mode)
+		local lines = {
+			`{modeInfo.Label}  ·  2 × {Format.clock(modeInfo.HalfDuration)}  ·  terrain {dims.Length} × {dims.Width}`,
+		}
+		if kind == "Classe" and profile then
+			local rank = Progression.getRank(profile.RP)
+			table.insert(lines, `Rang : {rank.Name} {Progression.getDivision(profile.RP)}  ·  {profile.RP} RP`)
+		elseif kind == "Entrainement" then
+			table.insert(lines, "Partie amicale avec ton groupe, sans récompense.")
+		elseif not rankedUnlocked then
+			table.insert(lines, `Le classé se débloque au niveau {Config.RankedUnlockLevel}.`)
+		end
+		if partySize > modeInfo.TeamSize and kind ~= "Entrainement" then
+			table.insert(lines, "Ton groupe est trop grand pour ce mode.")
+		end
+		info.Text = table.concat(lines, "\n")
+		botsButton.Instance.Visible = kind == "Entrainement"
+		botsButton.SetText(if fillBots then "Bots : activés" else "Bots : désactivés")
+		local searching = State.Queue.State ~= "Idle"
+		launch.Instance.Visible = not searching
+		cancel.Instance.Visible = searching and State.Queue.State == "Searching"
+		searchingLabel.Visible = searching
+		launch.SetText(
+			if not isLeader
+				then "LE CHEF LANCE LA PARTIE"
+				elseif kind == "Entrainement" then "LANCER L'ENTRAÎNEMENT"
+				else "RECHERCHER"
+		)
+		launch.SetEnabled(isLeader and (kind == "Entrainement" or partySize <= modeInfo.TeamSize))
 	end
+
+	kindSelector = Kit.segmented({
+		Options = {
+			{ Id = "Normal", Label = "Normal" },
+			{ Id = "Classe", Label = "Classé" },
+			{ Id = "Entrainement", Label = "Entraînement" },
+		},
+		Size = UDim2.new(1, 0, 0, 44),
+		Position = UDim2.fromOffset(0, 22),
+		ZIndex = 7,
+		Parent = body,
+		OnChange = function(value: string)
+			kind = value
+			refresh()
+		end,
+	})
+	Kit.label({
+		Text = "MODE",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Tiny,
+		Color = C.TextFaint,
+		Size = UDim2.new(1, 0, 0, 16),
+		Position = UDim2.fromOffset(0, 82),
+		ZIndex = 6,
+		Parent = body,
+	})
+	local modeOptions = {}
+	for _, mode in Config.ModeOrder do
+		table.insert(modeOptions, { Id = mode, Label = mode })
+	end
+	modeSelector = Kit.segmented({
+		Options = modeOptions,
+		Value = "3v3",
+		Size = UDim2.new(1, 0, 0, 44),
+		Position = UDim2.fromOffset(0, 104),
+		ZIndex = 7,
+		Parent = body,
+		OnChange = function()
+			refresh()
+		end,
+	})
+	info = Kit.label({
+		Text = "",
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Wrap = true,
+		AlignY = Enum.TextYAlignment.Top,
+		Size = UDim2.new(1, 0, 0, 60),
+		Position = UDim2.fromOffset(0, 162),
+		ZIndex = 6,
+		Parent = body,
+	})
+	botsButton = Kit.button({
+		Text = "Bots : activés",
+		Variant = "Ghost",
+		Size = UDim2.new(1, 0, 0, 32),
+		Position = UDim2.fromOffset(0, 214),
+		TextSize = Theme.Text.Small,
+		ZIndex = 7,
+		Parent = body,
+		OnClick = function()
+			fillBots = not fillBots
+			refresh()
+		end,
+	})
+	searchingLabel = Kit.label({
+		Text = "",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.H3,
+		Size = UDim2.new(1, -150, 0, 56),
+		Position = UDim2.new(0, 0, 1, -56),
+		Visible = false,
+		ZIndex = 7,
+		Parent = body,
+	})
+	launch = Kit.button({
+		Text = "RECHERCHER",
+		Variant = "Primary",
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.H3,
+		Size = UDim2.new(1, 0, 0, 56),
+		Position = UDim2.new(0, 0, 1, -56),
+		ZIndex = 7,
+		Parent = body,
+		OnClick = function()
+			local mode = modeSelector.Value()
+			if kind == "Entrainement" then
+				State.request("QueueAction", "Training", mode, fillBots)
+			else
+				State.request("QueueAction", "Search", mode, kind == "Classe")
+			end
+		end,
+	})
+	cancel = Kit.button({
+		Text = "Annuler",
+		Variant = "Secondary",
+		Size = UDim2.fromOffset(130, 48),
+		Position = UDim2.new(1, 0, 1, -52),
+		AnchorPoint = Vector2.new(1, 0),
+		ZIndex = 7,
+		Parent = body,
+		OnClick = function()
+			State.request("QueueAction", "Cancel")
+		end,
+	})
+	cancel.Instance.Visible = false
+
+	-- Chronomètre de recherche.
+	task.spawn(function()
+		while card.Parent do
+			local queue = State.Queue
+			if queue.State == "Searching" and queue.Since then
+				local mode = Config.Modes[queue.Mode or "3v3"]
+				searchingLabel.Text = `Recherche {if mode then mode.Label else ""}{if queue.Ranked
+					then " classé"
+					else ""}  {Format.clock(math.max(0, os.time() - queue.Since))}`
+			elseif queue.State == "Found" then
+				searchingLabel.Text = "Partie trouvée !"
+			elseif queue.State == "Teleporting" then
+				searchingLabel.Text = "Connexion au terrain…"
+			end
+			task.wait(0.5)
+		end
+	end)
+
+	State.ProfileChanged:Connect(refresh)
+	State.PartyChanged:Connect(refresh)
+	State.QueueChanged:Connect(refresh)
+	refresh()
 end
 
--- Groupe (bas droite) ------------------------------------------------------------------------------------
+-- Groupe ---------------------------------------------------------------------------------------------
+
+local thumbnails: { [number]: string } = {}
+
+local function avatar(userId: number, parent: Instance, size: number, z: number): ImageLabel
+	local image = Kit.new("ImageLabel", {
+		BackgroundColor3 = C.Surface3,
+		Size = UDim2.fromOffset(size, size),
+		Image = thumbnails[userId] or "",
+		ZIndex = z,
+		Parent = parent,
+	})
+	Kit.corner(image, 8)
+	if not thumbnails[userId] then
+		task.spawn(function()
+			local ok, url = pcall(function()
+				return Players:GetUserThumbnailAsync(
+					userId,
+					Enum.ThumbnailType.HeadShot,
+					Enum.ThumbnailSize.Size150x150
+				)
+			end)
+			if ok then
+				thumbnails[userId] = url
+				image.Image = url
+			end
+		end)
+	end
+	return image
+end
 
 local function buildParty()
-	local face, _ = Kit.panel({
-		Name = "Groupe",
-		Size = UDim2.fromOffset(380, 300),
-		Position = UDim2.new(1, -404, 1, -324),
-		Color = C.Paper,
+	local strip = Kit.box({
+		Size = UDim2.fromOffset(560, 150),
+		Position = UDim2.new(1, -40, 1, -40),
+		AnchorPoint = Vector2.new(1, 1),
 		ZIndex = 5,
-		Parent = root,
+		Parent = home,
 	})
-	Kit.header(face, "GROUPE", C.Blue, "パーティー")
-	local slots = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -24, 0, 190),
-		Position = UDim2.fromOffset(12, 50),
+	Kit.label({
+		Text = "GROUPE",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Tiny,
+		Color = C.TextFaint,
+		AlignX = Enum.TextXAlignment.Right,
+		Size = UDim2.new(1, 0, 0, 16),
 		ZIndex = 6,
-		Parent = face,
+		Parent = strip,
 	})
-	Kit.list(slots, 6)
-	local actions = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -24, 0, 46),
-		Position = UDim2.new(0, 12, 1, -56),
-		ZIndex = 6,
-		Parent = face,
-	})
-	Kit.list(actions, 10, true)
+	local slots =
+		Kit.box({ Size = UDim2.new(1, 0, 0, 120), Position = UDim2.fromOffset(0, 26), ZIndex = 6, Parent = strip })
+	Kit.list(slots, 10, true, Enum.HorizontalAlignment.Right)
 	local picker: Frame? = nil
 
 	local function closePicker()
@@ -304,41 +575,84 @@ local function buildParty()
 
 	local function openPicker()
 		closePicker()
-		local panel, container = Kit.panel({
-			Size = UDim2.fromOffset(360, 380),
-			Position = UDim2.new(1, -404, 1, -720),
-			Color = C.Paper,
-			ZIndex = 30,
-			Parent = root,
+		local panel = Kit.surface({
+			Color = C.Surface,
+			Size = UDim2.fromOffset(340, 380),
+			Position = UDim2.new(1, -40, 1, -210),
+			AnchorPoint = Vector2.new(1, 1),
+			Radius = Theme.RadiusLarge,
+			ZIndex = 40,
+			Parent = home,
 		})
-		picker = container
-		Kit.header(panel, "INVITER", C.Green)
-		local list =
-			Kit.scroll(panel, { Size = UDim2.new(1, -24, 1, -110), Position = UDim2.fromOffset(12, 52), ZIndex = 31 })
+		picker = panel
+		Kit.label({
+			Text = "Inviter",
+			Font = Theme.Fonts.Bold,
+			TextSize = Theme.Text.H3,
+			Position = UDim2.fromOffset(20, 16),
+			Size = UDim2.new(1, -120, 0, 26),
+			ZIndex = 41,
+			Parent = panel,
+		})
+		Kit.button({
+			Text = "Fermer",
+			Variant = "Ghost",
+			Size = UDim2.fromOffset(84, 32),
+			Position = UDim2.new(1, -16, 0, 14),
+			AnchorPoint = Vector2.new(1, 0),
+			TextSize = Theme.Text.Small,
+			ZIndex = 42,
+			Parent = panel,
+			OnClick = closePicker,
+		})
+		local list = Kit.scroll({
+			Size = UDim2.new(1, -24, 1, -72),
+			Position = UDim2.fromOffset(12, 60),
+			ZIndex = 41,
+			Parent = panel,
+		})
 		Kit.list(list, 6)
 		local count = 0
 		local party = State.Party
 		for _, other in Players:GetPlayers() do
-			local alreadyIn = false
+			local inParty = false
 			if party then
 				for _, member in party.Members do
 					if member.UserId == other.UserId then
-						alreadyIn = true
+						inParty = true
 					end
 				end
 			end
-			if other ~= LocalPlayer and not alreadyIn then
+			if other ~= LocalPlayer and not inParty then
 				count += 1
-				Kit.button({
-					Text = `{other.DisplayName}  ·  NIV. {other:GetAttribute("Level") or 1}`,
-					Color = C.PaperDark,
-					Size = UDim2.new(1, -14, 0, 44),
+				local row = Kit.surface({
+					Color = C.Surface2,
+					Size = UDim2.new(1, -8, 0, 52),
 					Order = count,
-					ZIndex = 32,
+					ZIndex = 42,
 					Parent = list,
+				})
+				local face = avatar(other.UserId, row, 36, 43)
+				face.Position = UDim2.fromOffset(8, 8)
+				Kit.label({
+					Text = other.DisplayName,
+					Font = Theme.Fonts.Semibold,
+					Position = UDim2.fromOffset(54, 0),
+					Size = UDim2.new(1, -150, 1, 0),
+					ZIndex = 43,
+					Parent = row,
+				})
+				Kit.button({
+					Text = "Inviter",
+					Variant = "Primary",
+					TextSize = Theme.Text.Small,
+					Size = UDim2.fromOffset(84, 34),
+					Position = UDim2.new(1, -9, 0.5, 0),
+					AnchorPoint = Vector2.new(1, 0.5),
+					ZIndex = 43,
+					Parent = row,
 					OnClick = function()
-						local ok = State.request("PartyAction", "Invite", other.UserId)
-						if ok then
+						if State.request("PartyAction", "Invite", other.UserId) then
 							State.Notify:Fire(`Invitation envoyée à {other.DisplayName}`, "Success")
 						end
 					end,
@@ -346,30 +660,21 @@ local function buildParty()
 			end
 		end
 		if count == 0 then
-			Kit.text({
-				Text = "Personne d'autre sur ce serveur pour le moment.",
-				Font = Theme.Fonts.Body,
-				Size = UDim2.new(1, 0, 0, 50),
-				ZIndex = 32,
+			Kit.label({
+				Text = "Aucun autre joueur sur ce serveur.",
+				Color = C.TextMuted,
+				TextSize = Theme.Text.Small,
+				Wrap = true,
+				Size = UDim2.new(1, 0, 0, 40),
+				ZIndex = 42,
 				Parent = list,
 			})
 		end
-		Kit.button({
-			Text = "FERMER",
-			Color = C.Red,
-			TextColor = C.Paper,
-			Size = UDim2.new(1, -24, 0, 44),
-			Position = UDim2.new(0, 12, 1, -54),
-			ZIndex = 32,
-			Parent = panel,
-			OnClick = closePicker,
-		})
-		Kit.pop(container, 0.8)
+		Kit.reveal(panel, 0, 10)
 	end
 
 	local function render(party: any)
 		Kit.clear(slots)
-		Kit.clear(actions)
 		local members = if party
 			then party.Members
 			else {
@@ -383,208 +688,169 @@ local function buildParty()
 		local iAmLeader = leaderId == LocalPlayer.UserId
 		for index = 1, Config.MaxPartySize do
 			local member = members[index]
-			local row = Kit.new("Frame", {
-				BackgroundColor3 = if member
-					then (if member.UserId == leaderId then C.Yellow else C.PaperDark)
-					else C.Paper,
-				Size = UDim2.new(1, 0, 0, 32),
-				LayoutOrder = index,
-				ZIndex = 7,
+			local slot = Kit.surface({
+				Color = C.Surface,
+				Size = UDim2.fromOffset(100, 120),
+				Order = index,
+				ZIndex = 6,
 				Parent = slots,
 			})
-			Kit.stroke(row, 2)
 			if member then
-				Kit.text({
-					Text = `{if member.UserId == leaderId then "♛ " else ""}{member.Name}`,
-					Font = Theme.Fonts.Body,
-					Size = UDim2.new(1, -110, 1, -6),
-					Position = UDim2.fromOffset(10, 3),
-					AlignX = Enum.TextXAlignment.Left,
-					ZIndex = 8,
-					Parent = row,
+				local face = avatar(member.UserId, slot, 64, 7)
+				face.Position = UDim2.fromOffset(18, 12)
+				Kit.label({
+					Text = member.Name,
+					Font = Theme.Fonts.Semibold,
+					TextSize = Theme.Text.Small,
+					AlignX = Enum.TextXAlignment.Center,
+					Size = UDim2.new(1, -12, 0, 18),
+					Position = UDim2.fromOffset(6, 80),
+					ZIndex = 7,
+					Parent = slot,
 				})
-				Kit.text({
-					Text = `NIV. {member.Level}`,
-					Size = UDim2.new(0, 60, 1, -6),
-					Position = UDim2.new(1, -100, 0, 3),
-					ZIndex = 8,
-					Parent = row,
+				Kit.label({
+					Text = if member.UserId == leaderId then "CHEF" else `NIV. {member.Level}`,
+					Font = Theme.Fonts.Bold,
+					TextSize = Theme.Text.Tiny,
+					Color = if member.UserId == leaderId then C.Accent else C.TextFaint,
+					AlignX = Enum.TextXAlignment.Center,
+					Size = UDim2.new(1, 0, 0, 14),
+					Position = UDim2.fromOffset(0, 98),
+					ZIndex = 7,
+					Parent = slot,
 				})
 				if iAmLeader and member.UserId ~= LocalPlayer.UserId then
 					local kick = Kit.new("TextButton", {
-						BackgroundColor3 = C.Red,
-						Text = "✕",
-						TextColor3 = C.Paper,
-						Font = Theme.Fonts.Heavy,
-						TextScaled = true,
-						Size = UDim2.fromOffset(28, 24),
-						Position = UDim2.new(1, -34, 0, 4),
+						AutoButtonColor = false,
+						BackgroundTransparency = 1,
+						Text = "",
+						Size = UDim2.fromScale(1, 1),
 						ZIndex = 9,
-						Parent = row,
+						Parent = slot,
 					})
-					Kit.stroke(kick, 2)
 					kick.Activated:Connect(function()
 						State.request("PartyAction", "Kick", member.UserId)
 					end)
 				end
-			else
-				Kit.text({
-					Text = "— place libre —",
-					Font = Theme.Fonts.Body,
-					Color = C.Steel,
-					Size = UDim2.new(1, -20, 1, -8),
-					Position = UDim2.fromOffset(10, 4),
+			elseif iAmLeader then
+				local add = Kit.new("TextButton", {
+					AutoButtonColor = false,
+					BackgroundTransparency = 1,
+					Text = "",
+					Size = UDim2.fromScale(1, 1),
 					ZIndex = 8,
-					Parent = row,
+					Parent = slot,
 				})
+				Kit.label({
+					Text = "+",
+					Font = Theme.Fonts.Display,
+					TextSize = 40,
+					Color = C.TextFaint,
+					AlignX = Enum.TextXAlignment.Center,
+					Size = UDim2.new(1, 0, 0, 70),
+					Position = UDim2.fromOffset(0, 12),
+					ZIndex = 7,
+					Parent = slot,
+				})
+				Kit.label({
+					Text = "Inviter",
+					Font = Theme.Fonts.Semibold,
+					TextSize = Theme.Text.Small,
+					Color = C.TextMuted,
+					AlignX = Enum.TextXAlignment.Center,
+					Size = UDim2.new(1, 0, 0, 18),
+					Position = UDim2.fromOffset(0, 84),
+					ZIndex = 7,
+					Parent = slot,
+				})
+				add.MouseEnter:Connect(function()
+					slot.BackgroundColor3 = C.Surface2
+				end)
+				add.MouseLeave:Connect(function()
+					slot.BackgroundColor3 = C.Surface
+				end)
+				add.Activated:Connect(openPicker)
 			end
 		end
-		if iAmLeader and #members < Config.MaxPartySize then
-			Kit.button({
-				Text = "+ INVITER",
-				Color = C.Green,
-				Size = UDim2.fromOffset(170, 44),
-				Order = 1,
-				ZIndex = 7,
-				Parent = actions,
-				OnClick = openPicker,
-			})
-		end
 		if party then
-			Kit.button({
-				Text = "QUITTER",
-				Color = C.Red,
-				TextColor = C.Paper,
-				Size = UDim2.fromOffset(170, 44),
-				Order = 2,
+			local leave = Kit.button({
+				Text = "Quitter",
+				Variant = "Ghost",
+				TextSize = Theme.Text.Small,
+				Size = UDim2.fromOffset(84, 30),
+				Position = UDim2.fromOffset(0, -4),
 				ZIndex = 7,
-				Parent = actions,
+				Parent = strip,
 				OnClick = function()
 					State.request("PartyAction", "Leave")
 				end,
 			})
-		end
-	end
-	State.PartyChanged:Connect(render)
-	State.ProfileChanged:Connect(function()
-		render(State.Party)
-	end)
-	render(State.Party)
-end
-
--- Bannière de recherche (haut centre) ----------------------------------------------------------------
-
-local function buildQueueBanner()
-	local face, container = Kit.panel({
-		Name = "Recherche",
-		Size = UDim2.fromOffset(520, 76),
-		Position = UDim2.new(0.5, 0, 0, 24),
-		AnchorPoint = Vector2.new(0.5, 0),
-		Color = C.Yellow,
-		Rotation = -1,
-		ZIndex = 8,
-		Parent = root,
-	})
-	container.Visible = false
-	local label = Kit.text({
-		Text = "",
-		Size = UDim2.new(1, -190, 1, -14),
-		Position = UDim2.fromOffset(16, 7),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 9,
-		Parent = face,
-	})
-	Kit.button({
-		Text = "ANNULER",
-		Color = C.Red,
-		TextColor = C.Paper,
-		Size = UDim2.fromOffset(150, 52),
-		Position = UDim2.new(1, -164, 0, 12),
-		ZIndex = 10,
-		Parent = face,
-		OnClick = function()
-			State.request("QueueAction", "Cancel")
-		end,
-	})
-	local dots = 0
-	task.spawn(function()
-		while true do
-			task.wait(0.5)
-			local queue = State.Queue
-			if queue.State == "Searching" and queue.Since then
-				dots = (dots + 1) % 4
-				local mode = Config.Modes[queue.Mode or "3v3"]
-				local elapsed = math.max(0, os.time() - queue.Since)
-				label.Text =
-					`RECHERCHE {if mode then mode.Label else ""}{if queue.Ranked then " CLASSÉ" else ""}{string.rep(
-						".",
-						dots
-					)}  {Format.clock(elapsed)}`
+			leave.Instance.Name = "Quitter"
+		else
+			local old = strip:FindFirstChild("Quitter")
+			if old then
+				old:Destroy()
 			end
 		end
-	end)
-	State.QueueChanged:Connect(function(queue)
-		local visible = queue.State == "Searching"
-		if visible and not container.Visible then
-			Kit.pop(container, 0.6)
+	end
+	State.PartyChanged:Connect(function(party)
+		local old = strip:FindFirstChild("Quitter")
+		if old then
+			old:Destroy()
 		end
-		container.Visible = visible
+		render(party)
 	end)
+	State.ProfileChanged:Connect(function()
+		if not State.Party then
+			render(nil)
+		end
+	end)
+	render(State.Party)
 end
 
 function LobbyMenu.start()
 	if not State.isLobby() then
 		return
 	end
-	gui = Kit.screen("Lobby", 10, LocalPlayer:WaitForChild("PlayerGui"))
+	gui, root = Kit.screen("Lobby", 10, LocalPlayer:WaitForChild("PlayerGui"))
 	gui.Enabled = false
-	root = Kit.root(gui)
+	home = Kit.box({ Name = "Accueil", ZIndex = 5, Parent = root })
 
-	local screenLayer = Kit.new(
-		"Frame",
-		{ Name = "Ecrans", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 20, Parent = root }
-	)
-	local function closeAll()
-		openScreen(nil)
-	end
-	screens.Search = SearchScreen.create(screenLayer, closeAll)
-	screens.Training = TrainingScreen.create(screenLayer, closeAll)
-	screens.Shop = ShopScreen.create(screenLayer, closeAll)
-	screens.Locker = LockerScreen.create(screenLayer, closeAll)
-	screens.Clan = ClanScreen.create(screenLayer, closeAll)
-	screens.Tutorial = TutorialScreen.create(screenLayer, closeAll)
-	screens.Updates = UpdatesScreen.create(screenLayer, closeAll)
-
-	buildNav()
-	buildProfile()
+	buildTopBar()
+	buildPlayPanel()
 	buildParty()
-	buildQueueBanner()
+
+	local pageLayer = Kit.box({ Name = "Pages", ZIndex = 10, Parent = root })
+	pages["CASIER"] = LockerScreen.create(pageLayer)
+	pages["BOUTIQUE"] = ShopScreen.create(pageLayer)
+	pages["CLAN"] = ClanScreen.create(pageLayer)
+	pages["TUTORIEL"] = TutorialScreen.create(pageLayer, function()
+		closeModal("TUTORIEL")
+	end)
+	pages["NOUVEAUTÉS"] = UpdatesScreen.create(pageLayer, function()
+		closeModal("NOUVEAUTÉS")
+	end)
 
 	local function updateVisibility()
 		gui.Enabled = State.Started and not State.inMatch() and State.Setup == nil
 	end
 	State.Began:Connect(function()
 		updateVisibility()
-		-- Premier lancement : proposer le tutoriel.
+		selectTab("JOUER")
 		local profile = State.Profile
 		if profile and not profile.TutorialDone and profile.Stats.Matches == 0 then
-			openScreen("Tutorial")
+			openModal("TUTORIEL")
 		end
 	end)
 	State.MatchChanged:Connect(function()
 		if State.inMatch() then
-			openScreen(nil)
+			selectTab("JOUER")
 		end
 		updateVisibility()
 	end)
 	State.SetupChanged:Connect(function()
-		openScreen(nil)
+		selectTab("JOUER")
 		updateVisibility()
-	end)
-	State.QueueChanged:Connect(function(queue)
-		if queue.State == "Found" or queue.State == "Teleporting" then
-			openScreen(nil)
-		end
 	end)
 	State.MatchEvent:Connect(function(kind)
 		if kind == "Leave" then

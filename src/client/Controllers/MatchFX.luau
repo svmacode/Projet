@@ -1,12 +1,11 @@
 --!strict
--- Effets « animé » du match : cut-in des pouvoirs, BUUUT !!, onomatopées,
--- cartons, coups de sifflet, aveuglement, arrêt du temps, présentation des
--- équipes et écran de fin avec récompenses.
+-- Interface d'événements du match : GOAL, fil d'actions, coups de sifflet,
+-- présentation, compte à rebours, ultimes, mi-temps, écran de fin.
+-- Les effets 3D (particules, caméra) sont dans Effects3D.
 
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
 local Archetypes = require(ReplicatedStorage.Shared.Data.Archetypes)
 local Config = require(ReplicatedStorage.Shared.Config)
@@ -21,664 +20,653 @@ local LocalPlayer = Players.LocalPlayer
 
 local MatchFX = {}
 
-local gui: ScreenGui
 local root: Frame
+local feed: Frame
 local bannerSlot: Frame
-
-local ONOMATOPOEIA = {
-	Shot = { "DOOON !", "BAM !", "ZUBAAN !", "SHUUUT !" },
-	Fire = { "GOOOOO !!", "ZUDOOON !!", "BAKOOOM !!" },
-	Contact = { "BAM !", "DOKA !", "GUSH !" },
-	Pass = { "SHU !", "PAF !" },
-	Dash = { "ZOOM !", "SHUN !" },
-}
-
-local function pick(list: { string }): string
-	return list[math.random(1, #list)]
-end
+local feedOrder = 0
 
 local function teamColor(team: string?): Color3
-	if team and Theme.Team[team] then
-		return Theme.Team[team].Main
-	end
-	return C.Yellow
+	local info = team and Theme.Team[team]
+	return if info then info.Main else C.TextMuted
 end
 
--- Texte flottant au-dessus d'un personnage --------------------------------------------------------
+local function nameOf(model: Model?): string
+	if not model then
+		return "?"
+	end
+	local match = State.Match
+	if match then
+		for _, participant in match.Participants do
+			if participant.Model == model then
+				return participant.Name
+			end
+		end
+	end
+	return model.Name
+end
 
-local function popup(model: Model?, text: string, color: Color3, size: number?)
-	if not model or not model.Parent then
-		return
-	end
-	local head = model:FindFirstChild("Head")
-	if not head then
-		return
-	end
-	local billboard = Kit.new("BillboardGui", {
-		Size = UDim2.fromOffset(260, 80),
-		StudsOffset = Vector3.new(math.random(-15, 15) / 10, 3.5, 0),
-		AlwaysOnTop = true,
-		MaxDistance = 160,
-		Adornee = head,
-		Parent = LocalPlayer:WaitForChild("PlayerGui"),
+-- Fil d'actions (haut droite) ----------------------------------------------------------------------
+
+local function pushFeed(text: string, team: string?)
+	feedOrder += 1
+	local row = Kit.surface({
+		Color = C.Surface,
+		Size = UDim2.fromOffset(0, 36),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = -feedOrder,
+		ZIndex = 20,
+		Parent = feed,
 	})
-	local label = Kit.text({
+	Kit.padding(row, 14, 0)
+	local inner =
+		Kit.box({ Size = UDim2.fromOffset(0, 36), AutoSize = Enum.AutomaticSize.X, ZIndex = 20, Parent = row })
+	Kit.list(inner, 10, true, nil, Enum.VerticalAlignment.Center)
+	Kit.new("Frame", {
+		BackgroundColor3 = teamColor(team),
+		BorderSizePixel = 0,
+		Size = UDim2.fromOffset(3, 16),
+		LayoutOrder = 1,
+		ZIndex = 21,
+		Parent = inner,
+	})
+	Kit.label({
 		Text = text,
-		Font = Theme.Fonts.Title,
-		Color = color,
-		Stroke = C.Ink,
-		StrokeThickness = 4,
-		Rotation = math.random(-12, 12),
-		Parent = billboard,
+		Font = Theme.Fonts.Semibold,
+		TextSize = Theme.Text.Small,
+		Size = UDim2.fromOffset(0, 36),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = 2,
+		ZIndex = 21,
+		Parent = inner,
 	})
-	label.Size = UDim2.fromScale(size or 1, size or 1)
-	label.AnchorPoint = Vector2.new(0.5, 0.5)
-	label.Position = UDim2.fromScale(0.5, 0.5)
-	Kit.pop(label, 0.3)
-	Kit.tween(
-		billboard,
-		TweenInfo.new(0.9, Enum.EasingStyle.Quad),
-		{ StudsOffset = billboard.StudsOffset + Vector3.new(0, 1.8, 0) }
-	)
-	task.delay(0.95, function()
-		billboard:Destroy()
+	Kit.reveal(row, 0, 0)
+	task.delay(5, function()
+		if row.Parent then
+			row:Destroy()
+		end
 	end)
+	local rows = {}
+	for _, child in feed:GetChildren() do
+		if child:IsA("Frame") then
+			table.insert(rows, child)
+		end
+	end
+	if #rows > 5 then
+		table.sort(rows, function(a, b)
+			return a.LayoutOrder > b.LayoutOrder
+		end)
+		rows[1]:Destroy()
+	end
 end
 
--- Bandeaux à l'écran ----------------------------------------------------------------------------------
+-- Bandeau central discret (sifflet, jets, cartons) ---------------------------------------------
 
-local function banner(text: string, sub: string?, color: Color3, duration: number)
+local function banner(title: string, detail: string?, accent: Color3, duration: number)
 	Kit.clear(bannerSlot)
-	local face, container = Kit.panel({
-		Size = UDim2.fromOffset(700, if sub then 120 else 86),
-		Position = UDim2.fromScale(0.5, 0.5),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Color = color,
-		Rotation = -3,
-		ShadowOffset = 8,
-		StrokeThickness = 5,
-		ZIndex = 40,
+	local card = Kit.surface({
+		Color = C.Surface,
+		Size = UDim2.fromOffset(0, if detail then 68 else 48),
+		AutoSize = Enum.AutomaticSize.X,
+		Position = UDim2.fromScale(0.5, 0),
+		AnchorPoint = Vector2.new(0.5, 0),
+		ZIndex = 30,
 		Parent = bannerSlot,
 	})
-	Kit.text({
-		Text = text,
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 4,
-		Size = UDim2.new(1, -30, 0, 76),
-		Position = UDim2.fromOffset(15, 6),
-		ZIndex = 41,
-		Parent = face,
+	Kit.padding(card, 24, 0)
+	Kit.new("Frame", {
+		BackgroundColor3 = accent,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 48, 0, 3),
+		Position = UDim2.fromOffset(-24, 0),
+		ZIndex = 31,
+		Parent = card,
 	})
-	if sub then
-		Kit.text({
-			Text = sub,
-			Font = Theme.Fonts.Body,
-			Color = C.Ink,
-			Size = UDim2.new(1, -30, 0, 30),
-			Position = UDim2.fromOffset(15, 82),
-			ZIndex = 41,
-			Parent = face,
+	local column = Kit.box({
+		Size = UDim2.fromOffset(0, if detail then 68 else 48),
+		AutoSize = Enum.AutomaticSize.X,
+		ZIndex = 31,
+		Parent = card,
+	})
+	Kit.list(column, 0, false, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
+	Kit.label({
+		Text = title,
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.H3,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.fromOffset(0, 26),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = 1,
+		ZIndex = 32,
+		Parent = column,
+	})
+	if detail then
+		Kit.label({
+			Text = detail,
+			TextSize = Theme.Text.Small,
+			Color = C.TextMuted,
+			AlignX = Enum.TextXAlignment.Center,
+			Size = UDim2.fromOffset(0, 20),
+			AutoSize = Enum.AutomaticSize.X,
+			Order = 2,
+			ZIndex = 32,
+			Parent = column,
 		})
 	end
-	Kit.pop(container, 0.4)
+	Kit.reveal(card, 0, -8)
 	task.delay(duration, function()
-		if container.Parent then
-			Kit.tween(container, Theme.Tween.Slide, { Position = UDim2.new(1.6, 0, 0.5, 0) })
-			task.wait(0.35)
-			container:Destroy()
+		if card.Parent then
+			card:Destroy()
 		end
 	end)
 end
 
-local function flash(color: Color3, duration: number)
-	local frame =
-		Kit.new("Frame", { BackgroundColor3 = color, Size = UDim2.fromScale(1, 1), ZIndex = 90, Parent = root })
-	Kit.tween(frame, TweenInfo.new(duration), { BackgroundTransparency = 1 })
-	task.delay(duration, function()
-		frame:Destroy()
-	end)
-end
+-- GOAL ---------------------------------------------------------------------------------------------------
 
-local function cameraShake(strength: number, duration: number)
-	local character = LocalPlayer.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then
-		return
-	end
-	local base = humanoid.CameraOffset
+local function goal(data: any)
+	Kit.playSound(Theme.Sounds.Goal, 1)
+	local color = teamColor(data.Team)
+	local holder = Kit.box({
+		Size = UDim2.fromOffset(1200, 260),
+		Position = UDim2.fromScale(0.5, 0.42),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		ZIndex = 60,
+		Parent = root,
+	})
+	local word = Kit.label({
+		Text = "GOAL",
+		Font = Theme.Fonts.DisplayItalic,
+		TextSize = 220,
+		Color = C.White,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 62,
+		Parent = holder,
+	})
+	-- Ombre portée pleine décalée.
+	local shadow = Kit.label({
+		Text = "GOAL",
+		Font = Theme.Fonts.DisplayItalic,
+		TextSize = 220,
+		Color = color,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromOffset(10, 10),
+		ZIndex = 61,
+		Parent = holder,
+	})
+	local line = Kit.new("Frame", {
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		Size = UDim2.fromOffset(0, 8),
+		Position = UDim2.new(0.5, 0, 1, 6),
+		AnchorPoint = Vector2.new(0.5, 0),
+		ZIndex = 61,
+		Parent = holder,
+	})
+	local scale = Kit.new("UIScale", { Scale = 1.8, Parent = holder })
+	Kit.tween(scale, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Scale = 1 })
+	task.delay(0.15, function()
+		Kit.tween(line, Theme.Motion.Slow, { Size = UDim2.fromOffset(620, 8) })
+	end)
+	-- Léger tremblement à l'impact.
 	task.spawn(function()
-		local stop = os.clock() + duration
+		local stop = os.clock() + 0.35
 		while os.clock() < stop do
-			local s = strength * (stop - os.clock()) / duration
-			humanoid.CameraOffset = base + Vector3.new(math.random() - 0.5, math.random() - 0.5, 0) * s
-			task.wait()
+			local s = 8 * (stop - os.clock()) / 0.35
+			word.Position = UDim2.fromOffset(math.random(-s, s), math.random(-s, s))
+			task.wait(1 / 60)
 		end
-		humanoid.CameraOffset = base
+		word.Position = UDim2.new()
 	end)
-end
-
--- Lignes de vitesse (concentration) autour de l'écran.
-local function speedLines(color: Color3, duration: number)
-	local holder =
-		Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 30, Parent = root })
-	for i = 1, 28 do
-		local angle = i / 28 * math.pi * 2
-		local line = Kit.new("Frame", {
-			BackgroundColor3 = color,
-			BorderSizePixel = 0,
-			Size = UDim2.fromOffset(math.random(220, 420), math.random(3, 8)),
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0.5 + math.cos(angle) * 0.62, 0, 0.5 + math.sin(angle) * 0.62, 0),
-			Rotation = math.deg(angle) + 180,
-			ZIndex = 30,
-			Parent = holder,
-		})
-		local _ = line
-	end
-	task.delay(duration, function()
+	task.delay(Config.Match.GoalCelebrationTime - 0.8, function()
+		Kit.tween(scale, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { Scale = 0 })
+		task.wait(0.3)
 		holder:Destroy()
 	end)
+	local _ = shadow
+	pushFeed(
+		if data.OwnGoal then "But contre son camp" elseif data.Scorer then `But de {data.Scorer}` else "But",
+		data.Team
+	)
 end
 
--- Cut-in de pouvoir (ultime en plein écran) ---------------------------------------------------------------
+-- Ultime : bandeau propre, couleur du pouvoir ----------------------------------------------------------
 
-local function powerCutIn(data: any)
+local function ultimate(data: any)
 	local archetype = Archetypes.get(data.ArchetypeId)
 	local power = archetype and archetype.Powers[data.Slot]
 	if not archetype or not power then
 		return
 	end
 	if data.Slot < 3 then
-		popup(data.Model, `{string.upper(power.Name)} !`, power.Color, 1)
+		if data.Team then
+			pushFeed(`{data.Name} · {power.Name}`, data.Team)
+		end
 		return
 	end
-	Kit.playSound(Theme.Sounds.Ultimate, 0.9)
+	Kit.playSound(Theme.Sounds.Power, 0.8)
 	local band = Kit.new("Frame", {
-		BackgroundColor3 = archetype.Color,
-		Size = UDim2.new(1.4, 0, 0, 230),
-		Position = UDim2.new(-1.5, 0, 0.5, 0),
-		AnchorPoint = Vector2.new(0, 0.5),
-		Rotation = -6,
-		ClipsDescendants = true,
-		ZIndex = 60,
+		BackgroundColor3 = Theme.darken(power.Color, 0.55),
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 132),
+		Position = UDim2.new(-1, 0, 0.62, 0),
+		ZIndex = 55,
 		Parent = root,
 	})
-	Kit.stroke(band, 8)
-	local burst = Kit.sunburst(band, archetype.Color, Theme.shade(archetype.Color, 0.2), 16, true)
-	burst.ZIndex = 60
-	Kit.text({
-		Text = archetype.Kanji,
-		Font = Theme.Fonts.Heavy,
-		Color = archetype.Accent,
-		Stroke = C.Ink,
-		StrokeThickness = 6,
-		Size = UDim2.fromOffset(320, 260),
-		Position = UDim2.new(0.18, 0, 0.5, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 62,
+	Kit.new("Frame", {
+		BackgroundColor3 = power.Color,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 4),
+		ZIndex = 56,
 		Parent = band,
 	})
-	Kit.text({
-		Text = `{string.upper(power.Name)} !!`,
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 6,
-		Size = UDim2.fromOffset(820, 110),
-		Position = UDim2.new(0.33, 0, 0.18, 0),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 62,
+	Kit.new("Frame", {
+		BackgroundColor3 = power.Color,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 4),
+		Position = UDim2.new(0, 0, 1, -4),
+		ZIndex = 56,
 		Parent = band,
 	})
-	Kit.text({
-		Text = `{power.Japanese}  ·  {data.Name}`,
-		Font = Theme.Fonts.Heavy,
-		Color = C.Ink,
-		Size = UDim2.fromOffset(820, 44),
-		Position = UDim2.new(0.33, 0, 0.66, 0),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 62,
+	Kit.label({
+		Text = `ULTIME  ·  {string.upper(data.Name)}  ·  {string.upper(archetype.Name)}`,
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Small,
+		Color = Theme.lighten(power.Color, 0.4),
+		Position = UDim2.fromOffset(120, 24),
+		Size = UDim2.new(1, -240, 0, 18),
+		ZIndex = 57,
 		Parent = band,
 	})
-	speedLines(C.Paper, 1.2)
-	Kit.tween(band, TweenInfo.new(0.25, Enum.EasingStyle.Quint), { Position = UDim2.new(-0.2, 0, 0.5, 0) })
-	task.delay(1.15, function()
+	Kit.label({
+		Text = string.upper(power.Name),
+		Font = Theme.Fonts.DisplayItalic,
+		TextSize = 64,
+		Position = UDim2.fromOffset(116, 44),
+		Size = UDim2.new(1, -240, 0, 72),
+		ZIndex = 57,
+		Parent = band,
+	})
+	Kit.tween(band, TweenInfo.new(0.28, Enum.EasingStyle.Quint), { Position = UDim2.new(0, 0, 0.62, 0) })
+	task.delay(1.4, function()
 		Kit.tween(
 			band,
 			TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
-			{ Position = UDim2.new(1.2, 0, 0.5, 0) }
+			{ Position = UDim2.new(1, 0, 0.62, 0) }
 		)
 		task.wait(0.3)
 		band:Destroy()
 	end)
-	popup(data.Model, `{string.upper(power.Name)} !!`, power.Color, 1)
+	pushFeed(`{data.Name} · {power.Name}`, data.Team)
 end
 
--- But ! -----------------------------------------------------------------------------------------------
-
-local function goal(data: any)
-	Kit.playSound(Theme.Sounds.Goal, 1)
-	flash(C.White, 0.35)
-	cameraShake(1.2, 0.6)
-	local color = teamColor(data.Team)
-	local holder =
-		Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 70, Parent = root })
-	local burstFrame = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(1200, 520),
-		Position = UDim2.fromScale(0.5, 0.45),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Rotation = -4,
-		ClipsDescendants = true,
-		ZIndex = 70,
-		Parent = holder,
-	})
-	local burst = Kit.sunburst(burstFrame, color, Theme.shade(color, 0.25), 20, true)
-	burst.ZIndex = 70
-	Kit.stroke(burstFrame, 8)
-	local word = Kit.text({
-		Text = if data.OwnGoal then "CONTRE SON CAMP !" else "BUUUT !!",
-		Color = C.Yellow,
-		Stroke = C.Ink,
-		StrokeThickness = 8,
-		Size = UDim2.fromOffset(1100, 260),
-		Position = UDim2.fromScale(0.5, 0.42),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 72,
-		Parent = holder,
-	})
-	Kit.pop(word, 0.2)
-	Kit.text({
-		Text = "ゴール！",
-		Font = Theme.Fonts.Heavy,
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 4,
-		Size = UDim2.fromOffset(400, 70),
-		Position = UDim2.fromScale(0.72, 0.24),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Rotation = 8,
-		ZIndex = 72,
-		Parent = holder,
-	})
-	local scorer = if data.Scorer then string.upper(data.Scorer) else ""
-	local assist = if data.Assist then `   ·   passe : {data.Assist}` else ""
-	Kit.text({
-		Text = `{scorer}{assist}\nROUGE {data.Score.Rouge} – {data.Score.Bleu} BLEU`,
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 4,
-		Size = UDim2.fromOffset(1000, 110),
-		Position = UDim2.fromScale(0.5, 0.66),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 72,
-		Parent = holder,
-	})
-	if data.ScorerModel then
-		popup(data.ScorerModel, "BUUUT !!", C.Yellow, 1)
-	end
-	task.delay(Config.Match.GoalCelebrationTime - 0.6, function()
-		Kit.tween(burstFrame, Theme.Tween.Slide, { Size = UDim2.fromOffset(1200, 0) })
-		task.wait(0.4)
-		holder:Destroy()
-	end)
-end
-
--- Effets d'écran ---------------------------------------------------------------------------------------------
+-- Effets plein écran ------------------------------------------------------------------------------------
 
 local function blind(duration: number)
-	local frame =
-		Kit.new("Frame", { BackgroundColor3 = C.Ink, Size = UDim2.fromScale(1, 1), ZIndex = 80, Parent = root })
-	Kit.text({
-		Text = "AVEUGLÉ !",
-		Color = C.Paper,
-		Size = UDim2.fromOffset(500, 90),
-		Position = UDim2.fromScale(0.5, 0.5),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 81,
-		Parent = frame,
-	})
-	speedLines(C.Paper, duration)
-	task.delay(math.max(0, duration - 0.6), function()
-		Kit.tween(frame, TweenInfo.new(0.6), { BackgroundTransparency = 1 })
-		for _, child in frame:GetChildren() do
-			if child:IsA("TextLabel") then
-				Kit.tween(child, TweenInfo.new(0.6), { TextTransparency = 1 })
-			end
-		end
-		task.wait(0.6)
+	local frame = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = C.Black, BorderSizePixel = 0, Size = UDim2.fromScale(1, 1), ZIndex = 80, Parent = root }
+	)
+	task.delay(math.max(0, duration - 0.5), function()
+		Kit.tween(frame, TweenInfo.new(0.5), { BackgroundTransparency = 1 })
+		task.wait(0.5)
 		frame:Destroy()
 	end)
 end
 
 local function timeStop(duration: number)
 	local correction = Instance.new("ColorCorrectionEffect")
+	correction.Name = "ArretDuTemps"
 	correction.Saturation = -1
-	correction.Contrast = 0.25
+	correction.Contrast = 0.2
 	correction.Parent = Lighting
-	local label = Kit.text({
-		Text = "時よ止まれ",
-		Font = Theme.Fonts.Heavy,
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 6,
-		Size = UDim2.fromOffset(700, 140),
-		Position = UDim2.fromScale(0.5, 0.3),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 75,
-		Parent = root,
-	})
-	Kit.pop(label, 0.3)
 	task.delay(duration, function()
 		correction:Destroy()
-		label:Destroy()
-	end)
-end
-
-local function card(data: any, color: Color3, label: string)
-	local cardFrame = Kit.new("Frame", {
-		BackgroundColor3 = color,
-		Size = UDim2.fromOffset(110, 150),
-		Position = UDim2.new(0.5, -330, 0.32, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Rotation = -12,
-		ZIndex = 50,
-		Parent = root,
-	})
-	Kit.stroke(cardFrame, 5)
-	Kit.pop(cardFrame, 0.2)
-	banner(label, data.Name, color, 2.4)
-	task.delay(2.4, function()
-		cardFrame:Destroy()
-	end)
-end
-
--- Présentation et coups d'envoi --------------------------------------------------------------------------
-
-local function intro(data: any)
-	local match = State.Match
-	if not match then
-		return
-	end
-	local holder =
-		Kit.new("Frame", { BackgroundColor3 = C.Ink, Size = UDim2.fromScale(1, 1), ZIndex = 85, Parent = root })
-	for index, team in { "Rouge", "Bleu" } do
-		local side = Kit.new("Frame", {
-			BackgroundColor3 = Theme.Team[team].Main,
-			Size = UDim2.new(0.56, 0, 1.2, 0),
-			Position = UDim2.new(if index == 1 then -0.6 else 1.04, 0, -0.1, 0),
-			Rotation = 6,
-			ClipsDescendants = true,
-			ZIndex = 86,
-			Parent = holder,
-		})
-		Kit.stroke(side, 8)
-		Kit.sunburst(side, Theme.Team[team].Main, Theme.shade(Theme.Team[team].Main, 0.15), 14, true).ZIndex = 86
-		local list = Kit.new("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(0.8, 0, 0.6, 0),
-			Position = UDim2.fromScale(0.1, 0.2),
-			ZIndex = 87,
-			Parent = side,
-		})
-		Kit.list(list, 10)
-		Kit.text({
-			Text = `ÉQUIPE {string.upper(team)}`,
-			Color = C.Paper,
-			Stroke = C.Ink,
-			StrokeThickness = 4,
-			Size = UDim2.new(1, 0, 0, 80),
-			Order = 0,
-			ZIndex = 88,
-			Parent = list,
-		})
-		local order = 0
-		for _, participant in match.Participants do
-			if participant.Team == team then
-				order += 1
-				local archetype = Archetypes.get(participant.Archetype)
-				Kit.text({
-					Text = `#{participant.Number} {participant.Name}{if archetype
-						then "  ·  " .. archetype.Name
-						else ""}`,
-					Font = Theme.Fonts.Title,
-					Color = C.Paper,
-					Stroke = C.Ink,
-					StrokeThickness = 3,
-					Size = UDim2.new(1, 0, 0, 44),
-					Order = order,
-					ZIndex = 88,
-					Parent = list,
-				})
-			end
-		end
-		Kit.tween(side, Theme.Tween.Slide, { Position = UDim2.new(if index == 1 then -0.06 else 0.5, 0, -0.1, 0) })
-	end
-	local versus = Kit.text({
-		Text = "VS",
-		Color = C.Yellow,
-		Stroke = C.Ink,
-		StrokeThickness = 8,
-		Size = UDim2.fromOffset(300, 220),
-		Position = UDim2.fromScale(0.5, 0.5),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 95,
-		Parent = holder,
-	})
-	task.delay(0.35, function()
-		Kit.pop(versus, 0.1)
-		cameraShake(0.8, 0.4)
-	end)
-	local mode = Config.Modes[data.Mode]
-	Kit.text({
-		Text = `{if mode then mode.Label else ""}{if data.Ranked
-			then " · CLASSÉ"
-			elseif data.Training then " · ENTRAÎNEMENT"
-			else ""}`,
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 4,
-		Size = UDim2.fromOffset(700, 60),
-		Position = UDim2.new(0.5, 0, 0.88, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 95,
-		Parent = holder,
-	})
-	task.delay(3.6, function()
-		Kit.tween(holder, TweenInfo.new(0.3), { BackgroundTransparency = 1 })
-		task.wait(0.3)
-		holder:Destroy()
 	end)
 end
 
 local function countdown(seconds: number)
 	task.spawn(function()
 		for i = seconds, 1, -1 do
-			local label = Kit.text({
+			local number = Kit.label({
 				Text = tostring(i),
-				Color = C.Yellow,
-				Stroke = C.Ink,
-				StrokeThickness = 8,
-				Size = UDim2.fromOffset(240, 200),
-				Position = UDim2.fromScale(0.5, 0.38),
+				Font = Theme.Fonts.Display,
+				TextSize = 140,
+				AlignX = Enum.TextXAlignment.Center,
+				Size = UDim2.fromOffset(300, 160),
+				Position = UDim2.fromScale(0.5, 0.4),
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				ZIndex = 60,
 				Parent = root,
 			})
-			Kit.pop(label, 2)
-			task.wait(0.95)
-			label:Destroy()
+			Kit.pop(number, 1.4)
+			task.wait(0.9)
+			number:Destroy()
 		end
-		local go = Kit.text({
-			Text = "HAJIME ! 始め",
-			Color = C.Red,
-			Stroke = C.Ink,
-			StrokeThickness = 8,
-			Size = UDim2.fromOffset(800, 180),
-			Position = UDim2.fromScale(0.5, 0.38),
+		local go = Kit.label({
+			Text = "GO",
+			Font = Theme.Fonts.DisplayItalic,
+			TextSize = 150,
+			Color = C.Accent,
+			AlignX = Enum.TextXAlignment.Center,
+			Size = UDim2.fromOffset(400, 170),
+			Position = UDim2.fromScale(0.5, 0.4),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			ZIndex = 60,
 			Parent = root,
 		})
-		Kit.pop(go, 0.4)
-		task.wait(0.8)
+		Kit.pop(go, 1.5)
+		task.wait(0.7)
 		go:Destroy()
 	end)
 end
 
--- Écran de fin ------------------------------------------------------------------------------------------
+local function intro(data: any)
+	local match = State.Match
+	if not match then
+		return
+	end
+	local overlay = Kit.new("Frame", {
+		BackgroundColor3 = C.Background,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 70,
+		Parent = root,
+	})
+	local mode = Config.Modes[data.Mode]
+	Kit.label({
+		Text = `{if mode then mode.Label else ""}{if data.Ranked
+			then "  ·  CLASSÉ"
+			elseif data.Training then "  ·  ENTRAÎNEMENT"
+			else ""}`,
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Small,
+		Color = C.Accent,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.fromOffset(0, 110),
+		ZIndex = 71,
+		Parent = overlay,
+	})
+	for index, team in { "Rouge", "Bleu" } do
+		local column = Kit.box({
+			Size = UDim2.fromOffset(460, 480),
+			Position = UDim2.new(0.5, if index == 1 then -80 else 80, 0.5, 20),
+			AnchorPoint = Vector2.new(if index == 1 then 1 else 0, 0.5),
+			ZIndex = 71,
+			Parent = overlay,
+		})
+		local align = if index == 1 then Enum.TextXAlignment.Right else Enum.TextXAlignment.Left
+		Kit.new("Frame", {
+			BackgroundColor3 = teamColor(team),
+			BorderSizePixel = 0,
+			Size = UDim2.fromOffset(60, 4),
+			Position = UDim2.new(if index == 1 then 1 else 0, if index == 1 then -60 else 0, 0, 0),
+			ZIndex = 72,
+			Parent = column,
+		})
+		Kit.label({
+			Text = `ÉQUIPE {Theme.Team[team].Name}`,
+			Font = Theme.Fonts.Display,
+			TextSize = Theme.Text.H1,
+			AlignX = align,
+			Size = UDim2.new(1, 0, 0, 44),
+			Position = UDim2.fromOffset(0, 16),
+			ZIndex = 72,
+			Parent = column,
+		})
+		local list = Kit.box({
+			Size = UDim2.new(1, 0, 1, -80),
+			Position = UDim2.fromOffset(0, 80),
+			ZIndex = 72,
+			Parent = column,
+		})
+		Kit.list(list, 10, false, if index == 1 then Enum.HorizontalAlignment.Right else Enum.HorizontalAlignment.Left)
+		local order = 0
+		for _, participant in match.Participants do
+			if participant.Team == team then
+				order += 1
+				local archetype = Archetypes.get(participant.Archetype)
+				local row = Kit.label({
+					Text = `<b>{participant.Name}</b>  <font color="#{C.TextMuted:ToHex()}">{if archetype
+						then archetype.Name
+						else ""}</font>`,
+					Rich = true,
+					TextSize = Theme.Text.H3,
+					AlignX = align,
+					Size = UDim2.new(1, 0, 0, 30),
+					Order = order,
+					ZIndex = 73,
+					Parent = list,
+				})
+				Kit.reveal(row, 0.15 + order * 0.08, 10)
+			end
+		end
+	end
+	local versus = Kit.label({
+		Text = "VS",
+		Font = Theme.Fonts.DisplayItalic,
+		TextSize = 72,
+		Color = C.TextFaint,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.fromOffset(160, 80),
+		Position = UDim2.fromScale(0.5, 0.5),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		ZIndex = 72,
+		Parent = overlay,
+	})
+	Kit.pop(versus, 1.6)
+	task.delay(3.4, function()
+		Kit.tween(overlay, TweenInfo.new(0.4), { BackgroundTransparency = 1 })
+		for _, child in overlay:GetDescendants() do
+			if child:IsA("TextLabel") then
+				Kit.tween(child, TweenInfo.new(0.3), { TextTransparency = 1 })
+			elseif child:IsA("Frame") and child.BackgroundTransparency < 1 then
+				Kit.tween(child, TweenInfo.new(0.3), { BackgroundTransparency = 1 })
+			end
+		end
+		task.wait(0.45)
+		overlay:Destroy()
+	end)
+end
+
+-- Écran de fin ---------------------------------------------------------------------------------------------
 
 local function endScreen(data: any)
-	local outcome = data.Outcome
-	local title = if outcome == "Win" then "VICTOIRE !!" elseif outcome == "Loss" then "DÉFAITE…" else "ÉGALITÉ"
-	local color = if outcome == "Win" then C.Yellow elseif outcome == "Loss" then C.Steel else C.Blue
-	local holder =
-		Kit.new("Frame", { BackgroundColor3 = C.Night, Size = UDim2.fromScale(1, 1), ZIndex = 100, Parent = root })
-	Kit.sunburst(holder, C.Night, Theme.shade(color, -0.5), 22, true).ZIndex = 100
-	local titleLabel = Kit.text({
-		Text = title,
-		Color = color,
-		Stroke = C.Ink,
-		StrokeThickness = 8,
-		Size = UDim2.fromOffset(1000, 170),
-		Position = UDim2.new(0.5, 0, 0, 110),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Rotation = -3,
-		ZIndex = 102,
-		Parent = holder,
+	local overlay = Kit.new("Frame", {
+		BackgroundColor3 = C.Background,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 90,
+		Parent = root,
 	})
-	Kit.pop(titleLabel, 0.2)
-	Kit.text({
-		Text = `ROUGE {data.Score.Rouge} – {data.Score.Bleu} BLEU{if data.Forfeit then "  (forfait)" else ""}`,
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 4,
-		Size = UDim2.fromOffset(800, 60),
-		Position = UDim2.new(0.5, 0, 0, 210),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 102,
-		Parent = holder,
+	local page = Kit.box({
+		Size = UDim2.new(1, -160, 1, -120),
+		Position = UDim2.fromOffset(80, 60),
+		ZIndex = 91,
+		Parent = overlay,
+	})
+	local outcome = data.Outcome
+	local title = if outcome == "Win" then "Victoire" elseif outcome == "Loss" then "Défaite" else "Égalité"
+	local color = if outcome == "Win" then C.Accent elseif outcome == "Loss" then C.TextMuted else C.Info
+	Kit.label({
+		Text = if data.Ranked then "MATCH CLASSÉ" elseif data.Training then "ENTRAÎNEMENT" else "MATCH TERMINÉ",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Size = UDim2.new(1, 0, 0, 18),
+		ZIndex = 92,
+		Parent = page,
+	})
+	local heading = Kit.label({
+		Text = title,
+		Font = Theme.Fonts.DisplayItalic,
+		TextSize = 96,
+		Color = color,
+		Size = UDim2.new(0.6, 0, 0, 104),
+		Position = UDim2.fromOffset(0, 20),
+		ZIndex = 92,
+		Parent = page,
+	})
+	Kit.reveal(heading, 0, 20)
+	Kit.label({
+		Text = `<font color="#{teamColor("Rouge"):ToHex()}">ROUGE</font>  {data.Score.Rouge} – {data.Score.Bleu}  <font color="#{teamColor(
+			"Bleu"
+		):ToHex()}">BLEU</font>{if data.Forfeit then "   (forfait)" else ""}`,
+		Rich = true,
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.H2,
+		Size = UDim2.new(0.6, 0, 0, 32),
+		Position = UDim2.fromOffset(4, 128),
+		ZIndex = 92,
+		Parent = page,
 	})
 
-	-- Tableau des joueurs.
-	local tableFace, _ = Kit.panel({
-		Size = UDim2.fromOffset(760, 400),
-		Position = UDim2.new(0.5, -400, 0, 260),
-		Color = C.Paper,
-		ZIndex = 102,
-		Parent = holder,
+	-- Tableau.
+	local tableCard = Kit.surface({
+		Color = C.Surface,
+		Size = UDim2.new(0.62, 0, 1, -200),
+		Position = UDim2.fromOffset(0, 190),
+		Radius = Theme.RadiusLarge,
+		ZIndex = 92,
+		Parent = page,
 	})
-	local list = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -24, 1, -24),
-		Position = UDim2.fromOffset(12, 12),
-		ZIndex = 103,
-		Parent = tableFace,
+	local list = Kit.box({
+		Size = UDim2.new(1, -48, 1, -40),
+		Position = UDim2.fromOffset(24, 20),
+		ZIndex = 93,
+		Parent = tableCard,
 	})
 	Kit.list(list, 4)
-	local header = Kit.text({
-		Text = "JOUEUR                                  BUTS · PD · ARRÊTS · INTER.",
-		Font = Theme.Fonts.Heavy,
-		Size = UDim2.new(1, 0, 0, 26),
-		AlignX = Enum.TextXAlignment.Left,
-		Order = 0,
-		ZIndex = 104,
-		Parent = list,
-	})
-	local _ = header
-	for index, row in data.Table do
+	local function row(cells: { string }, order: number, header: boolean, team: string?, highlight: boolean?)
 		local line = Kit.new("Frame", {
-			BackgroundColor3 = if row.UserId == LocalPlayer.UserId then C.Yellow else teamColor(row.Team),
+			BackgroundColor3 = if highlight then C.Surface3 else C.Surface,
+			BorderSizePixel = 0,
 			Size = UDim2.new(1, 0, 0, 34),
-			LayoutOrder = index,
-			ZIndex = 104,
+			LayoutOrder = order,
+			ZIndex = 93,
 			Parent = list,
 		})
-		Kit.stroke(line, 2)
-		Kit.text({
-			Text = `{if row.MVP then "★ " else ""}{row.Name}`,
-			Font = Theme.Fonts.Body,
-			Color = if row.UserId == LocalPlayer.UserId then C.Ink else C.Paper,
-			Size = UDim2.new(0.55, 0, 1, -6),
-			Position = UDim2.fromOffset(10, 3),
-			AlignX = Enum.TextXAlignment.Left,
-			ZIndex = 105,
-			Parent = line,
-		})
-		Kit.text({
-			Text = `{row.Goals}  ·  {row.Assists}  ·  {row.Saves}  ·  {row.Interceptions}`,
-			Font = Theme.Fonts.Heavy,
-			Color = if row.UserId == LocalPlayer.UserId then C.Ink else C.Paper,
-			Size = UDim2.new(0.4, 0, 1, -6),
-			Position = UDim2.new(0.58, 0, 0, 3),
-			ZIndex = 105,
-			Parent = line,
-		})
+		Kit.corner(line, 6)
+		if team then
+			Kit.new("Frame", {
+				BackgroundColor3 = teamColor(team),
+				BorderSizePixel = 0,
+				Size = UDim2.fromOffset(3, 18),
+				Position = UDim2.new(0, 8, 0.5, -9),
+				ZIndex = 94,
+				Parent = line,
+			})
+		end
+		local widths = { 0.46, 0.135, 0.135, 0.135, 0.135 }
+		local x = 0
+		for index, cell in cells do
+			Kit.label({
+				Text = cell,
+				Font = if header then Theme.Fonts.Bold elseif index == 1 then Theme.Fonts.Semibold else Theme.Fonts.Bold,
+				TextSize = if header then Theme.Text.Tiny else Theme.Text.Body,
+				Color = if header then C.TextFaint else C.Text,
+				AlignX = if index == 1 then Enum.TextXAlignment.Left else Enum.TextXAlignment.Center,
+				Size = UDim2.new(widths[index], 0, 1, 0),
+				Position = UDim2.new(x, if index == 1 then 20 else 0, 0, 0),
+				ZIndex = 94,
+				Parent = line,
+			})
+			x += widths[index]
+		end
+	end
+	row({ "JOUEUR", "BUTS", "PASSES D.", "ARRÊTS", "INTERC." }, 0, true)
+	for index, entry in data.Table do
+		row({
+			`{entry.Name}{if entry.MVP then "  ·  MVP" else ""}`,
+			tostring(entry.Goals),
+			tostring(entry.Assists),
+			tostring(entry.Saves),
+			tostring(entry.Interceptions),
+		}, index, false, entry.Team, entry.UserId == LocalPlayer.UserId)
 	end
 
 	-- Récompenses.
-	local rewards = data.Rewards
-	local rewardFace, rewardContainer = Kit.panel({
-		Size = UDim2.fromOffset(360, 400),
-		Position = UDim2.new(0.5, 380, 0, 260),
-		Color = C.Yellow,
-		ZIndex = 102,
-		Parent = holder,
+	local rewardsCard = Kit.surface({
+		Color = C.Surface,
+		Size = UDim2.new(0.36, 0, 1, -200),
+		Position = UDim2.new(1, 0, 0, 190),
+		AnchorPoint = Vector2.new(1, 0),
+		Radius = Theme.RadiusLarge,
+		ZIndex = 92,
+		Parent = page,
 	})
-	Kit.header(rewardFace, "RÉCOMPENSES", C.Red)
-	local rewardList = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -30, 1, -70),
-		Position = UDim2.fromOffset(15, 56),
-		ZIndex = 103,
-		Parent = rewardFace,
+	local rewards = Kit.box({
+		Size = UDim2.new(1, -48, 1, -48),
+		Position = UDim2.fromOffset(24, 24),
+		ZIndex = 93,
+		Parent = rewardsCard,
 	})
-	Kit.list(rewardList, 10)
-	local function line(text: string, order: number, textColor: Color3?)
-		Kit.text({
-			Text = text,
-			Color = textColor or C.Ink,
-			Size = UDim2.new(1, 0, 0, 40),
-			AlignX = Enum.TextXAlignment.Left,
-			Order = order,
-			ZIndex = 104,
-			Parent = rewardList,
+	Kit.list(rewards, 14)
+	Kit.label({
+		Text = "Récompenses",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.H3,
+		Size = UDim2.new(1, 0, 0, 26),
+		Order = 0,
+		ZIndex = 94,
+		Parent = rewards,
+	})
+	local function reward(label: string, value: string, order: number, valueColor: Color3?)
+		local line = Kit.box({ Size = UDim2.new(1, 0, 0, 28), Order = order, ZIndex = 94, Parent = rewards })
+		Kit.label({ Text = label, Color = C.TextMuted, Size = UDim2.fromScale(0.6, 1), ZIndex = 95, Parent = line })
+		Kit.label({
+			Text = value,
+			Font = Theme.Fonts.Display,
+			TextSize = Theme.Text.H3,
+			Color = valueColor or C.Text,
+			AlignX = Enum.TextXAlignment.Right,
+			Size = UDim2.fromScale(1, 1),
+			ZIndex = 95,
+			Parent = line,
 		})
+		Kit.reveal(line, 0.3 + order * 0.12, 8)
 	end
-	if data.MVP then
-		line(`★ MVP : {data.MVP}`, 0, C.Red)
-	end
-	if rewards then
-		line(`+{Format.number(rewards.Coins)} HAND COINS`, 1)
-		line(`+{Format.number(rewards.XP)} XP`, 2)
-		if rewards.LevelAfter > rewards.LevelBefore then
-			line(`NIVEAU {rewards.LevelAfter} !`, 3, C.Purple)
+	local summary = data.Rewards
+	if summary then
+		reward("Hand Coins", `+{Format.number(summary.Coins)}`, 1, C.Warning)
+		reward("Expérience", `+{Format.number(summary.XP)} XP`, 2)
+		if summary.LevelAfter > summary.LevelBefore then
+			reward("Niveau", `{summary.LevelAfter}`, 3, C.Accent)
 		end
 		if data.Ranked then
-			local rank = Progression.getRank(rewards.RPAfter)
-			line(`{if rewards.RPChange >= 0 then "+" else ""}{rewards.RPChange} RP · {rank.Name}`, 4, rank.Color)
+			local rank = Progression.getRank(summary.RPAfter)
+			reward(
+				`Classement · {rank.Name}`,
+				`{if summary.RPChange >= 0 then "+" else ""}{summary.RPChange} RP`,
+				4,
+				rank.Color
+			)
 		end
-		if rewards.FirstMatchBalls > 0 then
-			line(`CADEAU : {rewards.FirstMatchBalls} BALLES !`, 5, C.Red)
+		if summary.FirstMatchBalls > 0 then
+			reward("Cadeau de bienvenue", `{summary.FirstMatchBalls} balles`, 5, C.Accent)
 		end
 	elseif data.Training then
-		line("Entraînement : pas de récompense", 1)
+		reward("Entraînement", "aucune récompense", 1)
 	end
-	Kit.pop(rewardContainer, 0.5)
+	if data.MVP then
+		reward("Joueur du match", data.MVP, 6)
+	end
 
-	local timer = Kit.text({
+	local timer = Kit.label({
 		Text = "",
-		Font = Theme.Fonts.Body,
-		Color = C.Paper,
-		Size = UDim2.fromOffset(600, 30),
-		Position = UDim2.new(0.5, 0, 1, -40),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 102,
-		Parent = holder,
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		AlignX = Enum.TextXAlignment.Right,
+		Size = UDim2.fromOffset(400, 20),
+		Position = UDim2.new(1, 0, 0, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		ZIndex = 92,
+		Parent = page,
 	})
 	task.spawn(function()
 		local remaining = Config.Match.EndScreenTime
-		while remaining > 0 and holder.Parent do
+		while remaining > 0 and overlay.Parent do
 			timer.Text = `Retour au lobby dans {remaining} s`
 			task.wait(1)
 			remaining -= 1
@@ -687,137 +675,107 @@ local function endScreen(data: any)
 	local connection
 	connection = State.MatchEvent:Connect(function(kind)
 		if kind == "Leave" then
-			holder:Destroy()
+			overlay:Destroy()
 			connection:Disconnect()
 		end
 	end)
 	task.delay(Config.Match.EndScreenTime + 15, function()
-		if holder.Parent then
-			holder:Destroy()
+		if overlay.Parent then
+			overlay:Destroy()
 		end
 	end)
 end
 
--- Routage des événements ------------------------------------------------------------------------------
+-- Routage ---------------------------------------------------------------------------------------------------
 
-local SET_PIECE_COLORS =
-	{ Penalty = C.Red, FreeThrow = C.Blue, ThrowIn = C.Green, Corner = C.Purple, GoalThrow = C.Steel }
+local SET_PIECES = {
+	FreeThrow = "Jet franc",
+	ThrowIn = "Touche",
+	Corner = "Corner",
+	GoalThrow = "Renvoi",
+	Penalty = "Jet de 7 mètres",
+}
 
 local function onEvent(kind: string, data: any)
 	data = data or {}
-	if kind == "Power" then
-		powerCutIn(data)
-	elseif kind == "Goal" then
+	if kind == "Goal" then
 		goal(data)
-	elseif kind == "Shot" then
-		popup(
-			data.Model,
-			pick(if data.Fire or data.Powered then ONOMATOPOEIA.Fire else ONOMATOPOEIA.Shot),
-			if data.Fire then C.Red else C.Yellow,
-			if data.Charge > 0.8 then 1.2 else 0.9
-		)
-		Kit.playSound(Theme.Sounds.Shot, 0.7)
-	elseif kind == "Pass" then
-		Kit.playSound(Theme.Sounds.Pass, 0.4)
-	elseif kind == "Dash" then
-		if data.Model ~= LocalPlayer.Character then
-			popup(data.Model, pick(ONOMATOPOEIA.Dash), C.Paper, 0.7)
-		end
-	elseif kind == "Contact" then
-		popup(data.To, pick(ONOMATOPOEIA.Contact), C.Red, 1)
-		if data.To == LocalPlayer.Character then
-			cameraShake(0.6, 0.3)
-		end
-	elseif kind == "Whiff" then
-		popup(data.Model, "RATÉ…", C.Paper, 0.7)
-	elseif kind == "InterceptStance" then
-		popup(data.Model, "!", C.Yellow, 0.8)
-	elseif kind == "Interception" then
-		popup(data.Model, "INTERCEPTÉ !", C.Yellow, 1)
-	elseif kind == "Steal" then
-		popup(data.Model, "VOLÉ !", C.Yellow, 1)
-	elseif kind == "Save" then
-		popup(data.Model, if data.Parried then "REPOUSSÉ !" else "ARRÊT !!", C.Green, 1.1)
-	elseif kind == "Block" then
-		popup(data.Model, "CONTRE !", C.Blue, 1)
-	elseif kind == "WallBlock" then
-		banner("MUR !", "Le tir s'écrase sur le pouvoir du gardien", C.Blue, 1.4)
-	elseif kind == "Popup" then
-		local color = if data.Style == "Danger" then C.Red elseif data.Style == "Gold" then C.Yellow else C.Paper
-		popup(data.Model, data.Text, color, 1)
+	elseif kind == "Power" then
+		ultimate(data)
 	elseif kind == "SetPiece" then
-		Kit.playSound(Theme.Sounds.Whistle, 0.7)
-		if data.Kind ~= "ThrowOff" then
-			banner(data.Label, data.Reason, SET_PIECE_COLORS[data.Kind] or C.Blue, 1.6)
+		Kit.playSound(Theme.Sounds.Whistle, 0.6)
+		local label = SET_PIECES[data.Kind]
+		if label then
+			banner(
+				label,
+				`{data.Reason or ""}{if data.Reason then "  ·  " else ""}équipe {string.lower(
+					Theme.Team[data.Team].Name
+				)}`,
+				teamColor(data.Team),
+				1.8
+			)
 		end
 	elseif kind == "Violation" then
-		Kit.playSound(Theme.Sounds.Whistle, 0.8)
-		popup(data.Model, "ピーッ !", C.Paper, 0.8)
+		pushFeed(`{nameOf(data.Model)} · {string.lower(data.Label)}`, data.Team)
 	elseif kind == "Foul" then
-		popup(data.Victim, "FAUTE !", C.Red, 1)
+		pushFeed(`Faute de {nameOf(data.Offender)}`, data.Team)
 	elseif kind == "YellowCard" then
-		card(data, C.Yellow, "AVERTISSEMENT")
+		banner("Avertissement", data.Name, C.Warning, 2)
+		pushFeed(`Avertissement · {data.Name}`, data.Team)
 	elseif kind == "Suspension" then
-		card(data, C.Paper, `EXCLUSION {math.floor(data.Duration or Config.Rules.SuspensionTime)} s`)
+		banner(`Exclusion {math.floor(data.Duration or Config.Rules.SuspensionTime)} s`, data.Name, C.White, 2)
+		pushFeed(`Exclusion · {data.Name}`, data.Team)
 	elseif kind == "RedCard" then
-		card(data, C.Red, "CARTON ROUGE !")
-	elseif kind == "Return" then
-		popup(data.Model, "DE RETOUR !", C.Green, 0.9)
+		banner("Carton rouge", data.Name, C.Danger, 2.4)
+		pushFeed(`Carton rouge · {data.Name}`, data.Team)
+	elseif kind == "Save" then
+		pushFeed(`{if data.Parried then "Parade" else "Arrêt"} de {nameOf(data.Model)}`, data.Team)
+	elseif kind == "Interception" then
+		pushFeed(`Interception de {nameOf(data.Model)}`, data.Team)
+	elseif kind == "Steal" then
+		pushFeed(`Ballon volé par {nameOf(data.Model)}`, data.Team)
 	elseif kind == "PassiveWarning" then
-		banner("JEU PASSIF", "L'arbitre lève le bras : tirez vite !", C.Yellow, 1.8)
+		banner("Jeu passif", "Tirez rapidement", C.Warning, 2)
 	elseif kind == "Blind" then
 		blind(data.Duration or 2)
 	elseif kind == "TimeStop" then
 		timeStop(data.Duration or 3)
-	elseif kind == "Blink" then
-		if typeof(data.From) == "Vector3" then
-			local ghost = Instance.new("Part")
-			ghost.Anchored = true
-			ghost.CanCollide = false
-			ghost.CanQuery = false
-			ghost.Material = Enum.Material.Neon
-			ghost.Color = C.Paper
-			ghost.Size = Vector3.new(2, 5, 1)
-			ghost.CFrame = CFrame.new(data.From)
-			ghost.Parent = Workspace
-			task.spawn(function()
-				for i = 1, 10 do
-					ghost.Transparency = i / 10
-					ghost.Size = Vector3.new(2 - i * 0.18, 5 + i * 0.3, 1)
-					task.wait(0.03)
-				end
-				ghost:Destroy()
-			end)
-		end
 	elseif kind == "Intro" then
 		intro(data)
 	elseif kind == "ThrowOff" then
 		countdown(data.Countdown or 3)
 	elseif kind == "Halftime" then
 		banner(
-			"MI-TEMPS",
-			`ROUGE {data.Score.Rouge} – {data.Score.Bleu} BLEU  ·  changement de côté`,
-			C.Purple,
+			"Mi-temps",
+			`Rouge {data.Score.Rouge} – {data.Score.Bleu} Bleu  ·  changement de côté`,
+			C.Accent,
 			(data.Duration or 10) - 1
 		)
 	elseif kind == "GoldenGoal" then
-		banner("BUT EN OR !", "Le prochain but gagne le match !", C.Yellow, 2.5)
+		banner("But en or", "Le prochain but décide du match", C.Accent, 2.5)
 	elseif kind == "Left" then
-		State.Notify:Fire(`{data.Name} a quitté le match.`, "Danger")
+		pushFeed(`{data.Name} a quitté le match`, data.Team)
 	elseif kind == "End" then
 		endScreen(data)
 	end
 end
 
 function MatchFX.start()
-	gui = Kit.screen("EffetsMatch", 30, LocalPlayer:WaitForChild("PlayerGui"))
-	root = Kit.root(gui)
-	bannerSlot = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(800, 160),
-		Position = UDim2.new(0.5, 0, 0.26, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 40,
+	local _, frame = Kit.screen("EvenementsMatch", 30, LocalPlayer:WaitForChild("PlayerGui"))
+	root = frame
+	feed = Kit.box({
+		Size = UDim2.fromOffset(420, 260),
+		Position = UDim2.new(1, -24, 0, 100),
+		AnchorPoint = Vector2.new(1, 0),
+		ZIndex = 20,
+		Parent = root,
+	})
+	Kit.list(feed, 6, false, Enum.HorizontalAlignment.Right)
+	bannerSlot = Kit.box({
+		Size = UDim2.fromOffset(800, 80),
+		Position = UDim2.new(0.5, 0, 0, 128),
+		AnchorPoint = Vector2.new(0.5, 0),
+		ZIndex = 30,
 		Parent = root,
 	})
 	State.MatchEvent:Connect(function(kind, data)

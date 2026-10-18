@@ -1,6 +1,6 @@
 --!strict
--- Messages à l'écran : bulles façon manga (info, alerte, récompense),
--- invitations de groupe et de clan.
+-- Notifications : messages courts en haut de l'écran, invitations (groupe,
+-- clan) en bas à droite.
 
 local Players = game:GetService("Players")
 
@@ -12,159 +12,167 @@ local C = Theme.Colors
 
 local Notifications = {}
 
-local STYLES = {
-	Info = { Back = C.Paper, Text = C.Ink, Tag = "!" },
-	Danger = { Back = C.Red, Text = C.Paper, Tag = "✖" },
-	Gold = { Back = C.Yellow, Text = C.Ink, Tag = "★" },
-	Level = { Back = C.Purple, Text = C.Paper, Tag = "▲" },
-	Success = { Back = C.Green, Text = C.Ink, Tag = "✔" },
+local ACCENTS = {
+	Info = C.Info,
+	Danger = C.Danger,
+	Gold = C.Warning,
+	Level = C.Accent,
+	Success = C.Success,
 }
 
-local toastList: Frame
-local inviteList: Frame
+local toastColumn: Frame
+local inviteColumn: Frame
+local order = 0
 
 function Notifications.toast(text: string, style: string?)
-	local look = STYLES[style or "Info"] or STYLES.Info
-	local face, container = Kit.panel({
-		Size = UDim2.fromOffset(440, 64),
-		Color = look.Back,
-		Rotation = math.random(-15, 15) / 10,
-		Parent = toastList,
-		ZIndex = 50,
+	order += 1
+	local toast = Kit.surface({
+		Color = C.Surface,
+		Size = UDim2.fromOffset(0, 48),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = order,
+		ZIndex = 80,
+		Parent = toastColumn,
 	})
-	container.LayoutOrder = -math.floor(os.clock() * 100)
-	local tag = Kit.new("Frame", {
-		BackgroundColor3 = C.Ink,
-		Size = UDim2.fromOffset(44, 44),
-		Position = UDim2.fromOffset(10, 10),
-		ZIndex = 51,
-		Parent = face,
+	Kit.padding(toast, 18, 0)
+	local row =
+		Kit.box({ Size = UDim2.fromOffset(0, 48), AutoSize = Enum.AutomaticSize.X, ZIndex = 80, Parent = toast })
+	Kit.list(row, 12, true, nil, Enum.VerticalAlignment.Center)
+	local dot = Kit.new("Frame", {
+		BackgroundColor3 = ACCENTS[style or "Info"] or C.Info,
+		Size = UDim2.fromOffset(8, 8),
+		LayoutOrder = 1,
+		ZIndex = 81,
+		Parent = row,
 	})
-	Kit.corner(tag, 44)
-	Kit.text({ Text = look.Tag, Color = look.Back, Font = Theme.Fonts.Heavy, ZIndex = 52, Parent = tag })
-	Kit.text({
+	Kit.corner(dot, 4)
+	Kit.label({
 		Text = text,
-		Font = Theme.Fonts.Body,
-		Color = look.Text,
-		Size = UDim2.new(1, -74, 1, -12),
-		Position = UDim2.fromOffset(64, 6),
-		AlignX = Enum.TextXAlignment.Left,
-		MaxSize = 22,
-		ZIndex = 51,
-		Parent = face,
+		Font = Theme.Fonts.Semibold,
+		TextSize = Theme.Text.Body,
+		Size = UDim2.fromOffset(0, 48),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = 2,
+		ZIndex = 81,
+		Parent = row,
 	})
-	Kit.pop(container, 0.5)
-	task.delay(4.2, function()
-		if container.Parent then
-			Kit.tween(container, Theme.Tween.Slide, { Position = UDim2.fromOffset(500, 0) })
-			task.wait(0.3)
-			container:Destroy()
+	Kit.reveal(toast, 0, -10)
+	task.delay(3.6, function()
+		if toast.Parent then
+			toast:Destroy()
 		end
 	end)
-	-- Pas plus de 5 bulles à la fois.
-	local children = {}
-	for _, child in toastList:GetChildren() do
+	local toasts = {}
+	for _, child in toastColumn:GetChildren() do
 		if child:IsA("Frame") then
-			table.insert(children, child)
+			table.insert(toasts, child)
 		end
 	end
-	if #children > 5 then
-		table.sort(children, function(a, b)
-			return a.LayoutOrder > b.LayoutOrder
+	if #toasts > 4 then
+		table.sort(toasts, function(a, b)
+			return a.LayoutOrder < b.LayoutOrder
 		end)
-		children[1]:Destroy()
+		toasts[1]:Destroy()
 	end
 end
 
 local function invite(title: string, body: string, onAccept: () -> (), onDecline: () -> ())
-	local face, container = Kit.panel({
-		Size = UDim2.fromOffset(420, 150),
-		Color = C.Paper,
-		Parent = inviteList,
-		ZIndex = 60,
+	local card = Kit.surface({
+		Color = C.Surface,
+		Size = UDim2.fromOffset(380, 148),
+		Radius = Theme.RadiusLarge,
+		ZIndex = 85,
+		Parent = inviteColumn,
 	})
-	Kit.header(face, title, C.Blue)
-	Kit.text({
+	Kit.label({
+		Text = title,
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Small,
+		Color = C.Accent,
+		Position = UDim2.fromOffset(20, 16),
+		Size = UDim2.new(1, -40, 0, 18),
+		ZIndex = 86,
+		Parent = card,
+	})
+	Kit.label({
 		Text = body,
-		Font = Theme.Fonts.Body,
-		Size = UDim2.new(1, -30, 0, 40),
-		Position = UDim2.fromOffset(15, 46),
-		MaxSize = 22,
-		ZIndex = 61,
-		Parent = face,
+		Font = Theme.Fonts.Semibold,
+		TextSize = Theme.Text.H3,
+		Wrap = true,
+		Position = UDim2.fromOffset(20, 38),
+		Size = UDim2.new(1, -40, 0, 48),
+		AlignY = Enum.TextYAlignment.Top,
+		ZIndex = 86,
+		Parent = card,
 	})
 	local done = false
 	local function close()
 		done = true
-		container:Destroy()
+		card:Destroy()
 	end
 	Kit.button({
-		Text = "ACCEPTER",
-		Color = C.Green,
-		Size = UDim2.fromOffset(180, 44),
-		Position = UDim2.fromOffset(16, 94),
-		ZIndex = 62,
-		Parent = face,
+		Text = "Accepter",
+		Variant = "Primary",
+		Size = UDim2.fromOffset(160, 40),
+		Position = UDim2.fromOffset(20, 92),
+		ZIndex = 87,
+		Parent = card,
 		OnClick = function()
 			close()
 			onAccept()
 		end,
 	})
 	Kit.button({
-		Text = "REFUSER",
-		Color = C.Red,
-		TextColor = C.Paper,
-		Size = UDim2.fromOffset(180, 44),
-		Position = UDim2.fromOffset(220, 94),
-		ZIndex = 62,
-		Parent = face,
+		Text = "Refuser",
+		Variant = "Ghost",
+		Size = UDim2.fromOffset(160, 40),
+		Position = UDim2.fromOffset(196, 92),
+		ZIndex = 87,
+		Parent = card,
 		OnClick = function()
 			close()
 			onDecline()
 		end,
 	})
-	Kit.pop(container, 0.4)
+	Kit.reveal(card)
 	task.delay(25, function()
-		if not done and container.Parent then
+		if not done and card.Parent then
 			close()
 		end
 	end)
 end
 
 function Notifications.start()
-	local gui = Kit.screen("Notifications", 90, Players.LocalPlayer:WaitForChild("PlayerGui"))
-	local root = Kit.root(gui)
-	toastList = Kit.new("Frame", {
-		Name = "Bulles",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -24, 0, 110),
-		Size = UDim2.fromOffset(460, 500),
-		Parent = root,
-	})
-	Kit.list(toastList, 12, false, Enum.HorizontalAlignment.Right)
-	inviteList = Kit.new("Frame", {
-		Name = "Invitations",
-		BackgroundTransparency = 1,
+	local _, root = Kit.screen("Notifications", 90, Players.LocalPlayer:WaitForChild("PlayerGui"))
+	toastColumn = Kit.box({
+		Size = UDim2.fromOffset(800, 300),
+		Position = UDim2.new(0.5, 0, 0, 88),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 120),
-		Size = UDim2.fromOffset(440, 400),
+		ZIndex = 80,
 		Parent = root,
 	})
-	Kit.list(inviteList, 16, false, Enum.HorizontalAlignment.Center)
+	Kit.list(toastColumn, 8, false, Enum.HorizontalAlignment.Center)
+	inviteColumn = Kit.box({
+		Size = UDim2.fromOffset(380, 400),
+		Position = UDim2.new(1, -32, 1, -150),
+		AnchorPoint = Vector2.new(1, 1),
+		ZIndex = 85,
+		Parent = root,
+	})
+	Kit.list(inviteColumn, 12, false, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Bottom)
 
 	State.Notify:Connect(function(text, style)
 		Notifications.toast(text, style)
 	end)
 	State.PartyInvite:Connect(function(_fromUserId, fromName, partyId)
-		invite("INVITATION", `{fromName} t'invite dans son groupe !`, function()
+		invite("INVITATION DE GROUPE", `{fromName} t'invite à le rejoindre`, function()
 			State.request("PartyAction", "Accept", partyId)
 		end, function()
 			State.request("PartyAction", "Decline", partyId)
 		end)
 	end)
 	State.ClanInvite:Connect(function(clanId, clanName, fromName)
-		invite("CLAN", `{fromName} t'invite à rejoindre {clanName}`, function()
+		invite("INVITATION DE CLAN", `{fromName} t'invite dans {clanName}`, function()
 			State.request("ClanAction", "Accept", clanId)
 		end, function()
 			State.request("ClanAction", "Decline", clanId)

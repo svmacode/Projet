@@ -15,6 +15,7 @@
 --   * progression disciplinaire : avertissement, exclusions temporaires, rouge
 --   * jeu passif : geste d'avertissement puis perte de balle
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -490,7 +491,9 @@ function Match:spawnBot(participant: Participant)
 	pcall(function()
 		root:SetNetworkOwner(nil)
 	end)
-	Bots.animate(humanoid)
+	-- Animé par les clients (animation procédurale).
+	CollectionService:AddTag(model, "HL_Bot")
+	local _ = humanoid
 	participant.Model = model
 	participant.Humanoid = humanoid
 	participant.Root = root

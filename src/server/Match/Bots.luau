@@ -42,13 +42,6 @@ local SKINS = {
 	Color3.fromRGB(140, 94, 64),
 }
 
--- Animations R6 par défaut de Roblox (publiques, utilisables partout).
-local ANIMATIONS: { [string]: string } = {
-	Idle = "rbxassetid://180435571",
-	Walk = "rbxassetid://180426354",
-	Jump = "rbxassetid://125750702",
-}
-
 local function motor(name: string, part0: BasePart, part1: BasePart, c0: CFrame, c1: CFrame)
 	local joint = Instance.new("Motor6D")
 	joint.Name = name
@@ -194,55 +187,6 @@ function Bots.buildRig(name: string): (Model, Humanoid, BasePart)
 
 	model.PrimaryPart = root
 	return model, humanoid, root
-end
-
--- Animations jouées côté serveur : elles sont répliquées pour un PNJ.
-function Bots.animate(humanoid: Humanoid)
-	local animator = humanoid:FindFirstChildOfClass("Animator")
-	if not animator then
-		return
-	end
-	local tracks: { [string]: AnimationTrack } = {}
-	for key, id in ANIMATIONS do
-		local animation = Instance.new("Animation")
-		animation.AnimationId = id
-		local ok, track = pcall(function()
-			return animator:LoadAnimation(animation)
-		end)
-		if ok and track then
-			tracks[key] = track
-		end
-	end
-	local current: AnimationTrack? = nil
-	local function play(key: string, speed: number?)
-		local track = tracks[key]
-		if not track then
-			return
-		end
-		if current ~= track then
-			if current then
-				current:Stop(0.15)
-			end
-			track:Play(0.15)
-			current = track
-		end
-		if speed then
-			track:AdjustSpeed(speed)
-		end
-	end
-	humanoid.Running:Connect(function(speed)
-		if speed > 0.6 then
-			play("Walk", speed / 16)
-		else
-			play("Idle")
-		end
-	end)
-	humanoid.Jumping:Connect(function(active)
-		if active then
-			play("Jump")
-		end
-	end)
-	play("Idle")
 end
 
 -- Intelligence artificielle -------------------------------------------------------------

@@ -1,6 +1,5 @@
 --!strict
--- Écran CASIER : collection d'archétypes (avec leurs 3 pouvoirs),
--- cosmétiques à équiper, tenues débloquées tous les 10 niveaux.
+-- CASIER : archétypes (avec leurs pouvoirs), cosmétiques, tenues.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -10,7 +9,7 @@ local Progression = require(ReplicatedStorage.Shared.Data.Progression)
 local Rarities = require(ReplicatedStorage.Shared.Data.Rarities)
 local Cards = require(script.Parent.Parent.UI.Cards)
 local Kit = require(script.Parent.Parent.UI.Kit)
-local ScreenFrame = require(script.Parent.Parent.UI.ScreenFrame)
+local Page = require(script.Parent.Parent.UI.Page)
 local State = require(script.Parent.Parent.Controllers.State)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -18,153 +17,56 @@ local C = Theme.Colors
 
 local LockerScreen = {}
 
-local POSTE_NAMES = { Gardien = "GARDIEN", Defenseur = "DÉFENSEUR", Attaquant = "ATTAQUANT" }
+local POSTES = { Gardien = "Gardien", Defenseur = "Défenseur", Attaquant = "Attaquant" }
 
-local function sortedArchetypes(): { Archetypes.Archetype }
-	local list = table.clone(Archetypes.List)
-	table.sort(list, function(a, b)
-		local pa = table.find(Archetypes.PosteOrder, a.Poste) or 0
-		local pb = table.find(Archetypes.PosteOrder, b.Poste) or 0
-		if pa ~= pb then
-			return pa < pb
-		end
-		local ra = (Rarities.get(a.Rarity) :: Rarities.RarityInfo).Rank
-		local rb = (Rarities.get(b.Rarity) :: Rarities.RarityInfo).Rank
-		return ra < rb
-	end)
-	return list
+local function rank(rarity: string): number
+	local info = Rarities.get(rarity)
+	return if info then info.Rank else 0
 end
 
--- Aperçu d'une tenue : deux maillots (rouge et bleu) avec le motif.
-local function kitPreview(parent: Instance, kit: Progression.Kit, z: number)
-	for index, team in { "Rouge", "Bleu" } do
-		local color = Theme.Team[team].Main
-		local shirt = Kit.new("Frame", {
-			BackgroundColor3 = color,
-			Size = UDim2.fromOffset(70, 80),
-			Position = UDim2.fromOffset(16 + (index - 1) * 84, 16),
-			ZIndex = z,
-			Parent = parent,
-		})
-		Kit.stroke(shirt, 3)
-		local collar = Kit.new(
-			"Frame",
-			{ BackgroundColor3 = kit.Trim, Size = UDim2.new(1, 0, 0, 8), ZIndex = z + 1, Parent = shirt }
-		)
-		local _ = collar
-		local accent = kit.Accent
-		if kit.Pattern == "Plain" then
-			for _, x in { 0, 1 } do
-				Kit.new("Frame", {
-					BackgroundColor3 = accent,
-					Size = UDim2.new(0, 6, 1, 0),
-					Position = UDim2.new(x, -x * 6, 0, 0),
-					ZIndex = z + 1,
-					Parent = shirt,
-				})
-			end
-		elseif kit.Pattern == "Bolt" then
-			Kit.new("Frame", {
-				BackgroundColor3 = accent,
-				Size = UDim2.fromOffset(12, 60),
-				Position = UDim2.fromOffset(30, 12),
-				Rotation = 30,
-				ZIndex = z + 1,
-				Parent = shirt,
-			})
-		elseif kit.Pattern == "Scales" then
-			for row = 0, 2 do
-				for column = 0, 2 do
-					Kit.new("Frame", {
-						BackgroundColor3 = accent,
-						Size = UDim2.fromOffset(14, 10),
-						Position = UDim2.fromOffset(6 + column * 21, 16 + row * 20),
-						Rotation = 45,
-						ZIndex = z + 1,
-						Parent = shirt,
-					})
-				end
-			end
-		elseif kit.Pattern == "Armor" then
-			Kit.new("Frame", {
-				BackgroundColor3 = accent,
-				Size = UDim2.new(1, 8, 0, 18),
-				Position = UDim2.fromOffset(-4, 6),
-				ZIndex = z + 1,
-				Parent = shirt,
-			})
-			Kit.new("Frame", {
-				BackgroundColor3 = kit.Trim,
-				Size = UDim2.new(1, 0, 0, 6),
-				Position = UDim2.fromOffset(0, 54),
-				ZIndex = z + 1,
-				Parent = shirt,
-			})
-		elseif kit.Pattern == "Stars" then
-			for _, offset in { Vector2.new(12, 20), Vector2.new(44, 40), Vector2.new(20, 58) } do
-				local star = Kit.new("Frame", {
-					BackgroundColor3 = kit.Trim,
-					Size = UDim2.fromOffset(10, 10),
-					Position = UDim2.fromOffset(offset.X, offset.Y),
-					Rotation = 45,
-					ZIndex = z + 1,
-					Parent = shirt,
-				})
-				Kit.stroke(star, 1)
-			end
-		elseif kit.Pattern == "Aura" then
-			Kit.new("Frame", {
-				BackgroundColor3 = accent,
-				Size = UDim2.new(1, 0, 0, 6),
-				Position = UDim2.fromOffset(0, 10),
-				ZIndex = z + 1,
-				Parent = shirt,
-			})
-			Kit.new("Frame", {
-				BackgroundColor3 = accent,
-				Size = UDim2.new(1, 0, 0, 6),
-				Position = UDim2.new(0, 0, 1, -8),
-				ZIndex = z + 1,
-				Parent = shirt,
-			})
-		end
-	end
-end
-
-function LockerScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Screen
-	local screen = ScreenFrame.new(parent, "CASIER", "ロッカー", C.Purple, close)
-	local content = screen.Content
-	local pages: { [string]: Frame } = {}
-	local current = "ARCHÉTYPES"
+function LockerScreen.create(parent: Instance): Page.Page
+	local page = Page.full(parent, "Casier", "Tes archétypes, tes cosmétiques et tes tenues.")
+	local content = page.Content
+	local sections: { [string]: Frame } = {}
+	local current = "Archétypes"
 	local selectedArchetype = "Hayato"
+	local posteFilter = "Tous"
 	local cosmeticSlot = "Mask"
 
-	local function page(name: string): Frame
-		local frame = Kit.new("Frame", {
+	local function section(name: string): Frame
+		local frame = Kit.box({
 			Name = name,
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 1, -66),
-			Position = UDim2.fromOffset(0, 66),
+			Size = UDim2.new(1, 0, 1, -64),
+			Position = UDim2.fromOffset(0, 64),
 			Visible = false,
-			ZIndex = 22,
+			ZIndex = 12,
 			Parent = content,
 		})
-		pages[name] = frame
+		sections[name] = frame
 		return frame
 	end
 
-	-- ARCHÉTYPES -------------------------------------------------------------------------------------
-	local archetypePage = page("ARCHÉTYPES")
-	local grid = Kit.scroll(archetypePage, { Size = UDim2.new(0, 560, 1, 0), ZIndex = 23 })
-	Kit.grid(grid, Vector2.new(126, 176), 12)
-	Kit.padding(grid, 6)
-	local detail = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -590, 1, 0),
-		Position = UDim2.fromOffset(590, 0),
-		ZIndex = 23,
-		Parent = archetypePage,
+	-- Archétypes ---------------------------------------------------------------------------------
+	local archetypeSection = section("Archétypes")
+	local grid = Kit.scroll({
+		Size = UDim2.new(1, -470, 1, -56),
+		Position = UDim2.fromOffset(0, 56),
+		ZIndex = 13,
+		Parent = archetypeSection,
 	})
+	Kit.grid(grid, Vector2.new(168, 228), 14)
+	Kit.padding(grid, 2, 2)
+	local detail = Kit.surface({
+		Color = C.Surface,
+		Size = UDim2.new(0, 440, 1, 0),
+		Position = UDim2.new(1, 0, 0, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		Radius = Theme.RadiusLarge,
+		ZIndex = 13,
+		Parent = archetypeSection,
+	})
+
+	local renderArchetypes: () -> ()
 
 	local function renderDetail()
 		Kit.clear(detail)
@@ -174,150 +76,186 @@ function LockerScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Scr
 			return
 		end
 		local owned = profile ~= nil and profile.Archetypes[archetype.Id] == true
-		Cards.archetype(detail, archetype, { Size = UDim2.fromOffset(190, 260), Owned = owned, ZIndex = 24 })
-		Kit.text({
-			Text = if owned
-				then archetype.Description
-				else "Débloque cet archétype en ouvrant des Balles à la boutique.",
-			Font = Theme.Fonts.Body,
-			Size = UDim2.new(1, -210, 0, 110),
-			Position = UDim2.fromOffset(210, 10),
-			AlignX = Enum.TextXAlignment.Left,
-			AlignY = Enum.TextYAlignment.Top,
-			MaxSize = 22,
-			ZIndex = 24,
+		local inner = Kit.box({
+			Size = UDim2.new(1, -48, 1, -48),
+			Position = UDim2.fromOffset(24, 24),
+			ZIndex = 14,
 			Parent = detail,
 		})
-		Kit.rarityChip(
-			detail,
-			archetype.Rarity,
-			{ Position = UDim2.fromOffset(210, 130), Size = UDim2.fromOffset(170, 34), ZIndex = 24 }
-		)
+		Kit.label({
+			Text = string.upper(`{Theme.rarityName(archetype.Rarity)} · {POSTES[archetype.Poste]}`),
+			Font = Theme.Fonts.Bold,
+			TextSize = Theme.Text.Tiny,
+			Color = Theme.rarityColor(archetype.Rarity),
+			Size = UDim2.new(1, 0, 0, 16),
+			ZIndex = 15,
+			Parent = inner,
+		})
+		Kit.label({
+			Text = archetype.Name,
+			Font = Theme.Fonts.Display,
+			TextSize = Theme.Text.H2,
+			Size = UDim2.new(1, 0, 0, 32),
+			Position = UDim2.fromOffset(0, 20),
+			ZIndex = 15,
+			Parent = inner,
+		})
+		Kit.label({
+			Text = archetype.Title,
+			Font = Theme.Fonts.Semibold,
+			Color = C.TextMuted,
+			Size = UDim2.new(1, 0, 0, 22),
+			Position = UDim2.fromOffset(0, 54),
+			ZIndex = 15,
+			Parent = inner,
+		})
+		Kit.label({
+			Text = if owned
+				then archetype.Description
+				else "Débloque cet archétype en ouvrant des balles dans la boutique.",
+			TextSize = Theme.Text.Small,
+			Color = C.TextMuted,
+			Wrap = true,
+			AlignY = Enum.TextYAlignment.Top,
+			Size = UDim2.new(1, 0, 0, 40),
+			Position = UDim2.fromOffset(0, 86),
+			ZIndex = 15,
+			Parent = inner,
+		})
+		local powers = Kit.box({
+			Size = UDim2.new(1, 0, 0, 280),
+			Position = UDim2.fromOffset(0, 136),
+			ZIndex = 15,
+			Parent = inner,
+		})
+		Kit.list(powers, 10)
+		for _, power in archetype.Powers do
+			Cards.power(powers, power, { Order = power.Slot, ZIndex = 16 })
+		end
 		local favorite = profile ~= nil and profile.SelectedArchetype[archetype.Poste] == archetype.Id
-		local favButton = Kit.button({
-			Text = if favorite
-				then `★ FAVORI {POSTE_NAMES[archetype.Poste]}`
-				else `CHOISIR EN {POSTE_NAMES[archetype.Poste]}`,
-			Color = if favorite then C.Yellow else C.Green,
-			Size = UDim2.fromOffset(300, 50),
-			Position = UDim2.fromOffset(210, 190),
-			ZIndex = 25,
-			Parent = detail,
+		local button = Kit.button({
+			Text = "",
+			Variant = if favorite then "Secondary" else "Primary",
+			Size = UDim2.new(1, 0, 0, 48),
+			Position = UDim2.new(0, 0, 1, -48),
+			ZIndex = 16,
+			Parent = inner,
 			OnClick = function()
 				State.request("LockerAction", "SelectArchetype", archetype.Poste, archetype.Id)
 			end,
 		})
-		favButton.SetEnabled(owned and not favorite)
-		local powers = Kit.new("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 1, -280),
-			Position = UDim2.fromOffset(0, 280),
-			ZIndex = 24,
-			Parent = detail,
-		})
-		Kit.list(powers, 12)
-		for _, power in archetype.Powers do
-			Cards.power(powers, power, { Order = power.Slot, ZIndex = 25 })
-		end
+		button.SetText(
+			if favorite
+				then `Favori · {POSTES[archetype.Poste]}`
+				else `Définir comme favori · {POSTES[archetype.Poste]}`
+		)
+		button.SetEnabled(owned and not favorite)
 	end
 
-	local function renderGrid()
+	renderArchetypes = function()
 		Kit.clear(grid)
 		local profile = State.Profile
-		for index, archetype in sortedArchetypes() do
-			local owned = profile ~= nil and profile.Archetypes[archetype.Id] == true
-			local favorite = profile ~= nil and profile.SelectedArchetype[archetype.Poste] == archetype.Id
-			Cards.archetype(grid, archetype, {
-				Owned = owned,
-				Selected = archetype.Id == selectedArchetype,
-				Badge = if favorite then "FAVORI" else nil,
-				Order = index,
-				ZIndex = 24,
-				OnClick = function()
-					selectedArchetype = archetype.Id
-					renderGrid()
-					renderDetail()
-				end,
-			})
+		local list = table.clone(Archetypes.List)
+		table.sort(list, function(a, b)
+			if rank(a.Rarity) ~= rank(b.Rarity) then
+				return rank(a.Rarity) > rank(b.Rarity)
+			end
+			return a.Name < b.Name
+		end)
+		local order = 0
+		for _, archetype in list do
+			if posteFilter == "Tous" or archetype.Poste == posteFilter then
+				order += 1
+				local favorite = profile ~= nil and profile.SelectedArchetype[archetype.Poste] == archetype.Id
+				Cards.archetype(grid, archetype, {
+					Owned = profile ~= nil and profile.Archetypes[archetype.Id] == true,
+					Selected = archetype.Id == selectedArchetype,
+					Badge = if favorite then "FAVORI" else nil,
+					Order = order,
+					ZIndex = 14,
+					OnClick = function()
+						selectedArchetype = archetype.Id
+						renderArchetypes()
+						renderDetail()
+					end,
+				})
+			end
 		end
 	end
 
-	-- COSMÉTIQUES ------------------------------------------------------------------------------------
-	local cosmeticPage = page("COSMÉTIQUES")
-	local slotBar = Kit.new(
-		"Frame",
-		{ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 50), ZIndex = 23, Parent = cosmeticPage }
-	)
-	Kit.list(slotBar, 12, true)
-	local cosmeticGrid =
-		Kit.scroll(cosmeticPage, { Size = UDim2.new(1, 0, 1, -64), Position = UDim2.fromOffset(0, 64), ZIndex = 23 })
-	Kit.grid(cosmeticGrid, Vector2.new(170, 200), 14)
-	Kit.padding(cosmeticGrid, 6)
-	local slotButtons: { [string]: Kit.Button } = {}
+	-- Cosmétiques ------------------------------------------------------------------------------------
+	local cosmeticSection = section("Cosmétiques")
+	local slotOptions = {}
+	for _, slot in Cosmetics.SlotOrder do
+		table.insert(slotOptions, { Id = slot, Label = Cosmetics.Slots[slot].Name })
+	end
+	local cosmeticGrid = Kit.scroll({
+		Size = UDim2.new(1, 0, 1, -56),
+		Position = UDim2.fromOffset(0, 56),
+		ZIndex = 13,
+		Parent = cosmeticSection,
+	})
+	Kit.grid(cosmeticGrid, Vector2.new(176, 200), 14)
+	Kit.padding(cosmeticGrid, 2, 2)
 
 	local function renderCosmetics()
 		Kit.clear(cosmeticGrid)
 		local profile = State.Profile
-		for slot, button in slotButtons do
-			button.SetColor(if slot == cosmeticSlot then C.Yellow else C.PaperDark)
-		end
+		local list = table.clone(Cosmetics.List)
+		table.sort(list, function(a, b)
+			return rank(a.Rarity) > rank(b.Rarity)
+		end)
 		local order = 0
-		for _, rarity in Rarities.Order do
-			for _, item in Cosmetics.byRarity(rarity) do
-				if item.Slot == cosmeticSlot then
-					order += 1
-					local owned = profile ~= nil and (profile.Cosmetics[item.Id] or 0) > 0
-					local equipped = profile ~= nil and profile.Equipped[item.Slot] == item.Id
-					Cards.cosmetic(cosmeticGrid, item, {
-						Owned = owned,
-						Selected = equipped,
-						Badge = if equipped then "ÉQUIPÉ" else nil,
-						Order = order,
-						ZIndex = 24,
-						OnClick = if owned
-							then function()
-								State.request(
-									"LockerAction",
-									"EquipCosmetic",
-									item.Slot,
-									if equipped then nil else item.Id
-								)
-							end
-							else nil,
-					})
-				end
+		for _, item in list do
+			if item.Slot == cosmeticSlot then
+				order += 1
+				local owned = profile ~= nil and (profile.Cosmetics[item.Id] or 0) > 0
+				local equipped = profile ~= nil and profile.Equipped[item.Slot] == item.Id
+				Cards.cosmetic(cosmeticGrid, item, {
+					Owned = owned,
+					Selected = equipped,
+					Badge = if equipped then "ÉQUIPÉ" else nil,
+					Order = order,
+					ZIndex = 14,
+					OnClick = if owned
+						then function()
+							State.request("LockerAction", "EquipCosmetic", item.Slot, if equipped then nil else item.Id)
+						end
+						else nil,
+				})
 			end
 		end
 	end
-	for index, slot in Cosmetics.SlotOrder do
-		slotButtons[slot] = Kit.button({
-			Text = string.upper(Cosmetics.Slots[slot].Name),
-			Color = C.PaperDark,
-			Size = UDim2.fromOffset(190, 44),
-			Order = index,
-			ZIndex = 24,
-			Parent = slotBar,
-			OnClick = function()
-				cosmeticSlot = slot
-				renderCosmetics()
-			end,
-		})
-	end
-
-	-- TENUES -------------------------------------------------------------------------------------------
-	local kitPage = page("TENUES")
-	local kitGrid =
-		Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 23, Parent = kitPage })
-	Kit.grid(kitGrid, Vector2.new(330, 200), 18)
-	Kit.text({
-		Text = "Ta tenue garde toujours la couleur de ton équipe (ROUGE ou BLEU). Une nouvelle tenue tous les 10 niveaux !",
-		Font = Theme.Fonts.Body,
-		Size = UDim2.new(1, 0, 0, 30),
-		Position = UDim2.new(0, 0, 1, -30),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 23,
-		Parent = kitPage,
+	Kit.segmented({
+		Options = slotOptions,
+		Size = UDim2.fromOffset(420, 40),
+		TextSize = Theme.Text.Small,
+		ZIndex = 13,
+		Parent = cosmeticSection,
+		OnChange = function(value: string)
+			cosmeticSlot = value
+			renderCosmetics()
+		end,
 	})
+
+	-- Tenues ------------------------------------------------------------------------------------------
+	local kitSection = section("Tenues")
+	Kit.label({
+		Text = "La couleur principale reste toujours celle de ton équipe : rouge ou bleu. Une nouvelle tenue tous les 10 niveaux.",
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Size = UDim2.new(1, 0, 0, 20),
+		ZIndex = 13,
+		Parent = kitSection,
+	})
+	local kitGrid = Kit.box({
+		Size = UDim2.new(1, 0, 1, -40),
+		Position = UDim2.fromOffset(0, 40),
+		ZIndex = 13,
+		Parent = kitSection,
+	})
+	Kit.grid(kitGrid, Vector2.new(300, 196), 16)
+
 	local function renderKits()
 		Kit.clear(kitGrid)
 		local profile = State.Profile
@@ -325,42 +263,64 @@ function LockerScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Scr
 		for index, kit in Progression.Kits do
 			local unlocked = level >= kit.Level
 			local selected = profile ~= nil and profile.Kit == kit.Id
-			local face, _ = Kit.panel({
-				Size = UDim2.fromScale(1, 1),
-				Color = if unlocked then C.Paper else C.InkSoft,
-				StrokeColor = if selected then C.Yellow else C.Ink,
-				StrokeThickness = if selected then 6 else 4,
+			local card = Kit.surface({
+				Color = C.Surface2,
 				Order = index,
-				ZIndex = 24,
+				ZIndex = 14,
+				BorderColor = if selected then C.Accent else C.Border,
 				Parent = kitGrid,
 			})
-			kitPreview(face, kit, 25)
-			Kit.text({
-				Text = string.upper(kit.Name),
-				Color = if unlocked then C.Ink else C.Paper,
-				Size = UDim2.new(0, 140, 0, 40),
-				Position = UDim2.fromOffset(180, 16),
-				AlignX = Enum.TextXAlignment.Left,
-				ZIndex = 25,
-				Parent = face,
+			-- Deux maillots : rouge et bleu, avec la couleur d'accent de la tenue.
+			for column, team in { "Rouge", "Bleu" } do
+				local shirt = Kit.new("Frame", {
+					BackgroundColor3 = if unlocked then Theme.Team[team].Main else C.Surface3,
+					Size = UDim2.fromOffset(64, 76),
+					Position = UDim2.fromOffset(20 + (column - 1) * 76, 20),
+					ZIndex = 15,
+					Parent = card,
+				})
+				Kit.corner(shirt, 6)
+				Kit.new("Frame", {
+					BackgroundColor3 = if unlocked then kit.Trim else C.Surface2,
+					BorderSizePixel = 0,
+					Size = UDim2.new(1, 0, 0, 8),
+					ZIndex = 16,
+					Parent = shirt,
+				})
+				Kit.new("Frame", {
+					BackgroundColor3 = if unlocked then kit.Accent else C.Surface2,
+					BorderSizePixel = 0,
+					Size = UDim2.new(0, 10, 1, -8),
+					Position = UDim2.new(0.5, -5, 0, 8),
+					ZIndex = 16,
+					Parent = shirt,
+				})
+			end
+			Kit.label({
+				Text = kit.Name,
+				Font = Theme.Fonts.Bold,
+				TextSize = Theme.Text.H3,
+				Position = UDim2.fromOffset(180, 20),
+				Size = UDim2.new(1, -196, 0, 26),
+				ZIndex = 15,
+				Parent = card,
 			})
-			Kit.text({
+			Kit.label({
 				Text = if unlocked then "Débloquée" else `Niveau {kit.Level}`,
-				Font = Theme.Fonts.Heavy,
-				Color = if unlocked then C.Green else C.Yellow,
-				Size = UDim2.new(0, 140, 0, 24),
-				Position = UDim2.fromOffset(180, 60),
-				AlignX = Enum.TextXAlignment.Left,
-				ZIndex = 25,
-				Parent = face,
+				TextSize = Theme.Text.Small,
+				Color = if unlocked then C.Success else C.TextMuted,
+				Position = UDim2.fromOffset(180, 48),
+				Size = UDim2.new(1, -196, 0, 18),
+				ZIndex = 15,
+				Parent = card,
 			})
 			local button = Kit.button({
-				Text = if selected then "PORTÉE" else "PORTER",
-				Color = if selected then C.Yellow else C.Green,
-				Size = UDim2.new(1, -32, 0, 46),
-				Position = UDim2.new(0, 16, 1, -62),
-				ZIndex = 26,
-				Parent = face,
+				Text = if selected then "Portée" else "Porter",
+				Variant = if selected then "Secondary" else "Primary",
+				Size = UDim2.new(1, -40, 0, 44),
+				Position = UDim2.new(0, 20, 1, -64),
+				ZIndex = 15,
+				Parent = card,
 				OnClick = function()
 					State.request("LockerAction", "SetKit", kit.Id)
 				end,
@@ -370,36 +330,53 @@ function LockerScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Scr
 	end
 
 	local function refresh()
-		if current == "ARCHÉTYPES" then
-			renderGrid()
+		if current == "Archétypes" then
+			renderArchetypes()
 			renderDetail()
-		elseif current == "COSMÉTIQUES" then
+		elseif current == "Cosmétiques" then
 			renderCosmetics()
 		else
 			renderKits()
 		end
 	end
+	-- Filtre par poste.
+	Kit.segmented({
+		Options = {
+			{ Id = "Tous", Label = "Tous" },
+			{ Id = "Gardien", Label = "Gardiens" },
+			{ Id = "Defenseur", Label = "Défenseurs" },
+			{ Id = "Attaquant", Label = "Attaquants" },
+		},
+		Size = UDim2.fromOffset(520, 40),
+		TextSize = Theme.Text.Small,
+		ZIndex = 13,
+		Parent = archetypeSection,
+		OnChange = function(value: string)
+			posteFilter = value
+			renderArchetypes()
+		end,
+	})
 
-	local select = ScreenFrame.tabs(content, { "ARCHÉTYPES", "COSMÉTIQUES", "TENUES" }, function(name)
+	local select = Page.tabs(content, { "Archétypes", "Cosmétiques", "Tenues" }, function(name)
 		current = name
-		for key, frame in pages do
+		for key, frame in sections do
 			frame.Visible = key == name
 		end
 		refresh()
-	end)
-	select("ARCHÉTYPES")
+	end, 12)
+	select("Archétypes")
 
 	State.ProfileChanged:Connect(function()
-		if screen.Container.Visible then
+		if page.IsOpen() then
 			refresh()
 		end
 	end)
-	local open = screen.Open
-	screen.Open = function()
+	local open = page.Open
+	page.Open = function()
 		refresh()
 		open()
 	end
-	return screen
+	return page
 end
 
 return LockerScreen

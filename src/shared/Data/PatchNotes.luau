@@ -11,6 +11,28 @@ export type PatchNote = {
 
 local PatchNotes: { PatchNote } = {
 	{
+		Version = "0.2.0",
+		Date = "18/10/2026",
+		Title = "Refonte complète",
+		Sections = {
+			{
+				Heading = "Visuel",
+				Lines = {
+					"Nouvelle interface, plus lisible et plus rapide.",
+					"Nouveau quartier au coucher du soleil autour du lycée.",
+					"Nouvelle lumière, brume d'horizon et effets de caméra.",
+				},
+			},
+			{
+				Heading = "Jeu",
+				Lines = {
+					"Nouvelles animations : course, défense, tir, passe, plongeon, célébration.",
+					"Effets 3D sur les tirs, les dashs, les contacts, les pouvoirs et les buts.",
+				},
+			},
+		},
+	},
+	{
 		Version = "0.1.0",
 		Date = "18/10/2026",
 		Title = "LE COUP D'ENVOI !",

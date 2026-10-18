@@ -1,11 +1,11 @@
 --!strict
--- Écran MISES À JOUR : notes de version (patch notes).
+-- NOUVEAUTÉS : notes de mise à jour.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local PatchNotes = require(ReplicatedStorage.Shared.Data.PatchNotes)
 local Kit = require(script.Parent.Parent.UI.Kit)
-local ScreenFrame = require(script.Parent.Parent.UI.ScreenFrame)
+local Page = require(script.Parent.Parent.UI.Page)
 local State = require(script.Parent.Parent.Controllers.State)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -13,95 +13,80 @@ local C = Theme.Colors
 
 local UpdatesScreen = {}
 
-function UpdatesScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Screen
-	local screen = ScreenFrame.new(parent, "MISES À JOUR", "アップデート", C.Night, close)
-	local list = Kit.scroll(screen.Content, { ZIndex = 22 })
-	Kit.list(list, 20)
-	Kit.padding(list, 8)
+local function sentenceCase(text: string): string
+	local lower = string.lower(text)
+	return string.upper(string.sub(lower, 1, 1)) .. string.sub(lower, 2)
+end
+
+function UpdatesScreen.create(parent: Instance, onClose: () -> ()): Page.Page
+	local page = Page.modal(parent, "Nouveautés", Vector2.new(880, 640), onClose)
+	local list = Kit.scroll({ ZIndex = 33, Parent = page.Content })
+	Kit.list(list, 28)
 	for order, note in PatchNotes do
-		local lines = 0
-		for _, section in note.Sections do
-			lines += 1 + #section.Lines
-		end
-		local face, _ = Kit.panel({
-			Size = UDim2.new(1, -20, 0, 110 + lines * 30),
-			Color = C.Paper,
+		local block = Kit.box({
+			Size = UDim2.new(1, -12, 0, 0),
+			AutoSize = Enum.AutomaticSize.Y,
 			Order = order,
-			ZIndex = 23,
+			ZIndex = 33,
 			Parent = list,
 		})
-		local tag = Kit.new("Frame", {
-			BackgroundColor3 = C.Red,
-			Size = UDim2.fromOffset(150, 44),
-			Position = UDim2.fromOffset(16, 16),
-			Rotation = -3,
-			ZIndex = 24,
-			Parent = face,
+		Kit.list(block, 6)
+		Kit.label({
+			Text = `VERSION {note.Version}  ·  {note.Date}`,
+			Font = Theme.Fonts.Bold,
+			TextSize = Theme.Text.Tiny,
+			Color = C.Accent,
+			Size = UDim2.new(1, 0, 0, 16),
+			Order = 1,
+			ZIndex = 34,
+			Parent = block,
 		})
-		Kit.stroke(tag, 3)
-		Kit.text({ Text = `v{note.Version}`, Color = C.Paper, Stroke = C.Ink, ZIndex = 25, Parent = tag })
-		Kit.text({
-			Text = note.Title,
-			Size = UDim2.new(1, -380, 0, 44),
-			Position = UDim2.fromOffset(186, 16),
-			AlignX = Enum.TextXAlignment.Left,
-			ZIndex = 24,
-			Parent = face,
+		Kit.label({
+			Text = sentenceCase(note.Title),
+			Font = Theme.Fonts.Display,
+			TextSize = Theme.Text.H2,
+			Size = UDim2.new(1, 0, 0, 32),
+			Order = 2,
+			ZIndex = 34,
+			Parent = block,
 		})
-		Kit.text({
-			Text = note.Date,
-			Font = Theme.Fonts.Heavy,
-			Color = C.Steel,
-			Size = UDim2.fromOffset(160, 30),
-			Position = UDim2.new(1, -176, 0, 22),
-			AlignX = Enum.TextXAlignment.Right,
-			ZIndex = 24,
-			Parent = face,
-		})
-		local body = Kit.new("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, -40, 1, -80),
-			Position = UDim2.fromOffset(20, 76),
-			ZIndex = 24,
-			Parent = face,
-		})
-		Kit.list(body, 2)
-		local row = 0
+		local row = 2
 		for _, section in note.Sections do
 			row += 1
-			Kit.text({
-				Text = string.upper(section.Heading),
-				Color = C.Blue,
-				Size = UDim2.new(1, 0, 0, 28),
-				AlignX = Enum.TextXAlignment.Left,
+			Kit.label({
+				Text = section.Heading,
+				Font = Theme.Fonts.Bold,
+				TextSize = Theme.Text.H3,
+				Size = UDim2.new(1, 0, 0, 34),
+				AlignY = Enum.TextYAlignment.Bottom,
 				Order = row,
-				ZIndex = 25,
-				Parent = body,
+				ZIndex = 34,
+				Parent = block,
 			})
 			for _, line in section.Lines do
 				row += 1
-				Kit.text({
-					Text = `• {line}`,
-					Font = Theme.Fonts.Body,
-					Size = UDim2.new(1, 0, 0, 28),
-					AlignX = Enum.TextXAlignment.Left,
-					MaxSize = 20,
+				Kit.label({
+					Text = `—  {line}`,
+					Color = C.TextMuted,
+					Wrap = true,
+					Size = UDim2.new(1, 0, 0, 22),
+					AutoSize = Enum.AutomaticSize.Y,
 					Order = row,
-					ZIndex = 25,
-					Parent = body,
+					ZIndex = 34,
+					Parent = block,
 				})
 			end
 		end
 	end
-	local open = screen.Open
-	screen.Open = function()
+	local baseOpen = page.Open
+	page.Open = function()
 		local latest = PatchNotes[1]
 		if latest then
 			State.request("ProfileAction", "SeenPatch", latest.Version)
 		end
-		open()
+		baseOpen()
 	end
-	return screen
+	return page
 end
 
 return UpdatesScreen

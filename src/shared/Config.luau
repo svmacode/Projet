@@ -6,7 +6,7 @@
 local Config = {}
 
 Config.GameName = "Handball Legends"
-Config.Version = "0.1.0"
+Config.Version = "0.2.0"
 
 -- Modes de jeu -----------------------------------------------------------------
 

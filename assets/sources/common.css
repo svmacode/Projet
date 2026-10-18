@@ -1,6 +1,0 @@
-/* Polices : Bangers (dans assets/fonts) et Noto Sans JP (à télécharger sur
-   Google Fonts et placer dans assets/fonts/NotoSansJP.ttf avant le rendu). */
-@font-face { font-family: 'Bangers'; src: url('../fonts/Bangers-Regular.ttf'); }
-@font-face { font-family: 'NotoJP'; src: url('../fonts/NotoSansJP.ttf'); font-weight: 100 900; }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: transparent; }

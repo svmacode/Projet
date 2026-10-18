@@ -228,7 +228,7 @@ local function surfaceText(
 	text: string,
 	color: Color3,
 	stroke: Color3,
-	font: Enum.Font
+	_font: Enum.Font
 ): TextLabel
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = face
@@ -241,10 +241,10 @@ local function surfaceText(
 	label.Size = UDim2.fromScale(1, 1)
 	label.Text = text
 	label.TextScaled = true
-	label.Font = font
+	label.FontFace = Font.fromEnum(Enum.Font.BuilderSansExtraBold)
 	label.TextColor3 = color
 	label.TextStrokeColor3 = stroke
-	label.TextStrokeTransparency = 0
+	label.TextStrokeTransparency = 1
 	label.Parent = gui
 	return label
 end
@@ -275,20 +275,14 @@ local function buildScoreboard(model: Model, origin: CFrame, position: Vector3, 
 		l.BackgroundTransparency = 1
 		l.Position = pos
 		l.Size = size
-		l.Font = Enum.Font.Bangers
+		l.FontFace = Font.fromEnum(Enum.Font.BuilderSansExtraBold)
 		l.TextScaled = true
 		l.TextColor3 = color
 		l.Text = text
 		l.Parent = background
 		return l
 	end
-	label(
-		"Titre",
-		UDim2.fromScale(0.25, 0.02),
-		UDim2.fromScale(0.5, 0.18),
-		Color3.fromRGB(255, 220, 60),
-		"SEIRYŌ ARENA"
-	)
+	label("Titre", UDim2.fromScale(0.25, 0.02), UDim2.fromScale(0.5, 0.18), Color3.fromRGB(255, 220, 60), "SEIRYŌ")
 	local home =
 		label("Rouge", UDim2.fromScale(0.03, 0.25), UDim2.fromScale(0.27, 0.6), Color3.fromRGB(255, 70, 80), "0")
 	local away =
@@ -577,7 +571,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		origin,
 		Vector3.new(-hl * 0.5, 20, -hallWidth / 2 + 1.3),
 		Vector3.new(0, 0, 1),
-		"SEIRYŌ 青龍",
+		"LYCÉE SEIRYŌ",
 		Color3.fromRGB(30, 110, 245)
 	)
 	sakuraBanner(
@@ -585,7 +579,7 @@ function CourtBuilder.build(modeId: string, origin: CFrame, parent: Instance): B
 		origin,
 		Vector3.new(hl * 0.5, 20, -hallWidth / 2 + 1.3),
 		Vector3.new(0, 0, 1),
-		"全国制覇 !",
+		"HANDBALL CLUB",
 		Color3.fromRGB(226, 32, 52)
 	)
 	sakuraBanner(

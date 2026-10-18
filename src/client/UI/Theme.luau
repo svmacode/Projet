@@ -1,7 +1,10 @@
 --!strict
--- Identité visuelle « manga / bande dessinée » : encre noire, papier crème,
--- aplats de couleurs vives, contours épais, ombres pleines (jamais floues ni
--- transparentes), typographie Bangers.
+-- Système visuel de Handball Legends.
+--
+-- Principes : surfaces sombres pleines, une seule couleur d'accent, tailles
+-- de texte fixes (jamais TextScaled pour le texte courant), coins arrondis
+-- identiques partout, grille de 8 px, animations courtes et fluides.
+-- Aucune image, aucune transparence d'interface.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -9,64 +12,82 @@ local Rarities = require(ReplicatedStorage.Shared.Data.Rarities)
 
 local Theme = {}
 
+local rgb = Color3.fromRGB
+
 Theme.Colors = {
-	Ink = Color3.fromRGB(16, 16, 22),
-	InkSoft = Color3.fromRGB(44, 44, 58),
-	Paper = Color3.fromRGB(255, 249, 234),
-	PaperDark = Color3.fromRGB(240, 228, 204),
-	Red = Color3.fromRGB(226, 32, 58),
-	RedDark = Color3.fromRGB(150, 12, 32),
-	Yellow = Color3.fromRGB(255, 212, 42),
-	YellowDark = Color3.fromRGB(214, 150, 0),
-	Blue = Color3.fromRGB(30, 110, 245),
-	BlueDark = Color3.fromRGB(12, 50, 150),
-	Green = Color3.fromRGB(52, 200, 110),
-	Purple = Color3.fromRGB(150, 70, 240),
-	Pink = Color3.fromRGB(255, 90, 160),
-	White = Color3.fromRGB(255, 255, 255),
-	Night = Color3.fromRGB(26, 22, 48),
-	Steel = Color3.fromRGB(70, 80, 104),
+	Background = rgb(10, 11, 15),
+	Surface = rgb(18, 20, 27),
+	Surface2 = rgb(26, 29, 38),
+	Surface3 = rgb(36, 40, 52),
+	Border = rgb(44, 49, 63),
+	BorderStrong = rgb(66, 72, 90),
+
+	Text = rgb(242, 243, 246),
+	TextMuted = rgb(156, 162, 179),
+	TextFaint = rgb(98, 104, 122),
+	TextOnAccent = rgb(18, 12, 6),
+
+	Accent = rgb(255, 122, 44),
+	AccentHover = rgb(255, 146, 82),
+	AccentPressed = rgb(230, 98, 24),
+
+	Success = rgb(62, 214, 140),
+	Danger = rgb(255, 77, 87),
+	Warning = rgb(255, 196, 64),
+	Info = rgb(92, 160, 255),
+
+	White = rgb(255, 255, 255),
+	Black = rgb(0, 0, 0),
 }
 
 Theme.Team = {
-	Rouge = {
-		Main = Color3.fromRGB(226, 32, 52),
-		Dark = Color3.fromRGB(130, 10, 26),
-		Light = Color3.fromRGB(255, 150, 160),
-	},
-	Bleu = {
-		Main = Color3.fromRGB(30, 110, 245),
-		Dark = Color3.fromRGB(10, 44, 130),
-		Light = Color3.fromRGB(150, 196, 255),
-	},
+	Rouge = { Main = rgb(232, 58, 68), Dark = rgb(120, 22, 30), Name = "ROUGE" },
+	Bleu = { Main = rgb(58, 126, 255), Dark = rgb(20, 46, 112), Name = "BLEU" },
 }
+
+-- Builder Sans : la police des interfaces officielles de Roblox.
+local function font(enum: Enum.Font, italic: boolean?): Font
+	local base = Font.fromEnum(enum)
+	if italic then
+		return Font.new(base.Family, base.Weight, Enum.FontStyle.Italic)
+	end
+	return base
+end
 
 Theme.Fonts = {
-	Title = Enum.Font.Bangers,
-	Body = Enum.Font.GothamBold,
-	Heavy = Enum.Font.GothamBlack,
-	Fun = Enum.Font.LuckiestGuy,
+	Display = font(Enum.Font.BuilderSansExtraBold),
+	DisplayItalic = font(Enum.Font.BuilderSansExtraBold, true),
+	Bold = font(Enum.Font.BuilderSansBold),
+	Semibold = font(Enum.Font.BuilderSansBold),
+	Regular = font(Enum.Font.BuilderSansMedium),
 }
 
-Theme.Stroke = 4
-Theme.ShadowOffset = 6
+-- Échelle typographique (en pixels, résolution de référence 1600×900).
+Theme.Text = {
+	Hero = 96,
+	Display = 56,
+	H1 = 36,
+	H2 = 26,
+	H3 = 20,
+	Body = 17,
+	Small = 14,
+	Tiny = 12,
+}
 
-Theme.Tween = {
+Theme.Radius = 8
+Theme.RadiusLarge = 12
+Theme.Space = 8
+
+Theme.Motion = {
 	Fast = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-	Pop = TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-	Slide = TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-	Slow = TweenInfo.new(0.6, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-	Bounce = TweenInfo.new(0.5, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out),
+	Base = TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+	Slow = TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+	Spring = TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
 }
 
 function Theme.rarityColor(rarity: string): Color3
 	local info = Rarities.get(rarity)
-	return if info then info.Color else Theme.Colors.Steel
-end
-
-function Theme.rarityDark(rarity: string): Color3
-	local info = Rarities.get(rarity)
-	return if info then info.ColorDark else Theme.Colors.Ink
+	return if info then info.Color else Theme.Colors.TextMuted
 end
 
 function Theme.rarityName(rarity: string): string
@@ -74,33 +95,24 @@ function Theme.rarityName(rarity: string): string
 	return if info then info.Name else rarity
 end
 
--- Assombrit / éclaircit une couleur (pour les états des boutons).
-function Theme.shade(color: Color3, amount: number): Color3
-	if amount >= 0 then
-		return color:Lerp(Color3.new(1, 1, 1), amount)
-	end
-	return color:Lerp(Color3.new(0, 0, 0), -amount)
+function Theme.lighten(color: Color3, amount: number): Color3
+	return color:Lerp(Color3.new(1, 1, 1), amount)
 end
 
--- Images importées sur Roblox (facultatif). Laisser vide = rendu 100 % code.
--- Après import (voir README), coller les identifiants rbxassetid://...
-Theme.Images = {
-	Logo = "",
-	Halftone = "",
-	SpeedLines = "",
-}
+function Theme.darken(color: Color3, amount: number): Color3
+	return color:Lerp(Color3.new(0, 0, 0), amount)
+end
 
--- Sons (facultatif) : identifiants rbxassetid://... à renseigner.
+-- Sons (facultatif) : identifiants rbxassetid://… importés par le créateur.
 Theme.Sounds = {
 	Click = "",
+	Hover = "",
 	Whistle = "",
 	Goal = "",
 	Shot = "",
 	Pass = "",
-	PackOpen = "",
 	Reveal = "",
 	Power = "",
-	Ultimate = "",
 }
 
 return Theme

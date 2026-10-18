@@ -1,6 +1,6 @@
 --!strict
--- Écran BOUTIQUE : Balles d'archétypes (Hand Coins), Pack Cosmétique
--- (Hand Coins ou Robux) et Hand Coins (Robux). Les taux sont affichés.
+-- BOUTIQUE : balles d'archétypes, packs cosmétiques, Hand Coins.
+-- Les taux sont affichés pour chaque objet aléatoire.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -10,7 +10,7 @@ local Rarities = require(ReplicatedStorage.Shared.Data.Rarities)
 local Format = require(ReplicatedStorage.Shared.Util.Format)
 local Kit = require(script.Parent.Parent.UI.Kit)
 local PackOpening = require(script.Parent.Parent.Controllers.PackOpening)
-local ScreenFrame = require(script.Parent.Parent.UI.ScreenFrame)
+local Page = require(script.Parent.Parent.UI.Page)
 local State = require(script.Parent.Parent.Controllers.State)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -18,331 +18,315 @@ local C = Theme.Colors
 
 local ShopScreen = {}
 
-local function oddsList(parent: Instance, odds: { [string]: number }, position: UDim2, z: number): Frame
-	local face, container = Kit.panel({
-		Size = UDim2.fromOffset(300, 220),
-		Position = position,
-		Color = C.Paper,
-		ZIndex = z,
-		Parent = parent,
-	})
-	Kit.text({
-		Text = "TAUX D'OBTENTION",
-		Size = UDim2.new(1, -20, 0, 30),
-		Position = UDim2.fromOffset(10, 8),
-		ZIndex = z + 1,
-		Parent = face,
-	})
-	local list = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -20, 1, -50),
-		Position = UDim2.fromOffset(10, 44),
-		ZIndex = z + 1,
-		Parent = face,
-	})
+local function oddsRows(parent: Instance, odds: { [string]: number }, z: number)
+	local list = Kit.box({ Size = UDim2.new(1, 0, 0, 0), AutoSize = Enum.AutomaticSize.Y, ZIndex = z, Parent = parent })
 	Kit.list(list, 4)
 	for index, rarity in Rarities.Order do
 		local percent = odds[rarity]
 		if percent and percent > 0 then
-			local row = Kit.new("Frame", {
-				BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 24),
-				LayoutOrder = index,
-				ZIndex = z + 1,
-				Parent = list,
-			})
+			local row = Kit.box({ Size = UDim2.new(1, 0, 0, 20), Order = index, ZIndex = z, Parent = list })
 			local dot = Kit.new("Frame", {
 				BackgroundColor3 = Theme.rarityColor(rarity),
-				Size = UDim2.fromOffset(18, 18),
-				Position = UDim2.fromOffset(0, 3),
-				ZIndex = z + 2,
+				Size = UDim2.fromOffset(8, 8),
+				Position = UDim2.new(0, 0, 0.5, -4),
+				ZIndex = z,
 				Parent = row,
 			})
-			Kit.stroke(dot, 2)
-			Kit.text({
+			Kit.corner(dot, 4)
+			Kit.label({
 				Text = Theme.rarityName(rarity),
-				Font = Theme.Fonts.Body,
-				Size = UDim2.new(0.6, 0, 1, 0),
-				Position = UDim2.fromOffset(28, 0),
-				AlignX = Enum.TextXAlignment.Left,
-				ZIndex = z + 2,
+				TextSize = Theme.Text.Small,
+				Color = C.TextMuted,
+				Position = UDim2.fromOffset(16, 0),
+				Size = UDim2.new(1, -80, 1, 0),
+				ZIndex = z,
 				Parent = row,
 			})
-			Kit.text({
+			Kit.label({
 				Text = Format.percent(percent),
-				Font = Theme.Fonts.Heavy,
-				Size = UDim2.new(0.35, 0, 1, 0),
-				Position = UDim2.fromScale(0.65, 0),
+				Font = Theme.Fonts.Bold,
+				TextSize = Theme.Text.Small,
 				AlignX = Enum.TextXAlignment.Right,
-				ZIndex = z + 2,
+				Size = UDim2.new(1, 0, 1, 0),
+				ZIndex = z,
 				Parent = row,
 			})
 		end
 	end
-	return container
+	return list
 end
 
-local function priceTag(parent: Instance, amount: number, position: UDim2, z: number)
-	local tag = Kit.new("Frame", {
-		BackgroundColor3 = C.Ink,
-		Size = UDim2.fromOffset(170, 40),
+local function price(parent: Instance, amount: number, position: UDim2, z: number)
+	local row = Kit.box({
+		Size = UDim2.fromOffset(0, 28),
+		AutoSize = Enum.AutomaticSize.X,
 		Position = position,
-		AnchorPoint = Vector2.new(0.5, 0),
 		ZIndex = z,
 		Parent = parent,
 	})
-	Kit.coin(tag, 30, UDim2.fromOffset(6, 5)).ZIndex = z + 1
-	Kit.text({
+	Kit.list(row, 8, true, nil, Enum.VerticalAlignment.Center)
+	local coin = Kit.new(
+		"Frame",
+		{ BackgroundColor3 = C.Warning, Size = UDim2.fromOffset(14, 14), LayoutOrder = 1, ZIndex = z, Parent = row }
+	)
+	Kit.corner(coin, 7)
+	Kit.label({
 		Text = Format.number(amount),
-		Color = C.Yellow,
-		Size = UDim2.new(1, -50, 1, -6),
-		Position = UDim2.fromOffset(44, 3),
-		ZIndex = z + 1,
-		Parent = tag,
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.H3,
+		Size = UDim2.fromOffset(0, 28),
+		AutoSize = Enum.AutomaticSize.X,
+		Order = 2,
+		ZIndex = z,
+		Parent = row,
 	})
 end
 
-function ShopScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Screen
-	local screen = ScreenFrame.new(parent, "BOUTIQUE", "ショップ", C.Red, close)
-	local content = screen.Content
-	local products: { [string]: boolean } = {}
-	local pages: { [string]: Frame } = {}
+function ShopScreen.create(parent: Instance): Page.Page
+	local page = Page.full(
+		parent,
+		"Boutique",
+		"Débloque des archétypes et des cosmétiques. Les taux d'obtention sont affichés."
+	)
+	local content = page.Content
+	local sections: { [string]: Frame } = {}
 	local refreshers: { () -> () } = {}
+	local products: { [string]: boolean } = {}
+	local busy = false
 
-	local function page(name: string): Frame
-		local frame = Kit.new("Frame", {
+	local function section(name: string): Frame
+		local frame = Kit.box({
 			Name = name,
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 1, -66),
-			Position = UDim2.fromOffset(0, 66),
+			Size = UDim2.new(1, 0, 1, -64),
+			Position = UDim2.fromOffset(0, 64),
 			Visible = false,
-			ZIndex = 22,
+			ZIndex = 12,
 			Parent = content,
 		})
-		pages[name] = frame
+		sections[name] = frame
 		return frame
 	end
 
-	local busy = false
-	local function openBall(ballId: string)
+	local function open(kind: string, id: string?, color: Color3, accent: Color3)
 		if busy then
 			return
 		end
 		busy = true
-		local ok, result = State.request("ShopAction", "OpenBall", ballId)
-		if ok and result.Result then
-			local pack = Packs.Balls[ballId]
-			PackOpening.play(result.Result, pack and pack.Color, pack and pack.Accent)
+		local ok, result
+		if kind == "Ball" then
+			ok, result = State.request("ShopAction", "OpenBall", id)
+		else
+			ok, result = State.request("ShopAction", "OpenCosmeticPack")
+		end
+		if ok and result and result.Result then
+			PackOpening.play(result.Result, color, accent)
 		end
 		busy = false
 	end
 
-	-- BALLES ---------------------------------------------------------------------------------------
-	local ballsPage = page("BALLES")
-	local pity = Kit.text({
-		Text = "",
-		Font = Theme.Fonts.Heavy,
-		Color = C.Purple,
-		Size = UDim2.new(1, 0, 0, 26),
-		Position = UDim2.new(0, 0, 1, -28),
-		ZIndex = 23,
-		Parent = ballsPage,
-	})
+	-- Balles ------------------------------------------------------------------------------------------
+	local balls = section("Balles")
+	local row = Kit.box({ Size = UDim2.new(1, 0, 0, 470), ZIndex = 12, Parent = balls })
+	Kit.list(row, 20, true)
 	for index, ballId in Packs.BallOrder do
 		local pack = Packs.Balls[ballId]
-		local face, _ = Kit.panel({
-			Size = UDim2.fromOffset(330, 470),
-			Position = UDim2.fromOffset((index - 1) * 356, 0),
-			Color = pack.Color,
-			ZIndex = 23,
-			Clip = true,
-			Parent = ballsPage,
+		local card = Kit.surface({
+			Color = C.Surface,
+			Size = UDim2.fromOffset(320, 470),
+			Radius = Theme.RadiusLarge,
+			Order = index,
+			ZIndex = 13,
+			Parent = row,
 		})
-		Kit.sunburst(face, pack.Color, Theme.shade(pack.Color, 0.15), 12, false).ZIndex = 23
-		Kit.ball(face, 150, pack.Color, pack.Accent, UDim2.new(0.5, 0, 0, 30), Vector2.new(0.5, 0)).ZIndex = 25
-		Kit.text({
-			Text = string.upper(pack.Name),
-			Color = C.Paper,
-			Stroke = C.Ink,
-			StrokeThickness = 4,
-			Size = UDim2.new(1, -20, 0, 50),
-			Position = UDim2.fromOffset(10, 190),
-			ZIndex = 25,
-			Parent = face,
+		local stage = Kit.new("Frame", {
+			BackgroundColor3 = C.Surface2,
+			BorderSizePixel = 0,
+			Size = UDim2.new(1, 0, 0, 170),
+			ZIndex = 14,
+			Parent = card,
 		})
-		Kit.text({
-			Text = pack.Japanese,
-			Font = Theme.Fonts.Heavy,
-			Color = C.Ink,
-			Size = UDim2.new(1, -20, 0, 22),
-			Position = UDim2.fromOffset(10, 238),
-			ZIndex = 25,
-			Parent = face,
+		Kit.corner(stage, Theme.RadiusLarge)
+		local ball = PackOpening.ball(stage, 110, pack.Color, pack.Accent, 15)
+		ball.AnchorPoint = Vector2.new(0.5, 0.5)
+		ball.Position = UDim2.fromScale(0.5, 0.5)
+		local inner = Kit.box({
+			Size = UDim2.new(1, -40, 1, -190),
+			Position = UDim2.fromOffset(20, 186),
+			ZIndex = 14,
+			Parent = card,
 		})
-		priceTag(face, pack.Price, UDim2.new(0.5, 0, 0, 268), 25)
-		local owned = Kit.text({
+		Kit.label({
+			Text = pack.Name,
+			Font = Theme.Fonts.Display,
+			TextSize = Theme.Text.H2,
+			Size = UDim2.new(1, 0, 0, 30),
+			ZIndex = 15,
+			Parent = inner,
+		})
+		price(inner, pack.Price, UDim2.fromOffset(0, 34), 15)
+		local stock = Kit.label({
 			Text = "",
-			Color = C.Paper,
-			Stroke = C.Ink,
-			Size = UDim2.new(1, -20, 0, 30),
-			Position = UDim2.fromOffset(10, 314),
-			ZIndex = 25,
-			Parent = face,
+			TextSize = Theme.Text.Small,
+			Color = C.TextMuted,
+			AlignX = Enum.TextXAlignment.Right,
+			Size = UDim2.new(1, 0, 0, 28),
+			Position = UDim2.fromOffset(0, 34),
+			ZIndex = 15,
+			Parent = inner,
 		})
+		local odds = oddsRows(inner, pack.Odds, 15)
+		odds.Position = UDim2.fromOffset(0, 74)
 		Kit.button({
-			Text = "ACHETER",
-			Color = C.Yellow,
-			Size = UDim2.fromOffset(140, 50),
-			Position = UDim2.fromOffset(16, 356),
-			ZIndex = 26,
-			Parent = face,
+			Text = "Acheter",
+			Variant = "Secondary",
+			Size = UDim2.new(0.5, -6, 0, 44),
+			Position = UDim2.new(0, 0, 1, -44),
+			ZIndex = 15,
+			Parent = inner,
 			OnClick = function()
 				State.request("ShopAction", "BuyBall", ballId, 1)
 			end,
 		})
 		local openButton = Kit.button({
-			Text = "OUVRIR",
-			Color = C.Green,
-			Size = UDim2.fromOffset(140, 50),
-			Position = UDim2.fromOffset(172, 356),
-			ZIndex = 26,
-			Parent = face,
+			Text = "Ouvrir",
+			Variant = "Primary",
+			Size = UDim2.new(0.5, -6, 0, 44),
+			Position = UDim2.new(1, 0, 1, -44),
+			AnchorPoint = Vector2.new(1, 0),
+			ZIndex = 15,
+			Parent = inner,
 			OnClick = function()
-				openBall(ballId)
-			end,
-		})
-		local oddsPopup: Frame? = nil
-		Kit.button({
-			Text = "TAUX",
-			Color = C.Paper,
-			Size = UDim2.fromOffset(296, 34),
-			Position = UDim2.fromOffset(16, 420),
-			ZIndex = 26,
-			Parent = face,
-			OnClick = function()
-				if oddsPopup then
-					oddsPopup:Destroy()
-					oddsPopup = nil
-				else
-					oddsPopup = oddsList(ballsPage, pack.Odds, UDim2.fromOffset((index - 1) * 356 + 15, 120), 40)
-				end
+				open("Ball", ballId, pack.Color, pack.Accent)
 			end,
 		})
 		table.insert(refreshers, function()
 			local profile = State.Profile
-			local count = if profile then (profile.Balls[ballId] or 0) else 0
-			owned.Text = `EN STOCK : {count}`
+			local count = if profile then profile.Balls[ballId] or 0 else 0
+			stock.Text = `En stock : {count}`
 			openButton.SetEnabled(count > 0)
 		end)
 	end
+	local pity = Kit.label({
+		Text = "",
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.fromOffset(0, 486),
+		ZIndex = 12,
+		Parent = balls,
+	})
 	table.insert(refreshers, function()
 		local profile = State.Profile
 		local remaining = Packs.PityThreshold - (if profile then profile.Pity else 0)
-		pity.Text = `★ Légendaire garanti dans {math.max(1, remaining)} balle(s) maximum`
+		pity.Text =
+			`Un archétype Légendaire ou mieux est garanti au plus tard dans {math.max(1, remaining)} balle(s).`
 	end)
 
-	-- COSMÉTIQUES -----------------------------------------------------------------------------------
-	local cosmeticPage = page("COSMÉTIQUES")
-	local packFace, _ = Kit.panel({
+	-- Cosmétiques ------------------------------------------------------------------------------------
+	local cosmetics = section("Cosmétiques")
+	local packCard = Kit.surface({
+		Color = C.Surface,
 		Size = UDim2.fromOffset(420, 470),
-		Color = C.Pink,
-		ZIndex = 23,
-		Clip = true,
-		Parent = cosmeticPage,
+		Radius = Theme.RadiusLarge,
+		ZIndex = 13,
+		Parent = cosmetics,
 	})
-	Kit.sunburst(packFace, C.Pink, Theme.shade(C.Pink, 0.15), 12, false).ZIndex = 23
-	Kit.text({
-		Text = "PACK COSMÉTIQUE",
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 4,
-		Size = UDim2.new(1, -20, 0, 56),
-		Position = UDim2.fromOffset(10, 20),
-		ZIndex = 25,
-		Parent = packFace,
+	local packInner = Kit.box({
+		Size = UDim2.new(1, -48, 1, -48),
+		Position = UDim2.fromOffset(24, 24),
+		ZIndex = 14,
+		Parent = packCard,
 	})
-	Kit.text({
-		Text = "Masques · Gants · Chaussures\n100 % esthétique, aucun avantage en jeu.",
-		Font = Theme.Fonts.Body,
-		Color = C.Ink,
-		Size = UDim2.new(1, -30, 0, 56),
-		Position = UDim2.fromOffset(15, 84),
-		ZIndex = 25,
-		Parent = packFace,
+	Kit.label({
+		Text = Packs.Cosmetic.Name,
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.H2,
+		Size = UDim2.new(1, 0, 0, 30),
+		ZIndex = 15,
+		Parent = packInner,
 	})
-	for i, glyph in { "面", "手", "足" } do
-		local icon = Kit.new("Frame", {
-			BackgroundColor3 = C.Paper,
-			Size = UDim2.fromOffset(90, 90),
-			Position = UDim2.fromOffset(30 + (i - 1) * 125, 150),
-			Rotation = (i - 2) * 8,
-			ZIndex = 25,
-			Parent = packFace,
-		})
-		Kit.stroke(icon, 4)
-		Kit.text({ Text = glyph, Font = Theme.Fonts.Heavy, Color = C.Ink, ZIndex = 26, Parent = icon })
-	end
-	priceTag(packFace, Packs.Cosmetic.Price, UDim2.new(0.5, 0, 0, 262), 25)
-	local packsOwned = Kit.text({
+	Kit.label({
+		Text = "Un masque, des gants ou des chaussures au hasard. 100 % esthétique : aucun avantage en jeu.",
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Wrap = true,
+		AlignY = Enum.TextYAlignment.Top,
+		Size = UDim2.new(1, 0, 0, 40),
+		Position = UDim2.fromOffset(0, 36),
+		ZIndex = 15,
+		Parent = packInner,
+	})
+	price(packInner, Packs.Cosmetic.Price, UDim2.fromOffset(0, 86), 15)
+	local packStock = Kit.label({
 		Text = "",
-		Color = C.Paper,
-		Stroke = C.Ink,
-		Size = UDim2.new(1, -20, 0, 30),
-		Position = UDim2.fromOffset(10, 308),
-		ZIndex = 25,
-		Parent = packFace,
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		AlignX = Enum.TextXAlignment.Right,
+		Size = UDim2.new(1, 0, 0, 28),
+		Position = UDim2.fromOffset(0, 86),
+		ZIndex = 15,
+		Parent = packInner,
 	})
+	local packOdds = oddsRows(packInner, Packs.Cosmetic.Odds, 15)
+	packOdds.Position = UDim2.fromOffset(0, 128)
 	Kit.button({
-		Text = "ACHETER (HC)",
-		Color = C.Yellow,
-		Size = UDim2.fromOffset(185, 50),
-		Position = UDim2.fromOffset(18, 350),
-		ZIndex = 26,
-		Parent = packFace,
+		Text = "Acheter",
+		Variant = "Secondary",
+		Size = UDim2.new(0.5, -6, 0, 44),
+		Position = UDim2.new(0, 0, 1, -100),
+		ZIndex = 15,
+		Parent = packInner,
 		OnClick = function()
 			State.request("ShopAction", "BuyCosmeticPack", 1)
 		end,
 	})
-	local robuxButton = Kit.button({
+	local robux = Kit.button({
 		Text = `{Config.ProductRobuxPrice.CosmeticPack} R$`,
-		Color = C.Green,
-		Size = UDim2.fromOffset(185, 50),
-		Position = UDim2.fromOffset(217, 350),
-		ZIndex = 26,
-		Parent = packFace,
+		Variant = "Secondary",
+		Size = UDim2.new(0.5, -6, 0, 44),
+		Position = UDim2.new(1, 0, 1, -100),
+		AnchorPoint = Vector2.new(1, 0),
+		ZIndex = 15,
+		Parent = packInner,
 		OnClick = function()
 			State.request("ShopAction", "BuyProduct", "CosmeticPack")
 		end,
 	})
 	local openPack = Kit.button({
-		Text = "OUVRIR UN PACK",
-		Color = C.Purple,
-		TextColor = C.Paper,
-		TextStroke = C.Ink,
-		Size = UDim2.fromOffset(384, 50),
-		Position = UDim2.fromOffset(18, 408),
-		ZIndex = 26,
-		Parent = packFace,
+		Text = "Ouvrir un pack",
+		Variant = "Primary",
+		Size = UDim2.new(1, 0, 0, 48),
+		Position = UDim2.new(0, 0, 1, -48),
+		ZIndex = 15,
+		Parent = packInner,
 		OnClick = function()
-			if busy then
-				return
-			end
-			busy = true
-			local ok, result = State.request("ShopAction", "OpenCosmeticPack")
-			if ok and result.Result then
-				PackOpening.play(result.Result, C.Pink, C.Paper)
-			end
-			busy = false
+			open("Cosmetic", nil, C.Info, C.White)
 		end,
 	})
-	oddsList(cosmeticPage, Packs.Cosmetic.Odds, UDim2.fromOffset(460, 0), 23)
-	local bundle = Kit.button({
-		Text = `5 PACKS · {Config.ProductRobuxPrice.CosmeticPack5} R$`,
-		Color = C.Green,
-		Size = UDim2.fromOffset(300, 60),
-		Position = UDim2.fromOffset(460, 250),
-		ZIndex = 26,
-		Parent = cosmeticPage,
+	local bundle = Kit.surface({
+		Color = C.Surface,
+		Size = UDim2.fromOffset(320, 150),
+		Position = UDim2.fromOffset(440, 0),
+		Radius = Theme.RadiusLarge,
+		ZIndex = 13,
+		Parent = cosmetics,
+	})
+	Kit.label({
+		Text = "Lot de 5 packs",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.H3,
+		Position = UDim2.fromOffset(24, 22),
+		Size = UDim2.new(1, -48, 0, 26),
+		ZIndex = 14,
+		Parent = bundle,
+	})
+	local bundleButton = Kit.button({
+		Text = `{Config.ProductRobuxPrice.CosmeticPack5} R$`,
+		Variant = "Primary",
+		Size = UDim2.new(1, -48, 0, 48),
+		Position = UDim2.new(0, 24, 1, -72),
+		ZIndex = 14,
+		Parent = bundle,
 		OnClick = function()
 			State.request("ShopAction", "BuyProduct", "CosmeticPack5")
 		end,
@@ -350,62 +334,64 @@ function ShopScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Scree
 	table.insert(refreshers, function()
 		local profile = State.Profile
 		local count = if profile then profile.CosmeticPacks else 0
-		packsOwned.Text = `PACKS EN STOCK : {count}`
+		packStock.Text = `En stock : {count}`
 		openPack.SetEnabled(count > 0)
-		robuxButton.SetEnabled(products.CosmeticPack == true)
-		bundle.SetEnabled(products.CosmeticPack5 == true)
+		robux.SetEnabled(products.CosmeticPack == true)
+		robux.SetText(if products.CosmeticPack then `{Config.ProductRobuxPrice.CosmeticPack} R$` else "Bientôt")
+		bundleButton.SetEnabled(products.CosmeticPack5 == true)
+		bundleButton.SetText(
+			if products.CosmeticPack5 then `{Config.ProductRobuxPrice.CosmeticPack5} R$` else "Bientôt"
+		)
 	end)
 
-	-- HAND COINS ---------------------------------------------------------------------------------------
-	local coinsPage = page("HAND COINS")
-	for index, info in { { Key = "Coins1000", Amount = 1000 }, { Key = "Coins5000", Amount = 5500 } } do
-		local face, _ = Kit.panel({
-			Size = UDim2.fromOffset(340, 360),
-			Position = UDim2.fromOffset((index - 1) * 370, 0),
-			Color = C.Yellow,
-			ZIndex = 23,
-			Clip = true,
-			Parent = coinsPage,
+	-- Hand Coins -------------------------------------------------------------------------------------------
+	local coins = section("Hand Coins")
+	local coinRow = Kit.box({ Size = UDim2.new(1, 0, 0, 220), ZIndex = 12, Parent = coins })
+	Kit.list(coinRow, 20, true)
+	for index, offer in { { Key = "Coins1000", Amount = 1000 }, { Key = "Coins5000", Amount = 5500 } } do
+		local card = Kit.surface({
+			Color = C.Surface,
+			Size = UDim2.fromOffset(320, 200),
+			Radius = Theme.RadiusLarge,
+			Order = index,
+			ZIndex = 13,
+			Parent = coinRow,
 		})
-		Kit.sunburst(face, C.Yellow, Theme.shade(C.Yellow, 0.3), 12, false).ZIndex = 23
-		for i = 1, index + 1 do
-			Kit.coin(face, 90, UDim2.fromOffset(60 + (i - 1) * 50, 40 + (i % 2) * 20)).ZIndex = 25 + i
-		end
-		Kit.text({
-			Text = `{Format.number(info.Amount)} HAND COINS`,
-			Color = C.Paper,
-			Stroke = C.Ink,
-			StrokeThickness = 4,
-			Size = UDim2.new(1, -20, 0, 50),
-			Position = UDim2.fromOffset(10, 190),
-			ZIndex = 30,
-			Parent = face,
+		price(card, offer.Amount, UDim2.fromOffset(24, 28), 14)
+		Kit.label({
+			Text = "Hand Coins",
+			TextSize = Theme.Text.Small,
+			Color = C.TextMuted,
+			Position = UDim2.fromOffset(24, 60),
+			Size = UDim2.new(1, -48, 0, 20),
+			ZIndex = 14,
+			Parent = card,
 		})
 		local buy = Kit.button({
-			Text = `{Config.ProductRobuxPrice[info.Key]} R$`,
-			Color = C.Green,
-			Size = UDim2.fromOffset(240, 60),
-			Position = UDim2.new(0.5, 0, 0, 268),
-			AnchorPoint = Vector2.new(0.5, 0),
-			ZIndex = 30,
-			Parent = face,
+			Text = "",
+			Variant = "Primary",
+			Size = UDim2.new(1, -48, 0, 48),
+			Position = UDim2.new(0, 24, 1, -72),
+			ZIndex = 14,
+			Parent = card,
 			OnClick = function()
-				State.request("ShopAction", "BuyProduct", info.Key)
+				State.request("ShopAction", "BuyProduct", offer.Key)
 			end,
 		})
 		table.insert(refreshers, function()
-			buy.SetEnabled(products[info.Key] == true)
-			buy.SetText(if products[info.Key] then `{Config.ProductRobuxPrice[info.Key]} R$` else "BIENTÔT")
+			local enabled = products[offer.Key] == true
+			buy.SetEnabled(enabled)
+			buy.SetText(if enabled then `{Config.ProductRobuxPrice[offer.Key]} R$` else "Bientôt")
 		end)
 	end
-	Kit.text({
-		Text = "Les Hand Coins se gagnent aussi en jouant : victoire, buts, passes décisives, arrêts…",
-		Font = Theme.Fonts.Body,
-		Size = UDim2.new(1, 0, 0, 30),
-		Position = UDim2.fromOffset(0, 390),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = 23,
-		Parent = coinsPage,
+	Kit.label({
+		Text = "Tu gagnes aussi des Hand Coins à chaque match : victoire, buts, passes décisives, arrêts et interceptions.",
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.fromOffset(0, 236),
+		ZIndex = 12,
+		Parent = coins,
 	})
 
 	local function refresh()
@@ -413,17 +399,16 @@ function ShopScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Scree
 			refresher()
 		end
 	end
-
-	local select = ScreenFrame.tabs(content, { "BALLES", "COSMÉTIQUES", "HAND COINS" }, function(name)
-		for key, frame in pages do
+	local select = Page.tabs(content, { "Balles", "Cosmétiques", "Hand Coins" }, function(name)
+		for key, frame in sections do
 			frame.Visible = key == name
 		end
-	end)
-	select("BALLES")
+	end, 12)
+	select("Balles")
 
 	State.ProfileChanged:Connect(refresh)
-	local open = screen.Open
-	screen.Open = function()
+	local baseOpen = page.Open
+	page.Open = function()
 		task.spawn(function()
 			local ok, result = State.request("ShopAction", "Catalog")
 			if ok and result.Products then
@@ -432,10 +417,10 @@ function ShopScreen.create(parent: Instance, close: () -> ()): ScreenFrame.Scree
 			end
 		end)
 		refresh()
-		open()
+		baseOpen()
 	end
 	refresh()
-	return screen
+	return page
 end
 
 return ShopScreen

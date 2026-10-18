@@ -1,12 +1,11 @@
 --!strict
--- Point d'entrée UNIQUE du client. Chaque contrôleur ne fait qu'afficher et
--- envoyer des demandes : le serveur garde l'autorité sur tout.
+-- Point d'entrée UNIQUE du client. Les contrôleurs affichent et envoient des
+-- demandes ; le serveur garde l'autorité sur tout.
 
 local StarterGui = game:GetService("StarterGui")
 
 local Controllers = script.Controllers
 
--- Interface Roblox par défaut : on garde le chat et la liste des joueurs.
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
@@ -17,6 +16,8 @@ local ORDER = {
 	"Notifications",
 	"BallRenderer",
 	"MatchInput",
+	"CharacterAnimator",
+	"Effects3D",
 	"MatchHUD",
 	"MatchFX",
 	"MatchSetup",
@@ -31,9 +32,9 @@ end
 for _, name in ORDER do
 	local controller = modules[name]
 	if typeof(controller.start) == "function" then
-		local ok, err = pcall(controller.start)
-		if not ok then
-			warn(`[Handball Legends] {name} : {err}`)
+		local result = table.pack(pcall(controller.start))
+		if not result[1] then
+			warn(`[Handball Legends] {name} : {result[2]}`)
 		end
 	end
 end

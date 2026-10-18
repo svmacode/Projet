@@ -46,7 +46,7 @@ local function build()
 	ball.Name = "Ballon"
 	ball.Shape = Enum.PartType.Ball
 	ball.Size = Vector3.one * RADIUS * 2
-	ball.Color = Color3.fromRGB(255, 226, 70)
+	ball.Color = Color3.fromRGB(245, 245, 240)
 	ball.Material = Enum.Material.SmoothPlastic
 	ball.Anchored = true
 	ball.CanCollide = false
@@ -54,7 +54,7 @@ local function build()
 	ball.CanTouch = false
 	ball.CastShadow = true
 	ball.Parent = model
-	for index, color in { Color3.fromRGB(226, 32, 52), Color3.fromRGB(30, 110, 245) } do
+	for index, color in { Color3.fromRGB(232, 58, 68), Color3.fromRGB(40, 90, 210) } do
 		local ring = Instance.new("Part")
 		ring.Name = "Couture"
 		ring.Shape = Enum.PartType.Cylinder

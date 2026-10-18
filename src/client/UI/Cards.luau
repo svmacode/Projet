@@ -1,11 +1,10 @@
 --!strict
--- Cartes d'archétypes, de cosmétiques et de pouvoirs.
+-- Cartes d'archétypes, de cosmétiques et lignes de pouvoirs.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Archetypes = require(ReplicatedStorage.Shared.Data.Archetypes)
 local Cosmetics = require(ReplicatedStorage.Shared.Data.Cosmetics)
-local Rarities = require(ReplicatedStorage.Shared.Data.Rarities)
 local Kit = require(script.Parent.Kit)
 local Theme = require(script.Parent.Theme)
 
@@ -13,28 +12,20 @@ local C = Theme.Colors
 
 local Cards = {}
 
-local POSTE_LABEL = { Gardien = "GARDIEN", Defenseur = "DÉFENSEUR", Attaquant = "ATTAQUANT" }
-local SLOT_GLYPH = { Mask = "面", Gloves = "手", Shoes = "足" }
+local POSTES = { Gardien = "Gardien", Defenseur = "Défenseur", Attaquant = "Attaquant" }
+local SLOT_LABEL = { Mask = "Masque", Gloves = "Gants", Shoes = "Chaussures" }
+local POWER_KIND = { "Mouvement · 15 s", "Technique · touches de balle", "Ultime" }
 
 type Props = { [string]: any }
 
-local function rarityGradient(rarity: string): ColorSequence
-	local info = Rarities.get(rarity)
-	if not info then
-		return ColorSequence.new(C.Steel)
-	end
-	if rarity == "Mythique" then
-		return ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 80, 160)),
-			ColorSequenceKeypoint.new(0.35, Color3.fromRGB(150, 70, 255)),
-			ColorSequenceKeypoint.new(0.7, Color3.fromRGB(40, 210, 255)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 220, 80)),
-		})
-	end
-	return ColorSequence.new(info.ColorLight, info.Color)
+local function initials(name: string): string
+	local parts = string.split(name, " ")
+	local first = string.sub(parts[1] or "", 1, 1)
+	local second = string.sub(parts[2] or "", 1, 1)
+	return string.upper(first .. second)
 end
 
-local function clickable(container: Frame, onClick: (() -> ())?)
+local function interactive(card: GuiObject, onClick: (() -> ())?, selected: boolean)
 	if not onClick then
 		return
 	end
@@ -42,260 +33,265 @@ local function clickable(container: Frame, onClick: (() -> ())?)
 		BackgroundTransparency = 1,
 		Text = "",
 		Size = UDim2.fromScale(1, 1),
-		ZIndex = 40,
-		Parent = container,
+		ZIndex = card.ZIndex + 10,
+		Parent = card,
 	})
-	local scale = container:FindFirstChildOfClass("UIScale") or Kit.new("UIScale", { Parent = container })
+	local stroke = card:FindFirstChildOfClass("UIStroke")
 	hit.MouseEnter:Connect(function()
-		Kit.tween(scale, Theme.Tween.Fast, { Scale = 1.04 })
+		if stroke and not selected then
+			stroke.Color = C.BorderStrong
+		end
+		Kit.tween(card, Theme.Motion.Fast, { BackgroundColor3 = C.Surface3 })
 	end)
 	hit.MouseLeave:Connect(function()
-		Kit.tween(scale, Theme.Tween.Fast, { Scale = 1 })
+		if stroke and not selected then
+			stroke.Color = C.Border
+		end
+		Kit.tween(card, Theme.Motion.Fast, { BackgroundColor3 = C.Surface2 })
 	end)
 	hit.Activated:Connect(function()
-		Kit.pop(container, 0.9)
+		Kit.pop(card, 0.97)
 		onClick()
 	end)
 end
 
 function Cards.archetype(parent: Instance, archetype: Archetypes.Archetype, props: Props): Frame
 	local owned = props.Owned ~= false
-	local rarity = archetype.Rarity
-	local face, container = Kit.panel({
+	local z = props.ZIndex or 2
+	local card = Kit.surface({
 		Name = archetype.Id,
-		Size = props.Size or UDim2.fromOffset(200, 280),
+		Color = C.Surface2,
+		Size = props.Size or UDim2.fromOffset(176, 236),
 		Position = props.Position,
 		AnchorPoint = props.AnchorPoint,
-		Color = if owned then Theme.rarityColor(rarity) else Theme.rarityDark(rarity),
-		Gradient = if owned then rarityGradient(rarity) else nil,
-		GradientRotation = 100,
-		StrokeThickness = if props.Selected then 6 else 4,
-		StrokeColor = if props.Selected then C.Yellow else C.Ink,
-		Order = props.Order,
-		ZIndex = props.ZIndex or 3,
 		Clip = true,
+		Order = props.Order,
+		ZIndex = z,
+		BorderColor = if props.Selected then C.Accent else C.Border,
 		Parent = parent,
 	})
-	local z = (props.ZIndex or 3) + 1
-	-- Kanji géant en filigrane.
-	Kit.text({
-		Text = archetype.Kanji,
-		Font = Theme.Fonts.Heavy,
-		Color = if owned
-			then Theme.shade(Theme.rarityColor(rarity), -0.25)
-			else Theme.shade(Theme.rarityDark(rarity), 0.15),
-		Size = UDim2.fromScale(1.1, 0.75),
-		Position = UDim2.fromScale(0.5, 0.42),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Rotation = -8,
-		ZIndex = z,
-		Parent = face,
-	})
-	if owned then
-		-- Bande de couleur signature de l'archétype.
-		local band = Kit.new("Frame", {
-			BackgroundColor3 = archetype.Color,
-			Size = UDim2.new(1.4, 0, 0, 16),
-			Position = UDim2.fromScale(-0.2, 0.56),
-			Rotation = -12,
-			ZIndex = z,
-			Parent = face,
-		})
-		Kit.stroke(band, 3)
-	else
-		Kit.text({
-			Text = "?",
-			Color = C.Paper,
-			Stroke = C.Ink,
-			StrokeThickness = 4,
-			Size = UDim2.fromScale(0.5, 0.35),
-			Position = UDim2.fromScale(0.5, 0.38),
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			ZIndex = z + 1,
-			Parent = face,
-		})
+	if props.Selected then
+		(card:FindFirstChildOfClass("UIStroke") :: UIStroke).Thickness = 2
 	end
-	local poste = Kit.new("Frame", {
-		BackgroundColor3 = C.Ink,
-		Size = UDim2.new(0.62, 0, 0, 24),
-		Position = UDim2.fromOffset(8, 8),
+	-- Visuel : aplat à la couleur de l'archétype et monogramme.
+	local art = Kit.new("Frame", {
+		BackgroundColor3 = if owned then Theme.darken(archetype.Color, 0.35) else C.Surface,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0.6, 0),
 		ZIndex = z + 1,
-		Parent = face,
+		Parent = card,
 	})
-	Kit.text({
-		Text = POSTE_LABEL[archetype.Poste] or archetype.Poste,
-		Color = C.Yellow,
-		Size = UDim2.new(1, -8, 1, -4),
-		Position = UDim2.fromOffset(4, 2),
+	Kit.new("UIGradient", {
+		Color = ColorSequence.new(
+			if owned then Theme.darken(archetype.Color, 0.1) else C.Surface2,
+			if owned then Theme.darken(archetype.Color, 0.55) else C.Surface
+		),
+		Rotation = 90,
+		Parent = art,
+	})
+	Kit.label({
+		Text = if owned then initials(archetype.Name) else "?",
+		Font = Theme.Fonts.Display,
+		TextSize = 64,
+		Color = if owned then Theme.lighten(archetype.Color, 0.55) else C.TextFaint,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
 		ZIndex = z + 2,
-		Parent = poste,
+		Parent = art,
 	})
-	local nameplate = Kit.new("Frame", {
-		BackgroundColor3 = C.Paper,
-		Size = UDim2.new(1, 0, 0.3, 0),
-		Position = UDim2.fromScale(0, 0.7),
+	Kit.new("Frame", {
+		BackgroundColor3 = Theme.rarityColor(archetype.Rarity),
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, 3),
+		Position = UDim2.new(0, 0, 0.6, -3),
+		ZIndex = z + 3,
+		Parent = card,
+	})
+	local info = Kit.box({
+		Size = UDim2.new(1, -24, 0.4, -12),
+		Position = UDim2.new(0, 12, 0.6, 8),
 		ZIndex = z + 1,
-		Parent = face,
+		Parent = card,
 	})
-	Kit.stroke(nameplate, 3)
-	Kit.text({
-		Text = if owned then string.upper(archetype.Name) else "???",
-		Color = C.Ink,
-		Size = UDim2.new(1, -12, 0.5, 0),
-		Position = UDim2.fromOffset(6, 4),
+	Kit.label({
+		Text = if owned then archetype.Name else "Verrouillé",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Body,
+		Color = if owned then C.Text else C.TextMuted,
+		Size = UDim2.new(1, 0, 0, 22),
 		ZIndex = z + 2,
-		Parent = nameplate,
+		Parent = info,
 	})
-	Kit.text({
-		Text = if owned then archetype.Title else Theme.rarityName(rarity),
-		Font = Theme.Fonts.Body,
-		Color = Theme.rarityDark(rarity),
-		Size = UDim2.new(1, -12, 0.36, 0),
-		Position = UDim2.new(0, 6, 0.55, 0),
+	Kit.label({
+		Text = if owned then archetype.Title else POSTES[archetype.Poste],
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Size = UDim2.new(1, 0, 0, 18),
+		Position = UDim2.fromOffset(0, 22),
 		ZIndex = z + 2,
-		Parent = nameplate,
+		Parent = info,
+	})
+	Kit.label({
+		Text = `{string.upper(Theme.rarityName(archetype.Rarity))}  ·  {string.upper(POSTES[archetype.Poste])}`,
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Tiny,
+		Color = Theme.rarityColor(archetype.Rarity),
+		Size = UDim2.new(1, 0, 0, 16),
+		Position = UDim2.new(0, 0, 1, -18),
+		ZIndex = z + 2,
+		Parent = info,
 	})
 	if props.Badge then
-		local badge = Kit.new("Frame", {
-			BackgroundColor3 = C.Red,
-			Size = UDim2.fromOffset(84, 26),
-			Position = UDim2.new(1, -90, 0, 40),
-			Rotation = 6,
-			ZIndex = z + 3,
-			Parent = face,
-		})
-		Kit.stroke(badge, 2)
-		Kit.text({ Text = props.Badge, Color = C.Paper, ZIndex = z + 4, Parent = badge })
+		local badge = Kit.pill(card, props.Badge, C.Accent)
+		badge.Position = UDim2.fromOffset(10, 10)
+		badge.ZIndex = z + 4
+		for _, child in badge:GetDescendants() do
+			if child:IsA("GuiObject") then
+				child.ZIndex = z + 5
+			end
+		end
 	end
-	clickable(container, props.OnClick)
-	return container
+	interactive(card, props.OnClick, props.Selected == true)
+	return card
 end
 
 function Cards.cosmetic(parent: Instance, item: Cosmetics.Cosmetic, props: Props): Frame
 	local owned = props.Owned ~= false
-	local face, container = Kit.panel({
+	local z = props.ZIndex or 2
+	local card = Kit.surface({
 		Name = item.Id,
-		Size = props.Size or UDim2.fromOffset(170, 200),
-		Color = if owned then Theme.rarityColor(item.Rarity) else Theme.rarityDark(item.Rarity),
-		Gradient = if owned then rarityGradient(item.Rarity) else nil,
-		StrokeThickness = if props.Selected then 6 else 4,
-		StrokeColor = if props.Selected then C.Yellow else C.Ink,
-		Order = props.Order,
-		ZIndex = props.ZIndex or 3,
+		Color = C.Surface2,
+		Size = props.Size or UDim2.fromOffset(176, 200),
 		Clip = true,
+		Order = props.Order,
+		ZIndex = z,
+		BorderColor = if props.Selected then C.Accent else C.Border,
 		Parent = parent,
 	})
-	local z = (props.ZIndex or 3) + 1
-	-- Pastille de couleur principale de l'objet.
-	local swatch = Kit.new("Frame", {
-		BackgroundColor3 = item.Parts[1].Color,
-		Size = UDim2.fromOffset(92, 92),
-		Position = UDim2.new(0.5, 0, 0, 16),
-		AnchorPoint = Vector2.new(0.5, 0),
-		Rotation = 8,
-		ZIndex = z,
-		Parent = face,
-	})
-	Kit.stroke(swatch, 4)
-	Kit.text({
-		Text = SLOT_GLYPH[item.Slot] or "?",
-		Font = Theme.Fonts.Heavy,
-		Color = if item.Parts[2] then item.Parts[2].Color else C.Ink,
-		Stroke = C.Ink,
-		StrokeThickness = 2,
-		Rotation = -8,
-		ZIndex = z + 1,
-		Parent = swatch,
-	})
-	Kit.text({
-		Text = if owned then string.upper(item.Name) else "???",
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 2,
-		Size = UDim2.new(1, -12, 0, 44),
-		Position = UDim2.new(0, 6, 1, -80),
-		ZIndex = z,
-		Parent = face,
-	})
-	Kit.rarityChip(
-		face,
-		item.Rarity,
-		{ Size = UDim2.new(0.8, 0, 0, 24), Position = UDim2.new(0.1, 0, 1, -32), ZIndex = z }
-	)
-	if props.Badge then
-		local badge = Kit.new("Frame", {
-			BackgroundColor3 = C.Green,
-			Size = UDim2.fromOffset(90, 24),
-			Position = UDim2.fromOffset(6, 6),
-			Rotation = -6,
-			ZIndex = z + 3,
-			Parent = face,
-		})
-		Kit.stroke(badge, 2)
-		Kit.text({ Text = props.Badge, Color = C.Ink, ZIndex = z + 4, Parent = badge })
+	if props.Selected then
+		(card:FindFirstChildOfClass("UIStroke") :: UIStroke).Thickness = 2
 	end
-	clickable(container, props.OnClick)
-	return container
+	-- Nuancier des couleurs de l'objet.
+	local swatches =
+		Kit.box({ Size = UDim2.new(1, -24, 0, 96), Position = UDim2.fromOffset(12, 12), ZIndex = z + 1, Parent = card })
+	Kit.list(swatches, 6, true)
+	local seen: { [string]: boolean } = {}
+	local count = 0
+	for _, spec in item.Parts do
+		local key = spec.Color:ToHex()
+		if not seen[key] and count < 3 then
+			seen[key] = true
+			count += 1
+			local swatch = Kit.new("Frame", {
+				BackgroundColor3 = if owned then spec.Color else C.Surface3,
+				Size = UDim2.new(if count == 1 then 0.5 else 0.25, -4, 1, 0),
+				LayoutOrder = count,
+				ZIndex = z + 2,
+				Parent = swatches,
+			})
+			Kit.corner(swatch, 6)
+		end
+	end
+	Kit.label({
+		Text = if owned then item.Name else "Verrouillé",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Body,
+		Color = if owned then C.Text else C.TextMuted,
+		Size = UDim2.new(1, -24, 0, 22),
+		Position = UDim2.fromOffset(12, 118),
+		ZIndex = z + 1,
+		Parent = card,
+	})
+	Kit.label({
+		Text = SLOT_LABEL[item.Slot] or item.Slot,
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Size = UDim2.new(1, -24, 0, 18),
+		Position = UDim2.fromOffset(12, 140),
+		ZIndex = z + 1,
+		Parent = card,
+	})
+	Kit.label({
+		Text = string.upper(Theme.rarityName(item.Rarity)),
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Tiny,
+		Color = Theme.rarityColor(item.Rarity),
+		Size = UDim2.new(1, -24, 0, 16),
+		Position = UDim2.new(0, 12, 1, -26),
+		ZIndex = z + 1,
+		Parent = card,
+	})
+	if props.Badge then
+		local badge = Kit.pill(card, props.Badge, C.Success)
+		badge.Position = UDim2.new(1, -10, 0, 10)
+		badge.AnchorPoint = Vector2.new(1, 0)
+		badge.ZIndex = z + 4
+		for _, child in badge:GetDescendants() do
+			if child:IsA("GuiObject") then
+				child.ZIndex = z + 5
+			end
+		end
+	end
+	interactive(card, props.OnClick, props.Selected == true)
+	return card
 end
 
 function Cards.power(parent: Instance, power: Archetypes.Power, props: Props): Frame
-	local labels = { "MOUVEMENT · 15 s", "TECHNIQUE · touches de balle", "ULTIME" }
-	local face, container = Kit.panel({
+	local z = props.ZIndex or 2
+	local row = Kit.surface({
 		Name = power.Id,
-		Size = props.Size or UDim2.new(1, -10, 0, 96),
-		Color = C.Paper,
+		Color = C.Surface2,
+		Size = props.Size or UDim2.new(1, 0, 0, 84),
 		Order = props.Order,
-		ZIndex = props.ZIndex or 3,
+		ZIndex = z,
 		Parent = parent,
 	})
-	local z = (props.ZIndex or 3) + 1
-	local number = Kit.new("Frame", {
-		BackgroundColor3 = power.Color,
-		Size = UDim2.fromOffset(64, 64),
-		Position = UDim2.fromOffset(14, 16),
-		Rotation = -6,
-		ZIndex = z,
-		Parent = face,
-	})
-	Kit.stroke(number, 4)
-	Kit.text({
-		Text = tostring(power.Slot),
-		Color = C.Paper,
-		Stroke = C.Ink,
-		StrokeThickness = 3,
+	local key = Kit.new("Frame", {
+		BackgroundColor3 = Theme.darken(power.Color, 0.3),
+		Size = UDim2.fromOffset(52, 52),
+		Position = UDim2.fromOffset(16, 16),
 		ZIndex = z + 1,
-		Parent = number,
+		Parent = row,
 	})
-	Kit.text({
-		Text = `{string.upper(power.Name)}  <font color="#E2203A">{power.Japanese}</font>`,
-		Rich = true,
-		Size = UDim2.new(1, -110, 0, 32),
-		Position = UDim2.fromOffset(94, 8),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = z,
-		Parent = face,
+	Kit.corner(key, 8)
+	Kit.label({
+		Text = tostring(power.Slot),
+		Font = Theme.Fonts.Display,
+		TextSize = 26,
+		AlignX = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = z + 2,
+		Parent = key,
 	})
-	Kit.text({
-		Text = labels[power.Slot] or "",
-		Font = Theme.Fonts.Heavy,
-		Color = C.Steel,
+	Kit.label({
+		Text = power.Name,
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.H3,
+		Size = UDim2.new(1, -110, 0, 24),
+		Position = UDim2.fromOffset(84, 10),
+		ZIndex = z + 1,
+		Parent = row,
+	})
+	Kit.label({
+		Text = string.upper(POWER_KIND[power.Slot] or ""),
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.Tiny,
+		Color = power.Color,
 		Size = UDim2.new(1, -110, 0, 16),
-		Position = UDim2.fromOffset(94, 40),
-		AlignX = Enum.TextXAlignment.Left,
-		ZIndex = z,
-		Parent = face,
+		Position = UDim2.fromOffset(84, 34),
+		ZIndex = z + 1,
+		Parent = row,
 	})
-	Kit.text({
+	Kit.label({
 		Text = power.Description,
-		Font = Theme.Fonts.Body,
-		Size = UDim2.new(1, -110, 0, 30),
-		Position = UDim2.fromOffset(94, 58),
-		AlignX = Enum.TextXAlignment.Left,
-		MaxSize = 20,
-		ZIndex = z,
-		Parent = face,
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Size = UDim2.new(1, -110, 0, 20),
+		Position = UDim2.fromOffset(84, 52),
+		ZIndex = z + 1,
+		Parent = row,
 	})
-	return container
+	return row
 end
 
 return Cards

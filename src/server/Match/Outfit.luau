@@ -137,7 +137,7 @@ local function jerseyText(
 	label.Size = scale
 	label.Position = position
 	label.Text = text
-	label.Font = Enum.Font.Bangers
+	label.FontFace = Font.fromEnum(Enum.Font.BuilderSansExtraBold)
 	label.TextScaled = true
 	label.TextColor3 = color
 	label.TextStrokeColor3 = stroke
@@ -394,7 +394,7 @@ function Outfit.apply(character: Model, options: OutfitOptions)
 			applyCosmetic(character, folder, itemId)
 		end
 	end
-	if options.Highlight ~= false then
+	if options.Highlight == true then
 		local highlight = character:FindFirstChild("ContourManga")
 		if not highlight then
 			local h = Instance.new("Highlight")

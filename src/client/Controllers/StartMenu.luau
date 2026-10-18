@@ -1,7 +1,8 @@
 --!strict
--- Menu de départ : page de titre façon couverture de manga (rayons, trame,
--- logo), puis bouton COMMENCER. Uniquement sur les serveurs lobby.
+-- Écran titre : plan cinématique lent sur le quartier au coucher du soleil,
+-- bandes noires, titre, bouton JOUER. Uniquement sur les serveurs lobby.
 
+local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -9,7 +10,6 @@ local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Kit = require(script.Parent.Parent.UI.Kit)
-local Logo = require(script.Parent.Parent.UI.Logo)
 local State = require(script.Parent.State)
 local Theme = require(script.Parent.Parent.UI.Theme)
 
@@ -17,52 +17,32 @@ local C = Theme.Colors
 
 local StartMenu = {}
 
-local function setMenuCamera(active: boolean)
-	local camera = Workspace.CurrentCamera
-	if not camera then
-		return
-	end
-	if active then
-		local cframe = Workspace:GetAttribute("MenuCamera")
-		camera.CameraType = Enum.CameraType.Scriptable
-		if typeof(cframe) == "CFrame" then
-			camera.CFrame = cframe
-		end
-	else
-		camera.CameraType = Enum.CameraType.Custom
-	end
-end
+local BAR = 96
 
--- Transition « coups de pinceau » : bandes d'encre qui balaient l'écran.
-local function wipe(root: Frame, onMiddle: () -> ())
-	local strips = {}
-	for i = 0, 5 do
-		local strip = Kit.new("Frame", {
-			BackgroundColor3 = if i % 2 == 0 then C.Ink else C.Red,
-			BorderSizePixel = 0,
-			Size = UDim2.new(1.6, 0, 0.2, 0),
-			Position = UDim2.new(-1.7, 0, i * 0.18 - 0.05, 0),
-			Rotation = -8,
-			ZIndex = 200,
-			Parent = root,
-		})
-		table.insert(strips, strip)
-		task.delay(i * 0.04, function()
-			Kit.tween(strip, Theme.Tween.Slide, { Position = UDim2.new(-0.3, 0, i * 0.18 - 0.05, 0) })
-		end)
-	end
-	task.wait(0.55)
-	onMiddle()
-	for i, strip in strips do
-		task.delay(i * 0.04, function()
-			Kit.tween(strip, Theme.Tween.Slide, { Position = UDim2.new(1.2, 0, (i - 1) * 0.18 - 0.05, 0) })
-		end)
-	end
-	task.delay(0.8, function()
-		for _, strip in strips do
-			strip:Destroy()
-		end
-	end)
+local function shadowedTitle(parent: Instance, text: string, color: Color3, y: number, order: number): Frame
+	local holder =
+		Kit.box({ Size = UDim2.fromOffset(900, 120), Position = UDim2.fromOffset(96, y), ZIndex = 5, Parent = parent })
+	holder.LayoutOrder = order
+	Kit.label({
+		Text = text,
+		Font = Theme.Fonts.DisplayItalic,
+		TextSize = 128,
+		Color = C.Background,
+		Size = UDim2.fromScale(1, 1),
+		Position = UDim2.fromOffset(6, 6),
+		ZIndex = 5,
+		Parent = holder,
+	})
+	Kit.label({
+		Text = text,
+		Font = Theme.Fonts.DisplayItalic,
+		TextSize = 128,
+		Color = color,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 6,
+		Parent = holder,
+	})
+	return holder
 end
 
 function StartMenu.start()
@@ -71,72 +51,91 @@ function StartMenu.start()
 		State.Began:Fire()
 		return
 	end
-	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-	local gui = Kit.screen("MenuDepart", 100, playerGui)
-	local root = Kit.root(gui)
+	local gui, root = Kit.screen("EcranTitre", 100, Players.LocalPlayer:WaitForChild("PlayerGui"))
 
-	setMenuCamera(true)
+	-- Plan de caméra : travelling lent entre deux points fournis par le serveur.
+	local camera = Workspace.CurrentCamera :: Camera
+	local startTime = os.clock()
 	local cameraConnection = RunService.RenderStepped:Connect(function()
-		setMenuCamera(true)
+		local from = Workspace:GetAttribute("MenuCamera")
+		local to = Workspace:GetAttribute("MenuCameraEnd")
+		if typeof(from) ~= "CFrame" then
+			return
+		end
+		camera.CameraType = Enum.CameraType.Scriptable
+		local alpha = (math.sin((os.clock() - startTime) * 0.06 - math.pi / 2) + 1) / 2
+		camera.CFrame = if typeof(to) == "CFrame" then from:Lerp(to, alpha) else from
+		camera.FieldOfView = 55
 	end)
 
-	local cover = Kit.new("Frame", {
-		Name = "Couverture",
-		BackgroundColor3 = C.Red,
-		Size = UDim2.fromScale(1, 1),
+	local top = Kit.new("Frame", {
+		BackgroundColor3 = C.Black,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, BAR),
+		Position = UDim2.fromOffset(0, -BAR),
+		ZIndex = 4,
 		Parent = root,
 	})
-	Kit.sunburst(cover, C.Red, Theme.shade(C.Red, 0.12), 18, true)
-	Kit.halftone(cover, C.RedDark, Vector2.new(0, 0), 9, 22)
-	Kit.halftone(cover, C.RedDark, Vector2.new(1, 1), 9, 22)
-
-	-- Cadre de case de manga.
-	local frame = Kit.new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -40, 1, -40),
-		Position = UDim2.fromOffset(20, 20),
-		ZIndex = 3,
-		Parent = cover,
+	local bottom = Kit.new("Frame", {
+		BackgroundColor3 = C.Black,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 0, BAR),
+		Position = UDim2.fromScale(0, 1),
+		ZIndex = 4,
+		Parent = root,
 	})
-	Kit.stroke(frame, 8)
+	Kit.tween(top, Theme.Motion.Slow, { Position = UDim2.new() })
+	Kit.tween(bottom, Theme.Motion.Slow, { Position = UDim2.new(0, 0, 1, -BAR) })
 
-	local logo = Logo.build(cover, UDim2.fromOffset(960, 440), UDim2.new(0.5, 0, 0.42, 0))
-	logo.ZIndex = 5
-	Kit.pop(logo, 0.3)
+	local first = shadowedTitle(root, "HANDBALL", C.White, 250, 1)
+	local second = shadowedTitle(root, "LEGENDS", C.Accent, 360, 2)
+	Kit.reveal(first, 0.3, 24)
+	Kit.reveal(second, 0.45, 24)
 
-	local button = Kit.button({
-		Text = "COMMENCER",
-		Color = C.Yellow,
-		Size = UDim2.fromOffset(420, 96),
-		Position = UDim2.new(0.5, 0, 0.82, 0),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Rotation = -2,
-		ShadowOffset = 8,
-		StrokeThickness = 5,
-		ZIndex = 10,
+	local subtitle = Kit.label({
+		Text = "SAISON 1  ·  LYCÉE SEIRYŌ",
+		Font = Theme.Fonts.Bold,
+		TextSize = Theme.Text.H3,
+		Color = C.White,
+		Position = UDim2.fromOffset(104, 500),
+		Size = UDim2.fromOffset(600, 28),
+		ZIndex = 6,
+		Parent = root,
 	})
-	button.Container.Parent = cover
+	Kit.reveal(subtitle, 0.6)
 
-	-- Pulsation du bouton.
-	task.spawn(function()
-		local scale = button.Container:FindFirstChildOfClass("UIScale") :: UIScale
-		while button.Container.Parent do
-			Kit.tween(scale, TweenInfo.new(0.6, Enum.EasingStyle.Sine), { Scale = 1.06 })
-			task.wait(0.6)
-			Kit.tween(scale, TweenInfo.new(0.6, Enum.EasingStyle.Sine), { Scale = 1 })
-			task.wait(0.6)
-		end
-	end)
+	local play = Kit.button({
+		Text = "JOUER",
+		Variant = "Primary",
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.Text.H2,
+		Size = UDim2.fromOffset(260, 60),
+		Position = UDim2.fromOffset(104, 560),
+		ZIndex = 6,
+		Parent = root,
+	})
+	Kit.reveal(play.Instance, 0.75)
 
-	Kit.text({
-		Text = `v{Config.Version}  ·  Lycée Seiryō`,
-		Font = Theme.Fonts.Body,
-		Color = C.Paper,
-		Size = UDim2.fromOffset(400, 26),
-		Position = UDim2.new(0, 40, 1, -60),
-		AlignX = Enum.TextXAlignment.Left,
+	Kit.label({
+		Text = `v{Config.Version}`,
+		Font = Theme.Fonts.Semibold,
+		TextSize = Theme.Text.Small,
+		Color = C.TextFaint,
+		AlignX = Enum.TextXAlignment.Right,
+		Size = UDim2.fromOffset(300, BAR),
+		Position = UDim2.new(1, -332, 0, 0),
 		ZIndex = 5,
-		Parent = cover,
+		Parent = bottom,
+	})
+	Kit.label({
+		Text = "Appuie sur Entrée ou clique sur JOUER",
+		Font = Theme.Fonts.Semibold,
+		TextSize = Theme.Text.Small,
+		Color = C.TextMuted,
+		Size = UDim2.fromOffset(600, BAR),
+		Position = UDim2.fromOffset(104, 0),
+		ZIndex = 5,
+		Parent = bottom,
 	})
 
 	local started = false
@@ -145,18 +144,36 @@ function StartMenu.start()
 			return
 		end
 		started = true
-		wipe(root, function()
-			cover:Destroy()
-			cameraConnection:Disconnect()
-			setMenuCamera(false)
-			State.Started = true
-			State.Began:Fire()
-		end)
-		task.delay(1.2, function()
-			gui:Destroy()
-		end)
+		ContextActionService:UnbindAction("HL_Commencer")
+		-- Les bandes se referment puis s'ouvrent sur le lobby.
+		Kit.tween(top, Theme.Motion.Base, { Size = UDim2.new(1, 0, 0.5, 0) })
+		Kit.tween(bottom, Theme.Motion.Base, { Size = UDim2.new(1, 0, 0.5, 0), Position = UDim2.fromScale(0, 0.5) })
+		task.wait(0.25)
+		for _, child in root:GetChildren() do
+			if child ~= top and child ~= bottom then
+				child:Destroy()
+			end
+		end
+		cameraConnection:Disconnect()
+		camera.CameraType = Enum.CameraType.Custom
+		camera.FieldOfView = 70
+		State.Started = true
+		State.Began:Fire()
+		task.wait(0.1)
+		Kit.tween(top, Theme.Motion.Slow, { Size = UDim2.new(1, 0, 0, 0) })
+		Kit.tween(bottom, Theme.Motion.Slow, { Size = UDim2.new(1, 0, 0, 0), Position = UDim2.fromScale(0, 1) })
+		task.wait(0.5)
+		gui:Destroy()
 	end
-	button.Face.Activated:Connect(begin)
+	play.Instance.Activated:Connect(function()
+		task.spawn(begin)
+	end)
+	ContextActionService:BindAction("HL_Commencer", function(_, inputState)
+		if inputState == Enum.UserInputState.Begin then
+			task.spawn(begin)
+		end
+		return Enum.ContextActionResult.Sink
+	end, false, Enum.KeyCode.Return, Enum.KeyCode.ButtonA)
 end
 
 return StartMenu

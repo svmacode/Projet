@@ -11,6 +11,7 @@ require(ReplicatedStorage.Shared.Net)
 local ServerRole = require(script.Lib.ServerRole)
 
 local ORDER = {
+	"Atmosphere",
 	"PlayerData",
 	"Shop",
 	"Locker",
