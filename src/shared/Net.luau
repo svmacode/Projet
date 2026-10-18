@@ -25,6 +25,7 @@ Net.Events = {
 	"MatchEvent", -- (kind, data) : effets, annonces
 	"BallState", -- (ball snapshot)
 	"PackOpened", -- (result)
+	"PadState", -- (pad snapshot | nil) : terrain du lobby sur lequel se trouve le joueur
 	-- client -> serveur
 	"MatchAction", -- (action, ...)
 } :: { string }
@@ -39,6 +40,7 @@ Net.Functions = {
 	"ClanAction",
 	"ProfileAction",
 	"MatchSetupAction",
+	"PadAction", -- ("Leave")
 } :: { string }
 
 local FOLDER_NAME = "Net"
