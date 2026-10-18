@@ -1829,6 +1829,13 @@ function Match:waitPeriod(): boolean
 end
 
 function Match:run(): any
+	-- Branché avant le choix des postes : un départ pendant le choix est vu aussi.
+	table.insert(
+		self.Connections,
+		Players.PlayerRemoving:Connect(function(player)
+			self:onPlayerRemoving(player)
+		end)
+	)
 	self:setupPhase()
 	if self.Finished then
 		return self:results(nil)
@@ -1850,12 +1857,6 @@ function Match:run(): any
 			if not ok then
 				warn(`[Match] {err}`)
 			end
-		end)
-	)
-	table.insert(
-		self.Connections,
-		Players.PlayerRemoving:Connect(function(player)
-			self:onPlayerRemoving(player)
 		end)
 	)
 

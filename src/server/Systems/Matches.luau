@@ -98,10 +98,16 @@ local function runMatch(config: MatchConfig, players: { Player }, origin: CFrame
 		results = nil
 	end
 	if results then
-		grantRewards(match, results)
+		local granted, err = pcall(grantRewards, match, results)
+		if not granted then
+			warn(`[Matches] erreur pendant les récompenses : {err}`)
+		end
 	end
 	task.wait(Config.Match.EndScreenTime)
-	match:destroy()
+	local destroyed, err = pcall(match.destroy, match)
+	if not destroyed then
+		warn(`[Matches] erreur à la destruction du match : {err}`)
+	end
 	for _, player in players do
 		if busy[player] == match then
 			busy[player] = nil
@@ -118,12 +124,18 @@ function Matches.startLocal(config: MatchConfig, players: { Player })
 	end
 	usedSlots[slot] = true
 	task.spawn(function()
-		runMatch(config, players, CFrame.new(3000 + slot * 700, 0, 0))
+		local ok, err = pcall(runMatch, config, players, CFrame.new(3000 + slot * 700, 0, 0))
+		if not ok then
+			warn(`[Matches] {err}`)
+		end
 		usedSlots[slot] = nil
 		for _, player in players do
+			if busy[player] then
+				busy[player] = nil
+			end
 			if player.Parent == Players then
 				Remote.fire(player, "MatchEvent", "Leave", {})
-				player:LoadCharacterAsync()
+				pcall(player.LoadCharacterAsync, player)
 			end
 		end
 	end)

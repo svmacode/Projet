@@ -16,6 +16,7 @@ local TeleportService = game:GetService("TeleportService")
 
 local Matches = require(script.Parent.Matches)
 local Party = require(script.Parent.Party)
+local Remote = require(script.Parent.Parent.Lib.Remote)
 local Retry = require(script.Parent.Parent.Lib.Retry)
 local ServerRole = require(script.Parent.Parent.Lib.ServerRole)
 
@@ -122,6 +123,11 @@ function Matchmaking.init()
 	if ServerRole.Role ~= "Lobby" or ServerRole.LocalMatches then
 		return
 	end
+	-- Une téléportation peut échouer après coup : on libère le bandeau du terrain.
+	TeleportService.TeleportInitFailed:Connect(function(player)
+		Remote.fire(player, "PadState", nil)
+		Remote.notify(player, "La téléportation a échoué, réessaie.", "Danger")
+	end)
 	local ok, map = pcall(function()
 		return MemoryStoreService:GetHashMap("HL_Matches")
 	end)

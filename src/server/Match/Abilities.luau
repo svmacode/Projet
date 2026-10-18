@@ -88,10 +88,11 @@ function Abilities.teleport(match: any, participant: Participant, worldPosition:
 	if (flatFacing - target).Magnitude < 0.1 then
 		flatFacing = target + flatLook(participant)
 	end
+	local from = root.Position
 	model:PivotTo(CFrame.lookAt(target, flatFacing))
 	root.AssemblyLinearVelocity = Vector3.zero
 	match:resetSpeedSample(participant)
-	match:fireAll("MatchEvent", "Blink", { Model = model, From = root.Position, To = target })
+	match:fireAll("MatchEvent", "Blink", { Model = model, From = from, To = target })
 end
 
 -- Garde un point dans le terrain et hors des zones pour un joueur de champ.
