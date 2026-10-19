@@ -375,7 +375,7 @@ local function onEvent(kind: string, data: any)
 		local shotKind = if data.Jump then "JumpShot" elseif data.Kind == "Charged" then "ShotCharged" else "ShotQuick"
 		play(rigOf(data.Id), shotKind)
 	elseif kind == "Pass" then
-		play(rigOf(data.Id), if data.Kind == "High" then "PassHigh" else "PassQuick")
+		play(rigOf(data.Id), if data.Kind == "HighPass" or data.Kind == "High" then "PassHigh" else "PassQuick")
 	elseif kind == "Catch" then
 		play(rigOf(data.Id), "Catch")
 	elseif kind == "Intercept" then
