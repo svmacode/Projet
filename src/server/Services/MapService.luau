@@ -900,6 +900,17 @@ local function setupLighting()
 end
 
 function MapService.init()
+	-- A Studio template (Baseplate, default SpawnLocation) would sit on the court
+	-- built at the origin and steal the spawn: remove it.
+	local baseplate = Workspace:FindFirstChild("Baseplate")
+	if baseplate then
+		baseplate:Destroy()
+	end
+	for _, item in Workspace:GetDescendants() do
+		if item:IsA("SpawnLocation") then
+			item:Destroy()
+		end
+	end
 	setupLighting()
 	buildWaitingRoom()
 end

@@ -323,7 +323,13 @@ local function syncRigs()
 		end
 	end
 	local inMatch = match ~= nil and MatchClient.me() ~= nil and match.Phase ~= "Results"
-	setDefaultAnimate(not inMatch)
+	local character = localPlayer.Character
+	local ownRig = character ~= nil and rigs[character] ~= nil
+	if inMatch and character and not ownRig then
+		warn("[Animation] Your character is not R6: set Game Settings > Avatar > R6.")
+	end
+	-- Keep Roblox's default animations unless this client animates its own rig.
+	setDefaultAnimate(not (inMatch and ownRig))
 end
 
 -- One-shot actions -----------------------------------------------------------------------------------

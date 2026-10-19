@@ -531,6 +531,8 @@ function Match.applyBodies(self: any, t: number)
 			self:setAttribute(p, "HL_DiveTarget", p.DiveEnd)
 			self:setAttribute(p, "HL_StunnedUntil", p.StunnedUntil)
 			self:setAttribute(p, "HL_Suspended", t < p.SuspendedUntil)
+			self:setAttribute(p, "HL_Frozen", p.Frozen == true)
+			self:setAttribute(p, "HL_RecoveryUntil", math.max(p.RecoveryUntil, p.DiveRecoveryUntil))
 		end
 	end
 end
@@ -840,6 +842,10 @@ function Match.startRestart(
 
 	if kind == "ThrowOff" then
 		self:formation(team)
+	end
+	-- Only the new thrower stays frozen (a previous thrower who timed out is released).
+	for _, p in self.Participants do
+		p.Frozen = false
 	end
 	self:teleport(thrower, position, Vector3.new(attack, 0, 0))
 	thrower.Frozen = true
@@ -2135,9 +2141,10 @@ function Match.playPeriod(self: any, phase: string, half: number, duration: numb
 	local restart = self.Restart
 	if restart then
 		restart.Deadline = now() + Config.Match.RestartThrowTimeout
-		for _, p in self.Participants do
-			p.Frozen = p == restart.Thrower
-		end
+	end
+	-- Always unfreeze, even if no restart could be set up.
+	for _, p in self.Participants do
+		p.Frozen = restart ~= nil and p == restart.Thrower
 	end
 	while not self.Ended do
 		if phase == "Overtime" and self.GoldenGoal then
@@ -2238,6 +2245,21 @@ function Match.run(self: any): Types.ResultsSnapshot?
 			if p.Player then
 				AntiExploitService.track(p.Player)
 			end
+		end
+	end
+	-- A team without any active body cannot play (e.g. bot bodies failed to load).
+	for _, team in { "Red", "Blue" } do
+		local active = false
+		for _, p in self.Participants do
+			if p.Team == team and p.Connected then
+				active = true
+			end
+		end
+		if not active then
+			for _, player in self:humans() do
+				Remote.notify(player, "Le match ne peut pas commencer : une équipe n'a aucun joueur.", "Danger")
+			end
+			self.Ended = true
 		end
 	end
 	self:freezeAll(true)

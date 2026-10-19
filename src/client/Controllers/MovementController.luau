@@ -69,7 +69,7 @@ function MovementController.isFrozen(): boolean
 		if typeof(stunnedUntil) == "number" and stunnedUntil > now() then
 			return true
 		end
-		if model:GetAttribute("HL_Suspended") == true then
+		if model:GetAttribute("HL_Suspended") == true or model:GetAttribute("HL_Frozen") == true then
 			return true
 		end
 	end
@@ -150,6 +150,11 @@ local function tryDash()
 		return
 	end
 	if now() < MovementController.dashReadyAt() then
+		return
+	end
+	local model = localPlayer.Character
+	local recoveryUntil = if model then model:GetAttribute("HL_RecoveryUntil") else nil
+	if typeof(recoveryUntil) == "number" and now() < recoveryUntil then
 		return
 	end
 	local _, root, humanoid = character()

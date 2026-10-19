@@ -288,7 +288,7 @@ function CameraController.start()
 	UserInputService.InputEnded:Connect(onInputEnded)
 	MatchClient.MatchChanged:Connect(refreshFilter)
 	localPlayer.CharacterAdded:Connect(function()
-		active = false
+		setActive(false) -- restores the default camera and mouse
 		task.defer(refreshFilter)
 	end)
 	refreshFilter()

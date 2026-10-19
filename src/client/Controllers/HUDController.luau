@@ -81,7 +81,6 @@ end
 
 -- Layout ----------------------------------------------------------------------------------------------
 
-local gui: ScreenGui
 local root: Frame
 
 -- Scoreboard
@@ -742,7 +741,8 @@ local function plateFor(participant: Types.ParticipantSnapshot, model: Model)
 			LightInfluence = 0,
 			ResetOnSpawn = false,
 			Adornee = head,
-			Parent = gui,
+			-- BillboardGuis do not render inside a ScreenGui: parent to PlayerGui.
+			Parent = localPlayer:FindFirstChildOfClass("PlayerGui"),
 		})
 		local back = Kit.panel({
 			Name = "Back",
@@ -1319,7 +1319,8 @@ end
 
 function HUDController.init()
 	local playerGui = localPlayer:WaitForChild("PlayerGui")
-	gui, root = Kit.screen("HL_HUD", 10, playerGui)
+	local _gui
+	_gui, root = Kit.screen("HL_HUD", 10, playerGui)
 	buildScoreboard()
 	buildCentre()
 	buildCarrier()

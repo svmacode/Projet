@@ -13,7 +13,6 @@ local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local BallPhysics = require(ReplicatedStorage.Shared.BallPhysics)
 local Config = require(ReplicatedStorage.Shared.Config)
 local CourtGeometry = require(ReplicatedStorage.Shared.CourtGeometry)
 local Appearance = require(script.Parent.Appearance)
@@ -51,9 +50,16 @@ type Brain = {
 -- Builds an R6 body for a bot participant and binds it to the match.
 function Bots.spawn(match: any, p: Participant, folder: Instance)
 	local description = Instance.new("HumanoidDescription")
-	local ok, result = pcall(function()
-		return Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R6)
-	end)
+	local ok, result
+	for attempt = 1, 3 do
+		ok, result = pcall(function()
+			return Players:CreateHumanoidModelFromDescription(description, Enum.HumanoidRigType.R6)
+		end)
+		if ok and result then
+			break
+		end
+		task.wait(0.5 * attempt)
+	end
 	if not ok or not result then
 		warn(`[Bots] could not create a body for {p.Name}: {result}`)
 		p.Connected = false
@@ -225,7 +231,9 @@ end
 local function shootDirection(match: any, p: Participant, brain: Brain, speed: number): Vector3
 	local origin = match:releasePoint(p)
 	local target = match:toWorld(aimPoint(match, p, brain))
-	return BallPhysics.directVelocity(origin, target, speed).Unit
+	-- The server adds gravity compensation itself: aim straight at the target.
+	local _ = speed
+	return (target - origin).Unit
 end
 
 -- Goalkeeper -----------------------------------------------------------------------------------------------
