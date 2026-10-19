@@ -1,129 +1,97 @@
 --!strict
--- Types partagés entre serveur et client (données qui traversent le réseau).
+-- Data contracts shared by the server and the client.
+-- Every snapshot and event that crosses the network is described here; if a
+-- field changes, both sides change with it.
 
-export type Stats = {
-	Matches: number,
-	Wins: number,
-	Losses: number,
-	Draws: number,
-	Goals: number,
-	Assists: number,
-	Saves: number,
-	Interceptions: number,
-	MVPs: number,
-}
+export type TeamId = string -- "Red" | "Blue"
+export type Role = string -- "Goalkeeper" | "Field" (Phase 2 adds wings, backs, pivot…)
 
-export type Profile = {
-	Version: number,
-	Coins: number,
-	XP: number,
-	Level: number,
-	Balls: { [string]: number }, -- balles non ouvertes par type
-	CosmeticPacks: number, -- packs cosmétiques non ouverts
-	Archetypes: { [string]: boolean }, -- archétypes possédés
-	SelectedArchetype: { [string]: string }, -- dernier archétype choisi par poste
-	Cosmetics: { [string]: number }, -- cosmétiques possédés (quantité)
-	Equipped: { [string]: string }, -- emplacement -> cosmétique
-	Kit: string,
-	Stats: Stats,
-	RP: number,
-	PeakRP: number,
-	RankedMatches: number,
-	FirstMatchRewarded: boolean,
-	Pity: number,
-	TutorialDone: boolean,
-	ClanId: string?,
-	ClanCredits: number,
-	Receipts: { string },
-	SeenPatch: string,
-	Settings: { [string]: boolean },
-}
+-- Waiting → TeamAssignment → Selection → Countdown → Playing → Halftime →
+-- Playing → Overtime → Results
+export type Phase = string
 
-export type PartyMember = {
-	UserId: number,
-	Name: string,
-	Level: number,
-}
+-- Sub-state while Phase is Playing or Overtime.
+export type PlayState = string -- "Live" | "Restart" | "Goal"
 
-export type PartySnapshot = {
-	Id: string,
-	LeaderId: number,
-	Members: { PartyMember },
-	Mode: string,
-	Ranked: boolean,
-}
+export type RestartKind = string -- "ThrowOff" | "ThrowIn" | "GoalkeeperThrow" | "FreeThrow" | "Penalty"
 
-export type QueueStatus = {
-	State: "Idle" | "Searching" | "Found" | "Teleporting",
-	Mode: string?,
-	Ranked: boolean?,
-	Training: boolean?,
-	Since: number?,
-	Message: string?,
-}
-
-export type ClanSnapshot = {
-	Id: string,
-	Name: string,
-	Tag: string,
-	OwnerId: number,
-	Members: { { UserId: number, Name: string, Role: string } },
-	Emblem: string,
-	EmblemColor: Color3,
-	BannerPattern: string,
-	BannerColor: Color3,
-	KitAccent: Color3,
-	Wins: number,
-	Created: number,
+export type Restart = {
+	Kind: RestartKind,
+	Team: TeamId, -- team that takes the throw
+	ThrowerId: string,
+	Position: Vector3, -- world position of the throw
+	Deadline: number, -- server time (Workspace:GetServerTimeNow())
 }
 
 export type ParticipantSnapshot = {
 	Id: string,
+	UserId: number?, -- nil for development bots
 	Name: string,
-	UserId: number,
+	Team: TeamId,
+	Role: Role,
 	IsBot: boolean,
-	Team: string,
-	Poste: string?,
-	Archetype: string?,
 	Model: Model?,
 	Number: number,
+	Connected: boolean,
 	Goals: number,
 	Assists: number,
 	Saves: number,
-	Energy: number,
-	Ultimate: number,
-	Power1ReadyAt: number,
-	Ready: boolean,
+	Interceptions: number,
+	Blocks: number,
+	Fouls: number,
+	Warned: boolean, -- yellow card for persistent fouls
+	SuspendedUntil: number, -- server time, 0 if not suspended
+	DashReadyAt: number, -- server time
 }
 
 export type MatchSnapshot = {
 	Id: string,
 	Mode: string,
-	Ranked: boolean,
-	Training: boolean,
-	Phase: string,
-	Half: number,
-	Clock: number, -- secondes restantes dans la période
+	Phase: Phase,
+	PlayState: PlayState,
+	Restart: Restart?,
+	Half: number, -- 1, 2, 3 = overtime
+	Clock: number, -- seconds left in the current period
 	ClockRunning: boolean,
+	PhaseEndsAt: number?, -- server time when the current timed phase ends (selection, countdown…)
 	ServerTime: number,
-	Score: { [string]: number },
-	AttackSide: { [string]: number }, -- but attaqué par chaque équipe (-1 / 1)
-	Possession: string?,
-	CourtCFrame: CFrame,
+	Score: { [TeamId]: number },
+	-- Direction each team attacks along the court X axis (+1 or -1).
+	AttackDirection: { [TeamId]: number },
+	Possession: TeamId?,
+	PassiveWarning: { Team: TeamId, Deadline: number }?,
+	CourtCFrame: CFrame, -- centre of the court, floor level; X = length axis
 	Participants: { ParticipantSnapshot },
-	Message: string?,
 }
 
+export type BallStateKind = string -- "Held" | "Flight" | "Loose" | "Dead"
+export type ThrowKind = string -- "QuickPass" | "LongPass" | "HighPass" | "AimedPass" | "QuickShot" | "ChargedShot" | "Parry" | "Free"
+
 export type BallSnapshot = {
-	State: "Held" | "Flight" | "Dead" | "Hidden",
-	Holder: Model?,
+	State: BallStateKind,
+	HolderId: string?,
 	Position: Vector3,
 	Velocity: Vector3,
-	Accel: Vector3,
 	ServerTime: number,
-	Fire: boolean,
-	Perfect: boolean?,
-	Phantom: boolean,
+	Throw: ThrowKind?,
+	ThrowerId: string?,
+	TargetId: string?, -- intended receiver of a pass
+	Charge: number?, -- 0..1 for charged shots
+	-- Holder rule timers, so the HUD can warn before a violation.
+	Dribbling: boolean,
+	HasDribbled: boolean, -- gathered after a dribble: dribbling again is illegal
+	HoldStart: number, -- server time the current hold (without dribble) started
+	Steps: number, -- steps taken during the current hold
+}
+
+-- Client → server actions (Action remote: name, payload).
+export type PassKind = string -- "Quick" | "High" | "Aimed"
+
+export type ResultsSnapshot = {
+	Winner: TeamId?, -- nil = draw
+	Score: { [TeamId]: number },
+	Players: { ParticipantSnapshot },
+	Mvp: string?,
 }
 
 return {}

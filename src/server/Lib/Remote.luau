@@ -1,56 +1,51 @@
 --!strict
--- Point d'entrée unique des remotes côté serveur : limitation de débit et
--- protection contre les erreurs pour chaque handler.
+-- Server-side wrapper around the shared remotes: rate limiting, error isolation
+-- and a single place to fire events.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Net = require(ReplicatedStorage.Shared.Net)
 local RateLimit = require(script.Parent.RateLimit)
-
-export type Result = { Ok: boolean, Error: string?, [string]: any }
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 
 local Remote = {}
 
-function Remote.onEvent(name: string, ratePerSecond: number, burst: number, handler: (Player, ...any) -> ())
-	Net.event(name).OnServerEvent:Connect(function(player, ...)
-		if not RateLimit.allow(player, name, ratePerSecond, burst) then
+export type Limit = { Rate: number, Burst: number }
+
+function Remote.onEvent(name: string, limit: Limit, handler: (Player, ...any) -> ())
+	Remotes.event(name).OnServerEvent:Connect(function(player, ...)
+		if not RateLimit.allow(player, name, limit.Rate, limit.Burst) then
 			return
 		end
 		local result = table.pack(pcall(handler, player, ...))
 		if not result[1] then
-			warn(`[Remote] {name} ({player.Name}) : {result[2]}`)
+			warn(`[Remote:{name}] {result[2]}`)
 		end
 	end)
 end
 
--- Handler de RemoteFunction : renvoie toujours une table { Ok, Error, ... }.
-function Remote.onInvoke(name: string, ratePerSecond: number, burst: number, handler: (Player, ...any) -> Result)
-	Net.func(name).OnServerInvoke = function(player, ...)
-		if not RateLimit.allow(player, name, ratePerSecond, burst) then
-			return { Ok = false, Error = "Doucement ! Réessaie dans un instant." }
+function Remote.onInvoke(name: string, limit: Limit, handler: (Player, ...any) -> ...any)
+	Remotes.func(name).OnServerInvoke = function(player, ...)
+		if not RateLimit.allow(player, name, limit.Rate, limit.Burst) then
+			return false, "Trop de requêtes, patiente un instant."
 		end
-		local ok, result = pcall(handler, player, ...)
-		if not ok then
-			warn(`[Remote] {name} ({player.Name}) : {result}`)
-			return { Ok = false, Error = "Une erreur est survenue." }
+		local results = table.pack(pcall(handler, player, ...))
+		if not results[1] then
+			warn(`[Remote:{name}] {results[2]}`)
+			return false, "Erreur du serveur."
 		end
-		return result
+		return table.unpack(results, 2, results.n)
 	end
 end
 
 function Remote.fire(player: Player, name: string, ...: any)
 	if player.Parent == Players then
-		Net.event(name):FireClient(player, ...)
+		Remotes.event(name):FireClient(player, ...)
 	end
 end
 
-function Remote.fireAll(name: string, ...: any)
-	Net.event(name):FireAllClients(...)
-end
-
 function Remote.fireList(players: { Player }, name: string, ...: any)
-	local remote = Net.event(name)
+	local remote = Remotes.event(name)
 	for _, player in players do
 		if player.Parent == Players then
 			remote:FireClient(player, ...)
@@ -58,22 +53,12 @@ function Remote.fireList(players: { Player }, name: string, ...: any)
 	end
 end
 
+function Remote.fireAll(name: string, ...: any)
+	Remotes.event(name):FireAllClients(...)
+end
+
 function Remote.notify(player: Player, text: string, style: string?)
 	Remote.fire(player, "Notify", text, style or "Info")
-end
-
-function Remote.fail(message: string): Result
-	return { Ok = false, Error = message }
-end
-
-function Remote.ok(extra: { [string]: any }?): Result
-	local result: Result = { Ok = true }
-	if extra then
-		for key, value in extra do
-			result[key] = value
-		end
-	end
-	return result
 end
 
 return Remote

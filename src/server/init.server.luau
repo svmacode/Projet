@@ -1,49 +1,30 @@
 --!strict
--- Point d'entrée UNIQUE du serveur.
--- Démarrage en deux phases : init() de tous les systèmes (remotes,
--- dépendances), puis start() (boucles, connexions aux joueurs).
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
--- Crée les remotes avant tout le reste.
-require(ReplicatedStorage.Shared.Net)
-
-local ServerRole = require(script.Lib.ServerRole)
+-- The ONLY server Script. Requires every service in a fixed order, then runs
+-- the two-phase startup: init() for all (synchronous wiring, no yields), then
+-- start() for all (long-running work, each in its own thread).
 
 local ORDER = {
-	"Atmosphere",
-	"PlayerData",
-	"Shop",
-	"Locker",
-	"Clan",
-	"Party",
-	"Matches",
-	"Matchmaking",
-	"Lobby",
-	"Pads",
+	"AntiExploitService",
+	"MapService",
+	"MatchService",
+	"DevService", -- Phase 1 development entry point (start a test match)
 }
 
-local systems: { [string]: any } = {}
+local services: { { Name: string, Module: any } } = {}
 for _, name in ORDER do
-	local module = script.Systems:FindFirstChild(name)
-	assert(module and module:IsA("ModuleScript"), `Système manquant : {name}`)
-	systems[name] = require(module) :: any
+	local moduleScript = script.Services:FindFirstChild(name)
+	assert(moduleScript and moduleScript:IsA("ModuleScript"), `Missing service {name}`)
+	table.insert(services, { Name = name, Module = require(moduleScript) :: any })
 end
 
-for _, name in ORDER do
-	local system = systems[name]
-	if typeof(system.init) == "function" then
-		system.init()
+for _, service in services do
+	if typeof(service.Module.init) == "function" then
+		service.Module.init()
 	end
 end
 
-for _, name in ORDER do
-	local system = systems[name]
-	if typeof(system.start) == "function" then
-		task.spawn(system.start)
+for _, service in services do
+	if typeof(service.Module.start) == "function" then
+		task.spawn(service.Module.start)
 	end
 end
-
-print(
-	`[Handball Legends] serveur démarré ({ServerRole.Role}{if ServerRole.LocalMatches then ", matchs locaux" else ""})`
-)

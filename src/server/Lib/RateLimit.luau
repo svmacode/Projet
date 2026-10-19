@@ -1,32 +1,32 @@
 --!strict
--- Limiteur de débit à seau de jetons, par joueur et par clé.
+-- Per-player token buckets: every remote handler spends a token first.
 
 local Players = game:GetService("Players")
 
-type Bucket = { tokens: number, last: number }
+local RateLimit = {}
+
+type Bucket = { Tokens: number, Last: number }
 
 local buckets: { [Player]: { [string]: Bucket } } = {}
 
-local RateLimit = {}
-
 function RateLimit.allow(player: Player, key: string, ratePerSecond: number, burst: number): boolean
 	local now = os.clock()
-	local playerBuckets = buckets[player]
-	if not playerBuckets then
-		playerBuckets = {}
-		buckets[player] = playerBuckets
+	local perPlayer = buckets[player]
+	if not perPlayer then
+		perPlayer = {}
+		buckets[player] = perPlayer
 	end
-	local bucket = playerBuckets[key]
+	local bucket = perPlayer[key]
 	if not bucket then
-		bucket = { tokens = burst, last = now }
-		playerBuckets[key] = bucket
+		bucket = { Tokens = burst, Last = now }
+		perPlayer[key] = bucket
 	end
-	bucket.tokens = math.min(burst, bucket.tokens + (now - bucket.last) * ratePerSecond)
-	bucket.last = now
-	if bucket.tokens < 1 then
+	bucket.Tokens = math.min(burst, bucket.Tokens + (now - bucket.Last) * ratePerSecond)
+	bucket.Last = now
+	if bucket.Tokens < 1 then
 		return false
 	end
-	bucket.tokens -= 1
+	bucket.Tokens -= 1
 	return true
 end
 

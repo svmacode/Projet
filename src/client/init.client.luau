@@ -1,43 +1,34 @@
 --!strict
--- Point d'entrée UNIQUE du client. Les contrôleurs affichent et envoient des
--- demandes ; le serveur garde l'autorité sur tout.
-
-local StarterGui = game:GetService("StarterGui")
-
-local Controllers = script.Controllers
-
-pcall(function()
-	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
-	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
-end)
+-- The ONLY client LocalScript. Same two-phase startup as the server.
 
 local ORDER = {
-	"State",
-	"Notifications",
-	"PadClient",
-	"BallRenderer",
-	"MatchInput",
+	"MatchClient", -- receives MatchState / BallState / MatchEvent, exposes signals
+	"InputController",
 	"CameraController",
-	"CharacterAnimator",
-	"Effects3D",
-	"Toon",
-	"MatchHUD",
-	"MatchFX",
-	"MatchSetup",
-	"LobbyHUD",
-	"LoadingScreen",
+	"MovementController",
+	"BallRenderer",
+	"AnimationController",
+	"ActionController",
+	"EffectsController",
+	"HUDController",
+	"DevPanel", -- Phase 1 development entry point
 }
 
-local modules: { [string]: any } = {}
+local controllers: { any } = {}
 for _, name in ORDER do
-	modules[name] = require(Controllers:WaitForChild(name)) :: any
+	local moduleScript = script.Controllers:FindFirstChild(name)
+	assert(moduleScript and moduleScript:IsA("ModuleScript"), `Missing controller {name}`)
+	table.insert(controllers, require(moduleScript) :: any)
 end
-for _, name in ORDER do
-	local controller = modules[name]
+
+for _, controller in controllers do
+	if typeof(controller.init) == "function" then
+		controller.init()
+	end
+end
+
+for _, controller in controllers do
 	if typeof(controller.start) == "function" then
-		local result = table.pack(pcall(controller.start))
-		if not result[1] then
-			warn(`[Handball Legends] {name} : {result[2]}`)
-		end
+		task.spawn(controller.start)
 	end
 end

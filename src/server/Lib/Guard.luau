@@ -1,32 +1,32 @@
 --!strict
--- Validation des arguments venant du client. Tout argument est hostile
--- jusqu'à preuve du contraire (NaN, infini, mauvais type, table piégée…).
+-- Validation of untrusted remote arguments. Every function returns nil when
+-- the value is not acceptable, so handlers can drop the request early.
 
 local Guard = {}
 
-function Guard.number(value: unknown, min: number, max: number): number?
-	if typeof(value) ~= "number" then
+function Guard.string(value: unknown, maxLength: number?): string?
+	if typeof(value) ~= "string" then
 		return nil
 	end
-	if value ~= value or value < min or value > max then
+	if #value > (maxLength or 64) then
 		return nil
 	end
 	return value
 end
 
-function Guard.integer(value: unknown, min: number, max: number): number?
-	local n = Guard.number(value, min, max)
-	if n and n == math.floor(n) then
-		return n
-	end
-	return nil
-end
-
-function Guard.string(value: unknown, maxLength: number): string?
-	if typeof(value) ~= "string" then
+function Guard.oneOf(value: unknown, allowed: { string }): string?
+	if typeof(value) ~= "string" or not table.find(allowed, value) then
 		return nil
 	end
-	if #value > maxLength or not utf8.len(value) then
+	return value
+end
+
+-- Finite number inside [min, max]. Rejects NaN and infinities.
+function Guard.number(value: unknown, min: number, max: number): number?
+	if typeof(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge then
+		return nil
+	end
+	if value < min or value > max then
 		return nil
 	end
 	return value
@@ -39,32 +39,36 @@ function Guard.boolean(value: unknown): boolean?
 	return value
 end
 
--- Vecteur fini et non nul, renvoyé normalisé.
-function Guard.direction(value: unknown): Vector3?
+-- Finite Vector3 with bounded magnitude.
+function Guard.vector(value: unknown, maxMagnitude: number?): Vector3?
 	if typeof(value) ~= "Vector3" then
 		return nil
 	end
-	local x, y, z = value.X, value.Y, value.Z
-	if x ~= x or y ~= y or z ~= z then
+	local v = value :: Vector3
+	if v.X ~= v.X or v.Y ~= v.Y or v.Z ~= v.Z then
 		return nil
 	end
-	if math.abs(x) == math.huge or math.abs(y) == math.huge or math.abs(z) == math.huge then
+	if v.Magnitude > (maxMagnitude or 1e5) then
 		return nil
 	end
-	if value.Magnitude < 1e-3 then
-		return nil
-	end
-	return value.Unit
+	return v
 end
 
-function Guard.oneOf(value: unknown, options: { string }): string?
-	if typeof(value) ~= "string" then
+-- Unit direction (normalised) from an untrusted vector; nil if degenerate.
+function Guard.direction(value: unknown): Vector3?
+	local v = Guard.vector(value, 1e4)
+	if not v or v.Magnitude < 1e-3 then
 		return nil
 	end
-	if table.find(options, value) then
-		return value
+	return v.Unit
+end
+
+-- A payload table: only a plain table is accepted (remotes strip metatables).
+function Guard.payload(value: unknown): { [string]: unknown }
+	if typeof(value) ~= "table" then
+		return {}
 	end
-	return nil
+	return value :: any
 end
 
 return Guard

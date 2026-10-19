@@ -17,8 +17,8 @@
     "StarterPlayer": {
       "$className": "StarterPlayer",
       "$properties": {
-        "CharacterJumpPower": 50,
-        "CharacterWalkSpeed": 20,
+        "CharacterJumpPower": 52,
+        "CharacterWalkSpeed": 18,
         "CharacterUseJumpPower": true,
         "EnableMouseLockOption": false
       },
@@ -49,6 +49,12 @@
       "$properties": {
         "Gravity": 196.2,
         "StreamingEnabled": false
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "Assets": {
+        "$className": "Folder"
       }
     }
   }
